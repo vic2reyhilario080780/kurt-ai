@@ -125,9 +125,9 @@ ROUTING_TABLE = {
 TASK_KEYWORDS = {
     TaskType.CODE: [
         "code", "program", "script", "function", "class", "bug", "fix",
-        "debug", "build", "develop", "implement", "python", "javascript",
+        "debug", "develop", "implement", "python", "javascript",
         "typescript", "java", "php", "html", "css", "api", "database",
-        "gumawa ng", "i-code", "i-fix", "i-debug", "i-build"
+        "i-code", "i-fix", "i-debug", "i-build"
     ],
     TaskType.GAME: [
         "game", "laro", "snake", "tetris", "flappy", "mario", "pygame",
@@ -139,7 +139,7 @@ TASK_KEYWORDS = {
         "flux", "stable diffusion", "artwork", "logo", "banner", "poster"
     ],
     TaskType.MUSIC: [
-        "music", "song", "audio", "compose", "melody", "beat", "kanta",
+        "music", "song", "compose", "melody", "beat", "kanta",
         "musika", "gumawa ng kanta", "mag-compose", "lyrics", "tune"
     ],
     TaskType.VIDEO: [

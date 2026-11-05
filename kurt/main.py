@@ -23,12 +23,21 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
+from rich.prompt import Confirm
 from rich import box
 
 from kurt.utils.env_loader import load_env, check_setup
 from kurt.core.orchestrator import analyze_task, TaskType
 from kurt.core.router import ModelRouter
 from kurt.core.memory import init_db, save_message, get_history
+from kurt.core.persona import (
+    load_persona, get_theme, get_language, get_user_name, get_icon,
+    get_greeting, get_language_system_prompt, get_ai_mode,
+    config_show, config_theme_wizard, config_language_wizard,
+    config_name_wizard, config_icon_wizard, config_aimode_wizard,
+    config_projects_wizard, config_full_wizard, reset_persona,
+    BUILTIN_THEMES, SUPPORTED_LANGUAGES,
+)
 from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     create_skill_template, get_skill_prompt
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
@@ -49,28 +58,61 @@ hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n
 connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
 models_app = typer.Typer(help="🤖 OpenRouter — 200+ live AI models")
 
+config_app = typer.Typer(help="🎨 Personalize KURT — themes, language, name, greeting")
+
 app.add_typer(skill_app, name="skill")
 app.add_typer(plugin_app, name="plugin")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(hub_app, name="hub")
 app.add_typer(connect_app, name="connect")
 app.add_typer(models_app, name="models")
+app.add_typer(config_app, name="config")
 
-KURT_BANNER = """[bold cyan]
+KURT_ASCII = """
  ██╗  ██╗██╗   ██╗██████╗ ████████╗
  ██║ ██╔╝██║   ██║██╔══██╗╚══██╔══╝
  █████╔╝ ██║   ██║██████╔╝   ██║
  ██╔═██╗ ██║   ██║██╔══██╗   ██║
  ██║  ██╗╚██████╔╝██║  ██║   ██║
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
-[/bold cyan]
-[dim]Kinetic Unified Response Terminal[/dim]
-[dim]Type [cyan]kurt --help[/cyan] for commands[/dim]
 """
 
 
 def print_banner():
-    console.print(KURT_BANNER)
+    """Dynamic themed banner using persona settings"""
+    theme = get_theme()
+    persona = load_persona()
+    icon = get_icon()
+    kurt_name = persona.get("kurt_name", "KURT")
+    greeting = get_greeting()
+    lang = get_language()
+    projects = persona.get("active_projects", [])
+    ai_mode = persona.get("ai_mode", "hybrid")
+
+    color = theme["banner_color"]
+    border = theme["border"]
+
+    console.print(f"[{color}]{KURT_ASCII}[/{color}]")
+
+    # Subtitle line
+    mode_badge = {
+        "hybrid": "⚡ KURT × Claude",
+        "kurt_only": "🤖 KURT Engine",
+        "claude_only": "🧠 Claude Mode",
+    }.get(ai_mode, "⚡ KURT × Claude")
+
+    console.print(f"[{theme['secondary']}]  Kinetic Unified Response Terminal[/{theme['secondary']}]  [{theme['dim']}]{mode_badge}[/{theme['dim']}]")
+    console.print(f"[{theme['dim']}]  {lang['flag']} {lang['name']}  ·  v2.2[/{theme['dim']}]")
+
+    # Greeting
+    console.print(f"\n  {icon} [{color}]{greeting}[/{color}]")
+
+    # Active projects
+    if projects:
+        proj_str = "  ".join(f"[{theme['accent']}]{p}[/{theme['accent']}]" for p in projects)
+        console.print(f"\n  [{theme['dim']}]📁 Projects:[/{theme['dim']}] {proj_str}")
+
+    console.print(f"\n  [{theme['dim']}]Type [{theme['secondary']}]kurt --help[/{theme['secondary']}] for commands  ·  [{theme['secondary']}]kurt config[/{theme['secondary']}] to personalize[/{theme['dim']}]\n")
 
 
 @app.callback()
@@ -146,6 +188,11 @@ def ask(
 
     # Build messages
     messages = []
+
+    # Language system prompt — always inject first
+    lang_prompt = get_language_system_prompt()
+    if lang_prompt:
+        messages.append({"role": "system", "content": lang_prompt})
 
     # Add skill system prompt if specified
     if skill:
@@ -328,6 +375,12 @@ def chat(
             analysis.model = model
 
         messages = []
+
+        # Language prompt
+        lang_prompt = get_language_system_prompt()
+        if lang_prompt:
+            messages.append({"role": "system", "content": lang_prompt})
+
         if skill:
             skill_prompt = get_skill_prompt(skill)
             if skill_prompt:
@@ -338,7 +391,11 @@ def chat(
         messages.append({"role": "user", "content": prompt})
 
         save_message(session_id, "user", prompt)
-        console.print(f"\n[bold green]KURT[/bold green] [dim]({analysis.model}):[/dim]")
+        _theme = get_theme()
+        _persona = load_persona()
+        _kurt_name = _persona.get("kurt_name", "KURT")
+        _icon = get_icon()
+        console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}] [{_theme['dim']}]({analysis.model}):[/{_theme['dim']}]")
 
         asyncio.run(stream_response(
             analysis=analysis,
@@ -587,6 +644,87 @@ def connect_app_cmd(app_name: str = typer.Argument(..., help="App to connect")):
     from kurt.hub import composio_connect
     composio_connect(app_name)
 
+
+# ══════════════════════════════════════
+# CONFIG SUBCOMMANDS — Personalization
+# ══════════════════════════════════════
+
+@config_app.callback(invoke_without_command=True)
+def config_callback(ctx: typer.Context):
+    """🎨 Personalize KURT — themes, language, name, greeting, AI mode"""
+    if ctx.invoked_subcommand is None:
+        config_show()
+        console.print(f"\n[dim]Run [cyan]kurt config setup[/cyan] for full wizard[/dim]")
+        console.print(f"[dim]Or use: kurt config theme / language / name / icon / aimode / projects[/dim]")
+
+
+@config_app.command("show")
+def config_show_cmd():
+    """📋 Show current persona settings"""
+    config_show()
+
+
+@config_app.command("setup")
+def config_setup_cmd():
+    """🧙 Full personalization wizard — theme, language, name, icon, AI mode"""
+    config_full_wizard()
+
+
+@config_app.command("theme")
+def config_theme_cmd():
+    """🎨 Change color theme — cyber, neon, matrix, gold, minimal, sunset, ocean, pinoy"""
+    config_theme_wizard()
+
+
+@config_app.command("language")
+def config_language_cmd():
+    """🌐 Set output language — en, tl, taglish, ja, zh, es, ko"""
+    config_language_wizard()
+
+
+@config_app.command("name")
+def config_name_cmd():
+    """👤 Set your name, KURT's name, and greeting style"""
+    config_name_wizard()
+
+
+@config_app.command("icon")
+def config_icon_cmd():
+    """🎯 Change KURT's icon"""
+    config_icon_wizard()
+
+
+@config_app.command("aimode")
+def config_aimode_cmd():
+    """🤖 Set AI mode — hybrid (KURT+Claude), kurt_only, claude_only"""
+    config_aimode_wizard()
+
+
+@config_app.command("projects")
+def config_projects_cmd():
+    """📁 Set active projects for context in banner"""
+    config_projects_wizard()
+
+
+@config_app.command("reset")
+def config_reset_cmd():
+    """♻️  Reset all persona settings to defaults"""
+    if Confirm.ask("Reset lahat ng persona settings sa default?"):
+        reset_persona()
+        console.print("[bold green]✅ Persona reset to defaults![/bold green]")
+    else:
+        console.print("[dim]Cancelled.[/dim]")
+
+
+@config_app.command("lang")
+def config_lang_shortcut():
+    """🌐 Shortcut para sa language — same as 'kurt config language'"""
+    config_language_wizard()
+
+
+# ══════════════════════════════════════
+# ENTRY POINT
+# ══════════════════════════════════════
 
 def run():
     """Entry point para sa CLI"""

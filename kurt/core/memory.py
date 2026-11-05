@@ -74,7 +74,7 @@ def get_history(session_id: str, limit: int = 20) -> list:
     cursor.execute("""
         SELECT role, content FROM conversations
         WHERE session_id = ?
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, id DESC
         LIMIT ?
     """, (session_id, limit))
 
