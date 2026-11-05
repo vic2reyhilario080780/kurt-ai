@@ -529,7 +529,7 @@ def hub_n8n():
 
 @hub_app.command("zapier")
 def hub_zapier(
-    search: Optional[str] = typer.Argument(None, help="Search apps"),
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search apps by name"),
     category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category"),
 ):
     """⚡ Browse 9,000+ Zapier app automations"""
