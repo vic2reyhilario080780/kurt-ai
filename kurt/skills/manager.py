@@ -188,9 +188,20 @@ def get_skill_prompt(skill_id: str) -> str | None:
 def install_skill(source: str):
     """Install a skill from a JSON file"""
     init_skills()
+
+    if not source or not source.strip():
+        console.print("[red]❌ No source specified. Provide a path or URL.[/red]")
+        return
+
+    # Handle URL sources gracefully
+    if source.startswith("http://") or source.startswith("https://"):
+        console.print(f"[yellow]⚠️  URL install not yet supported: {source}[/yellow]")
+        console.print("[dim]Download the skill JSON manually then run: kurt skill install <path>[/dim]")
+        return
+
     source_path = Path(source)
 
-    if not source_path.exists():
+    if not source_path.exists() or source_path.is_dir():
         console.print(f"[red]❌ File not found: {source}[/red]")
         return
 
