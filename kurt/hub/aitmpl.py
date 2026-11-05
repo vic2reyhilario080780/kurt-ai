@@ -53,13 +53,25 @@ def fetch_catalog(component_type: str = None, use_cache: bool = True) -> list:
         age = time.time() - cache_file.stat().st_mtime
         if age < 3600:  # 1 hour cache
             with open(cache_file) as f:
-                return json.load(f)
+                cached = json.load(f)
+                return cached if isinstance(cached, list) else []
 
     try:
         with httpx.Client(timeout=15) as client:
             resp = client.get(url)
             resp.raise_for_status()
-            data = resp.json()
+            raw = resp.json()
+        # API may return a dict with a list inside, or a plain list
+        if isinstance(raw, dict):
+            # Try common keys: 'data', 'items', 'results', or first list value
+            data = raw.get("data") or raw.get("items") or raw.get("results") or []
+            if not data:
+                for v in raw.values():
+                    if isinstance(v, list):
+                        data = v
+                        break
+        else:
+            data = raw if isinstance(raw, list) else []
 
         # Save to cache
         with open(cache_file, "w") as f:
@@ -73,7 +85,8 @@ def fetch_catalog(component_type: str = None, use_cache: bool = True) -> list:
         if cache_file.exists():
             console.print("[yellow]Using cached data...[/yellow]")
             with open(cache_file) as f:
-                return json.load(f)
+                cached = json.load(f)
+                return cached if isinstance(cached, list) else []
         return []
 
 
