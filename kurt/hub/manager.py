@@ -11,7 +11,7 @@ from rich import box
 
 from .aitmpl import hub_list, hub_search, hub_install, hub_stats, TYPE_ICONS
 from .composio import composio_list, composio_connect, composio_status
-from .mcp_servers import mcp_list, langchain_list, n8n_list, n8n_trigger
+from .mcp_servers import mcp_list, langchain_list, n8n_list, n8n_trigger, zapier_list
 
 console = Console()
 
@@ -55,6 +55,14 @@ HUB_SOURCES = {
         "url": "https://n8n.io",
         "auth": "Self-hosted API key",
         "count": "400+",
+    },
+    "zapier": {
+        "name": "Zapier",
+        "icon": "⚡",
+        "description": "9,000+ app automations — Gmail, Shopify, Slack, etc.",
+        "url": "https://zapier.com",
+        "auth": "Zapier NLA API key",
+        "count": "9,000+",
     },
 }
 
@@ -156,6 +164,10 @@ def hub_command(subcommand: str, args: list = None):
 
     elif subcommand == "n8n":
         n8n_list()
+
+    elif subcommand == "zapier":
+        search = " ".join(args) if args else None
+        zapier_list(search=search)
 
     else:
         console.print(f"[yellow]Unknown hub command: {subcommand}[/yellow]")

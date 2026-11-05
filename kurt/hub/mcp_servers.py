@@ -1,6 +1,6 @@
 """
-KURT Hub — awesome-mcp-servers + LangChain + n8n Integration
-500+ community MCP servers, 100+ LangChain tools, 400+ n8n nodes
+KURT Hub — awesome-mcp-servers + LangChain + n8n + Zapier Integration
+500+ community MCP servers, 100+ LangChain tools, 400+ n8n nodes, 9000+ Zapier apps
 """
 
 import os
@@ -223,6 +223,118 @@ def n8n_list(search: str = None):
         console.print(table)
 
     console.print(f"\n[dim]To trigger n8n workflow: [cyan]kurt n8n run <workflow-id>[/cyan][/dim]")
+
+
+# Zapier apps catalog (9,000+ apps — curated popular ones)
+ZAPIER_APPS = {
+    "📧 Communication": [
+        ("gmail", "Gmail", "Send & receive emails"),
+        ("slack", "Slack", "Team messaging"),
+        ("outlook", "Outlook", "Microsoft email"),
+        ("discord", "Discord", "Community & gaming"),
+        ("telegram", "Telegram", "Bot messaging"),
+        ("whatsapp", "WhatsApp Business", "Customer messaging"),
+        ("sms", "SMS by Zapier", "Send text messages"),
+        ("twilio", "Twilio", "SMS, Voice, WhatsApp"),
+    ],
+    "📅 Productivity": [
+        ("google-calendar", "Google Calendar", "Events & scheduling"),
+        ("notion", "Notion", "Docs & databases"),
+        ("trello", "Trello", "Kanban boards"),
+        ("asana", "Asana", "Project management"),
+        ("todoist", "Todoist", "Task management"),
+        ("monday", "Monday.com", "Work OS"),
+        ("clickup", "ClickUp", "Project management"),
+        ("airtable", "Airtable", "Spreadsheet DB"),
+        ("google-sheets", "Google Sheets", "Spreadsheets"),
+        ("microsoft-teams", "Microsoft Teams", "Team collaboration"),
+    ],
+    "🛒 E-Commerce": [
+        ("shopify", "Shopify", "Store & orders"),
+        ("woocommerce", "WooCommerce", "WordPress store"),
+        ("lazada", "Lazada", "Southeast Asia marketplace"),
+        ("shopee", "Shopee", "SEA marketplace"),
+        ("stripe", "Stripe", "Payments"),
+        ("paypal", "PayPal", "Payments"),
+        ("paymongorc", "PayMongo", "PH payments"),
+        ("gcash", "GCash", "PH mobile wallet"),
+    ],
+    "📊 CRM & Marketing": [
+        ("hubspot", "HubSpot", "CRM & marketing"),
+        ("salesforce", "Salesforce", "Enterprise CRM"),
+        ("mailchimp", "Mailchimp", "Email marketing"),
+        ("klaviyo", "Klaviyo", "E-com email"),
+        ("activecampaign", "ActiveCampaign", "Marketing automation"),
+        ("facebook-lead-ads", "Facebook Lead Ads", "Lead generation"),
+    ],
+    "💾 Storage & Files": [
+        ("google-drive", "Google Drive", "Files & folders"),
+        ("dropbox", "Dropbox", "Cloud storage"),
+        ("onedrive", "OneDrive", "Microsoft storage"),
+        ("box", "Box", "Enterprise storage"),
+    ],
+    "🛠️ Developer": [
+        ("github", "GitHub", "Code & repos"),
+        ("gitlab", "GitLab", "DevOps"),
+        ("jira", "Jira", "Issue tracking"),
+        ("webhook", "Webhooks by Zapier", "Custom HTTP triggers"),
+        ("code", "Code by Zapier", "Run Python/JS code"),
+        ("filter", "Filter by Zapier", "Conditional logic"),
+        ("schedule", "Schedule by Zapier", "Time-based triggers"),
+    ],
+    "🤖 AI & Data": [
+        ("openai", "OpenAI", "GPT & DALL-E"),
+        ("anthropic", "Anthropic (Claude)", "Claude AI"),
+        ("google-gemini", "Google Gemini", "Gemini AI"),
+        ("formatter", "Formatter by Zapier", "Data transformation"),
+        ("digest", "Digest by Zapier", "Collect & summarize"),
+    ],
+}
+
+
+def zapier_list(search: str = None, category: str = None):
+    """List Zapier apps catalog"""
+    console.print(f"\n[bold cyan]⚡ Zapier — 9,000+ App Automations[/bold cyan]")
+    console.print(f"[dim]Source: zapier.com | Trigger workflows from KURT[/dim]\n")
+
+    # Check if Zapier is configured
+    env_path = KURT_DIR / ".env"
+    zapier_key = None
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                if line.startswith("ZAPIER_NLA_API_KEY="):
+                    zapier_key = line.split("=", 1)[1].strip()
+
+    if zapier_key:
+        console.print(f"[green]✅ Zapier connected![/green]\n")
+    else:
+        console.print(f"[yellow]⚠️  Walang Zapier key. Run [cyan]kurt setup[/cyan] → ZAPIER_NLA_API_KEY[/yellow]\n")
+
+    shown = 0
+    for cat_name, apps in ZAPIER_APPS.items():
+        if category and category.lower() not in cat_name.lower():
+            continue
+
+        if search:
+            apps = [(slug, name, desc) for slug, name, desc in apps
+                    if search.lower() in name.lower() or search.lower() in desc.lower()]
+            if not apps:
+                continue
+
+        table = Table(title=cat_name, box=box.SIMPLE, border_style="dim")
+        table.add_column("App", style="cyan", width=22)
+        table.add_column("Description", style="white", width=35)
+        table.add_column("Connect", style="dim", width=28)
+
+        for slug, name, desc in apps:
+            table.add_row(name, desc, f"kurt connect zapier {slug}")
+            shown += 1
+
+        console.print(table)
+
+    console.print(f"\n[dim]Showing {shown} popular apps. 9,000+ total sa zapier.com[/dim]")
+    console.print(f"[dim]💡 Tip: I-setup ang Zap sa zapier.com, tapos i-trigger via KURT[/dim]\n")
 
 
 def n8n_trigger(workflow_id: str, data: dict = None):

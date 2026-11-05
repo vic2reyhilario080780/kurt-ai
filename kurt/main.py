@@ -45,14 +45,16 @@ console = Console()
 skill_app = typer.Typer(help="Manage KURT skills")
 plugin_app = typer.Typer(help="Manage KURT plugins")
 mcp_app = typer.Typer(help="Manage MCP connections")
-hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n8n")
+hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n8n, Zapier")
 connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
+models_app = typer.Typer(help="🤖 OpenRouter — 200+ live AI models")
 
 app.add_typer(skill_app, name="skill")
 app.add_typer(plugin_app, name="plugin")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(hub_app, name="hub")
 app.add_typer(connect_app, name="connect")
+app.add_typer(models_app, name="models")
 
 KURT_BANNER = """[bold cyan]
  ██╗  ██╗██╗   ██╗██████╗ ████████╗
@@ -242,48 +244,41 @@ def setup():
 
 
 # ══════════════════════════════════════
-# MODELS COMMAND
+# MODELS SUBCOMMANDS — OpenRouter live
 # ══════════════════════════════════════
 
-@app.command()
-def models():
-    """📋 Show available AI models at status nila"""
-    load_env()
-    status = check_setup()
+@models_app.callback(invoke_without_command=True)
+def models_callback(ctx: typer.Context):
+    """🤖 OpenRouter — browse 200+ live AI models with real-time pricing"""
+    if ctx.invoked_subcommand is None:
+        from kurt.models.openrouter import models_list
+        models_list()
 
-    from rich.table import Table
-    table = Table(
-        title="🤖 Available AI Models",
-        box=box.ROUNDED,
-        border_style="cyan",
-    )
-    table.add_column("Provider", style="cyan", width=15)
-    table.add_column("Models", style="white", width=40)
-    table.add_column("Best For", style="dim", width=25)
-    table.add_column("Status", width=12)
 
-    model_list = [
-        ("OpenRouter", "LLaMA 3.3, Gemini, DeepSeek...", "Everything!", "openrouter"),
-        ("Google AI", "Gemini Flash, Gemini Pro", "Research, long docs", "google"),
-        ("Groq", "LLaMA 3.3 70B, DeepSeek R1", "Speed, chat", "groq"),
-        ("DeepSeek", "DeepSeek V3, R1, Coder", "Code, math, cheap", "deepseek"),
-        ("OpenAI", "GPT-4o, o1, DALL-E", "General, images", "openai"),
-        ("Anthropic", "Claude 3.5 Sonnet/Haiku", "Writing, coding", "anthropic"),
-        ("Mistral", "Mistral Large, Codestral", "Code, multilingual", "mistral"),
-        ("fal.ai", "Flux Schnell, SDXL", "Image generation", "fal"),
-        ("Replicate", "MusicGen, Wan, CogVideo", "Music, video, media", "replicate"),
-        ("Ollama", "Local LLaMA, Mistral...", "Offline mode!", "ollama"),
-    ]
+@models_app.command("list")
+def models_list_cmd(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by name/ID"),
+    free: bool = typer.Option(False, "--free", "-f", help="Show free models only"),
+    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Filter by provider"),
+    limit: int = typer.Option(30, "--limit", "-n", help="Max results"),
+):
+    """📋 List all 200+ OpenRouter models with pricing"""
+    from kurt.models.openrouter import models_list
+    models_list(search=search, free_only=free, provider=provider, limit=limit)
 
-    for name, mdls, best_for, key in model_list:
-        configured = status.get(key, False)
-        status_text = "[green]✅ Ready[/green]" if configured else "[red]❌ No key[/red]"
-        if key == "ollama":
-            status_text = "[blue]📦 Local[/blue]"
-        table.add_row(name, mdls, best_for, status_text)
 
-    console.print(table)
-    console.print("\n[dim]Run [cyan]kurt setup[/cyan] to add missing API keys[/dim]")
+@models_app.command("free")
+def models_free_cmd():
+    """🆓 Show libre/free models only"""
+    from kurt.models.openrouter import models_free
+    models_free()
+
+
+@models_app.command("stats")
+def models_stats_cmd():
+    """📊 Show model stats — total, free, by provider"""
+    from kurt.models.openrouter import models_stats
+    models_stats()
 
 
 # ══════════════════════════════════════
@@ -530,6 +525,16 @@ def hub_n8n():
     """⚙️  Browse 400+ n8n workflow nodes"""
     from kurt.hub import n8n_list
     n8n_list()
+
+
+@hub_app.command("zapier")
+def hub_zapier(
+    search: Optional[str] = typer.Argument(None, help="Search apps"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category"),
+):
+    """⚡ Browse 9,000+ Zapier app automations"""
+    from kurt.hub.mcp_servers import zapier_list
+    zapier_list(search=search, category=category)
 
 
 # ══════════════════════════════════════
