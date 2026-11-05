@@ -171,9 +171,10 @@ TASK_KEYWORDS = {
         "gumawa ng video", "animate", "motion"
     ],
     TaskType.RESEARCH: [
-        "research", "search", "find", "look up", "what is", "who is",
-        "latest", "news", "current", "today", "2026", "maghanap",
-        "ano ang", "sino ang", "balita", "i-research", "i-check"
+        "research", "look up", "what is", "who is",
+        "latest news", "current news", "today's news", "2026 news", "maghanap ng",
+        "ano ang", "sino ang", "balita", "i-research", "i-check",
+        "find information", "search for"
     ],
     TaskType.MATH: [
         "calculate", "compute", "math", "equation", "solve", "formula",
@@ -200,8 +201,9 @@ TASK_KEYWORDS = {
         "app design", "web design", "visual", "aesthetic"
     ],
     TaskType.ARTIFACT: [
-        "artifact", "save code", "export", "save output", "generate file",
-        "i-save", "i-export", "output file", "create artifact",
+        "artifact", "save code", "save this code", "export code", "save output",
+        "generate file", "i-save ang code", "i-export", "output file",
+        "create artifact", "i-save as artifact", "export output",
     ],
     TaskType.SCHEDULE: [
         "schedule", "every day", "every hour", "cron", "recurring",
