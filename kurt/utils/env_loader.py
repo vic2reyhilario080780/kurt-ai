@@ -33,6 +33,7 @@ def check_setup() -> dict:
     load_env()
 
     providers = {
+        # AI Models
         "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
         "google": bool(os.getenv("GOOGLE_AI_KEY")),
         "groq": bool(os.getenv("GROQ_API_KEY")),
@@ -42,7 +43,20 @@ def check_setup() -> dict:
         "mistral": bool(os.getenv("MISTRAL_API_KEY")),
         "fal": bool(os.getenv("FAL_API_KEY")),
         "replicate": bool(os.getenv("REPLICATE_API_TOKEN")),
-        "ollama": True,  # Always available if installed
+        "ollama": True,
+        # Connectors
+        "composio": bool(os.getenv("COMPOSIO_API_KEY")),
+        "zapier": bool(os.getenv("ZAPIER_NLA_API_KEY")),
+        "n8n": bool(os.getenv("N8N_API_KEY")),
+        # Search
+        "serper": bool(os.getenv("SERPER_API_KEY")),
+        "brave": bool(os.getenv("BRAVE_API_KEY")),
+        "tavily": bool(os.getenv("TAVILY_API_KEY")),
+        # Communication
+        "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+        # Data & Dev
+        "supabase": bool(os.getenv("SUPABASE_KEY")),
+        "github": bool(os.getenv("GITHUB_TOKEN")),
     }
 
     return providers

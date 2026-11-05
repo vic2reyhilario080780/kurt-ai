@@ -45,10 +45,14 @@ console = Console()
 skill_app = typer.Typer(help="Manage KURT skills")
 plugin_app = typer.Typer(help="Manage KURT plugins")
 mcp_app = typer.Typer(help="Manage MCP connections")
+hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n8n")
+connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
 
 app.add_typer(skill_app, name="skill")
 app.add_typer(plugin_app, name="plugin")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(hub_app, name="hub")
+app.add_typer(connect_app, name="connect")
 
 KURT_BANNER = """[bold cyan]
  ██╗  ██╗██╗   ██╗██████╗ ████████╗
@@ -429,8 +433,139 @@ def mcp_list():
 @mcp_app.command("connect")
 def mcp_connect(service: str = typer.Argument(...)):
     """Connect an MCP service"""
-    console.print(f"[yellow]MCP {service} — coming in v0.2![/yellow]")
-    console.print("[dim]Star the repo para ma-notify: github.com/daddytito/kurt-ai[/dim]")
+    from kurt.hub import composio_connect
+    composio_connect(service)
+
+
+# ══════════════════════════════════════
+# HUB COMMANDS — aitmpl.com + all sources
+# ══════════════════════════════════════
+
+@hub_app.callback(invoke_without_command=True)
+def hub_callback(ctx: typer.Context):
+    """🌐 Universal Hub — browse 1,800+ skills, MCPs, connectors"""
+    if ctx.invoked_subcommand is None:
+        from kurt.hub import hub_overview
+        hub_overview()
+
+
+@hub_app.command("skills")
+def hub_skills(
+    search: Optional[str] = typer.Argument(None, help="Search query"),
+    limit: int = typer.Option(20, "--limit", "-n"),
+):
+    """🧠 Browse 909 skills from aitmpl.com"""
+    from kurt.hub import hub_list
+    hub_list(component_type="skills", search=search, limit=limit)
+
+
+@hub_app.command("agents")
+def hub_agents(
+    search: Optional[str] = typer.Argument(None, help="Search query"),
+    limit: int = typer.Option(20, "--limit", "-n"),
+):
+    """🤖 Browse 422 AI agents from aitmpl.com"""
+    from kurt.hub import hub_list
+    hub_list(component_type="agents", search=search, limit=limit)
+
+
+@hub_app.command("commands")
+def hub_commands(
+    search: Optional[str] = typer.Argument(None, help="Search query"),
+    limit: int = typer.Option(20, "--limit", "-n"),
+):
+    """⚡ Browse 288 slash commands from aitmpl.com"""
+    from kurt.hub import hub_list
+    hub_list(component_type="commands", search=search, limit=limit)
+
+
+@hub_app.command("mcp")
+def hub_mcp(
+    search: Optional[str] = typer.Argument(None, help="Search query"),
+    limit: int = typer.Option(20, "--limit", "-n"),
+):
+    """🔌 Browse 111 MCPs (aitmpl) + 500 community MCPs"""
+    from kurt.hub import hub_list, mcp_list
+    hub_list(component_type="mcps", search=search, limit=limit)
+    console.print("\n[bold cyan]Community MCPs (awesome-mcp-servers):[/bold cyan]")
+    mcp_list(search=search)
+
+
+@hub_app.command("search")
+def hub_search_cmd(
+    query: str = typer.Argument(..., help="Search query"),
+    limit: int = typer.Option(10, "--limit", "-n"),
+):
+    """🔍 Search across ALL hub sources"""
+    from kurt.hub import hub_search
+    hub_search(query, limit=limit)
+
+
+@hub_app.command("install")
+def hub_install_cmd(
+    component_type: str = typer.Argument(..., help="Type: skills/agents/mcps/commands"),
+    path: str = typer.Argument(..., help="Format: category/name"),
+):
+    """⬇️  Install a component from aitmpl.com"""
+    from kurt.hub import hub_install
+    hub_install(component_type, path)
+
+
+@hub_app.command("stats")
+def hub_stats_cmd():
+    """📊 Show hub statistics"""
+    from kurt.hub import hub_stats
+    hub_stats()
+
+
+@hub_app.command("langchain")
+def hub_langchain(search: Optional[str] = typer.Argument(None)):
+    """🦜 Browse 100+ LangChain tools"""
+    from kurt.hub import langchain_list
+    langchain_list(search=search)
+
+
+@hub_app.command("n8n")
+def hub_n8n():
+    """⚙️  Browse 400+ n8n workflow nodes"""
+    from kurt.hub import n8n_list
+    n8n_list()
+
+
+# ══════════════════════════════════════
+# CONNECT COMMANDS — Composio
+# ══════════════════════════════════════
+
+@connect_app.callback(invoke_without_command=True)
+def connect_callback(ctx: typer.Context):
+    """🔌 Connect to 250+ apps via Composio"""
+    if ctx.invoked_subcommand is None:
+        from kurt.hub import composio_list
+        composio_list()
+
+
+@connect_app.command("list")
+def connect_list(
+    search: Optional[str] = typer.Argument(None, help="Search apps"),
+    category: Optional[str] = typer.Option(None, "--category", "-c"),
+):
+    """📋 List all 250+ available app connectors"""
+    from kurt.hub import composio_list
+    composio_list(category=category, search=search)
+
+
+@connect_app.command("status")
+def connect_status():
+    """✅ Show currently connected apps"""
+    from kurt.hub import composio_status
+    composio_status()
+
+
+@connect_app.command("app")
+def connect_app_cmd(app_name: str = typer.Argument(..., help="App to connect")):
+    """🔗 Connect to an app (gmail, slack, shopify...)"""
+    from kurt.hub import composio_connect
+    composio_connect(app_name)
 
 
 def run():
