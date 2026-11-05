@@ -111,6 +111,59 @@ class ModelRouter:
                         except (json.JSONDecodeError, KeyError, IndexError):
                             continue
 
+    async def call_anthropic(
+        self,
+        model: str,
+        messages: list,
+        stream: bool = True
+    ) -> AsyncGenerator[str, None]:
+        """Call Claude directly via Anthropic API (native, not via OpenRouter)"""
+        headers = {
+            "x-api-key": self.anthropic_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+
+        # Separate system messages from user/assistant messages
+        system_parts = []
+        chat_messages = []
+        for m in messages:
+            if m["role"] == "system":
+                system_parts.append(m["content"])
+            else:
+                chat_messages.append(m)
+
+        payload = {
+            "model": model,
+            "max_tokens": 8096,
+            "stream": stream,
+            "messages": chat_messages,
+        }
+        if system_parts:
+            payload["system"] = "\n\n".join(system_parts)
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                "https://api.anthropic.com/v1/messages",
+                headers=headers,
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            if chunk.get("type") == "content_block_delta":
+                                delta = chunk.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    yield delta.get("text", "")
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+
     async def call_ollama(
         self,
         model: str,
@@ -166,6 +219,18 @@ class ModelRouter:
         if provider == "openrouter":
             async for chunk in self.call_openrouter(model, messages, stream):
                 yield chunk
+        elif provider == "anthropic":
+            # Try direct Anthropic API, fallback to OpenRouter
+            if self._has_key("anthropic"):
+                async for chunk in self.call_anthropic(model, messages, stream):
+                    yield chunk
+            elif self._has_key("openrouter"):
+                # Route Claude via OpenRouter
+                or_model = model if "/" in model else f"anthropic/{model}"
+                async for chunk in self.call_openrouter(or_model, messages, stream):
+                    yield chunk
+            else:
+                raise RuntimeError("No Anthropic API key and no OpenRouter key — cannot call Claude!")
         elif provider == "groq":
             # Map groq model names
             groq_model = model.replace("groq/", "")

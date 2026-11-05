@@ -41,6 +41,16 @@ from kurt.core.persona import (
 from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     create_skill_template, get_skill_prompt
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
+from kurt.core.projects import (
+    list_projects, add_project, remove_project, note_project,
+    get_active_project_contexts,
+)
+from kurt.core.artifacts import (
+    list_artifacts, show_artifact, clean_artifacts, save_artifact, open_artifact
+)
+from kurt.core.scheduler import (
+    list_schedules, add_schedule, remove_schedule, run_schedule, toggle_schedule
+)
 
 app = typer.Typer(
     name="kurt",
@@ -59,6 +69,9 @@ connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
 models_app = typer.Typer(help="🤖 OpenRouter — 200+ live AI models")
 
 config_app = typer.Typer(help="🎨 Personalize KURT — themes, language, name, greeting")
+project_app = typer.Typer(help="📁 Manage projects with AI context")
+artifact_app = typer.Typer(help="📦 Manage AI-generated code artifacts")
+schedule_app = typer.Typer(help="⏰ Schedule recurring KURT tasks")
 
 app.add_typer(skill_app, name="skill")
 app.add_typer(plugin_app, name="plugin")
@@ -67,6 +80,9 @@ app.add_typer(hub_app, name="hub")
 app.add_typer(connect_app, name="connect")
 app.add_typer(models_app, name="models")
 app.add_typer(config_app, name="config")
+app.add_typer(project_app, name="project")
+app.add_typer(artifact_app, name="artifact")
+app.add_typer(schedule_app, name="schedule")
 
 KURT_ASCII = """
  ██╗  ██╗██╗   ██╗██████╗ ████████╗
@@ -102,7 +118,7 @@ def print_banner():
     }.get(ai_mode, "⚡ KURT × Claude")
 
     console.print(f"[{theme['secondary']}]  Kinetic Unified Response Terminal[/{theme['secondary']}]  [{theme['dim']}]{mode_badge}[/{theme['dim']}]")
-    console.print(f"[{theme['dim']}]  {lang['flag']} {lang['name']}  ·  v2.2[/{theme['dim']}]")
+    console.print(f"[{theme['dim']}]  {lang['flag']} {lang['name']}  ·  v2.3[/{theme['dim']}]")
 
     # Greeting
     console.print(f"\n  {icon} [{color}]{greeting}[/{color}]")
@@ -186,6 +202,25 @@ def ask(
             border_style="dim",
         ))
 
+    # Hybrid mode: override provider based on ai_mode
+    ai_mode = get_ai_mode()
+    if ai_mode == "hybrid":
+        # KURT classifies (already done), Claude handles generation for text tasks
+        text_tasks = {TaskType.CODE, TaskType.CHAT, TaskType.WRITE, TaskType.RESEARCH,
+                      TaskType.MATH, TaskType.TRANSLATE, TaskType.DESIGN, TaskType.ARTIFACT,
+                      TaskType.GAME, TaskType.UNKNOWN}
+        if analysis.task_type in text_tasks:
+            analysis.provider = "anthropic"
+            analysis.model = "claude-3-5-haiku-20241022"
+            if verbose:
+                console.print(f"[dim]⚡ Hybrid mode: routing to Claude Anthropic[/dim]")
+    elif ai_mode == "claude_only":
+        analysis.provider = "anthropic"
+        analysis.model = "claude-3-5-sonnet-20241022"
+        if verbose:
+            console.print(f"[dim]🧠 Claude-only mode[/dim]")
+    # kurt_only: no override, use ROUTING_TABLE as-is
+
     # Build messages
     messages = []
 
@@ -193,6 +228,19 @@ def ask(
     lang_prompt = get_language_system_prompt()
     if lang_prompt:
         messages.append({"role": "system", "content": lang_prompt})
+
+    # Inject active project contexts
+    persona = load_persona()
+    active_projects = persona.get("active_projects", [])
+    if active_projects:
+        proj_ctx = get_active_project_contexts(active_projects)
+        if proj_ctx:
+            messages.append({
+                "role": "system",
+                "content": f"ACTIVE PROJECTS CONTEXT:\n{proj_ctx}"
+            })
+            if verbose:
+                console.print(f"[dim]📁 Injecting context for: {', '.join(active_projects)}[/dim]")
 
     # Add skill system prompt if specified
     if skill:
@@ -223,17 +271,19 @@ def ask(
         session_id=current_session,
         no_memory=no_memory,
         verbose=verbose,
+        prompt=prompt,
     ))
 
 
-async def stream_response(analysis, messages, session_id, no_memory, verbose):
+async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt=""):
     """Stream AI response with real-time display"""
     router = ModelRouter()
 
     # Show model info (compact)
     if not verbose:
+        ai_badge = "⚡ hybrid" if get_ai_mode() == "hybrid" else get_ai_mode()
         console.print(
-            f"[dim]🤖 {analysis.model} · {analysis.task_type.value}[/dim]"
+            f"[dim]🤖 {analysis.model} · {analysis.task_type.value} · {ai_badge}[/dim]"
         )
 
     console.print()
@@ -272,6 +322,13 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose):
             except Exception as e2:
                 console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
                 return
+
+    # Auto-save code artifacts for CODE/DESIGN/ARTIFACT tasks
+    if full_response and analysis.task_type in {TaskType.CODE, TaskType.DESIGN, TaskType.ARTIFACT, TaskType.GAME}:
+        saved = save_artifact(prompt or "kurt-output", full_response, analysis.task_type.value)
+        if saved:
+            for p in saved:
+                console.print(f"[dim]📦 Saved artifact: {p}[/dim]")
 
     # Save to memory
     if not no_memory and full_response:
@@ -720,6 +777,141 @@ def config_reset_cmd():
 def config_lang_shortcut():
     """🌐 Shortcut para sa language — same as 'kurt config language'"""
     config_language_wizard()
+
+
+# ══════════════════════════════════════
+# PROJECT SUBCOMMANDS
+# ══════════════════════════════════════
+
+@project_app.callback(invoke_without_command=True)
+def project_callback(ctx: typer.Context):
+    """📁 Manage projects with AI-aware context injection"""
+    if ctx.invoked_subcommand is None:
+        list_projects()
+
+
+@project_app.command("list")
+def project_list_cmd():
+    """📋 List all projects"""
+    list_projects()
+
+
+@project_app.command("add")
+def project_add_cmd():
+    """➕ Add a new project"""
+    add_project()
+
+
+@project_app.command("remove")
+def project_remove_cmd(name: str = typer.Argument(..., help="Project name")):
+    """🗑️  Remove a project"""
+    remove_project(name)
+
+
+@project_app.command("note")
+def project_note_cmd(
+    name: str = typer.Argument(..., help="Project name"),
+    note: str = typer.Argument(..., help="Note to add"),
+):
+    """📝 Add a note to a project"""
+    note_project(name, note)
+
+
+# ══════════════════════════════════════
+# ARTIFACT SUBCOMMANDS
+# ══════════════════════════════════════
+
+@artifact_app.callback(invoke_without_command=True)
+def artifact_callback(ctx: typer.Context):
+    """📦 View and manage AI-generated code artifacts"""
+    if ctx.invoked_subcommand is None:
+        list_artifacts()
+
+
+@artifact_app.command("list")
+def artifact_list_cmd(limit: int = typer.Option(20, "--limit", "-n")):
+    """📋 List saved artifacts"""
+    list_artifacts(limit=limit)
+
+
+@artifact_app.command("show")
+def artifact_show_cmd(artifact_id: str = typer.Argument(..., help="Artifact ID or filename prefix")):
+    """👁️  Show artifact contents"""
+    show_artifact(artifact_id)
+
+
+@artifact_app.command("open")
+def artifact_open_cmd(artifact_id: str = typer.Argument(..., help="Artifact ID")):
+    """📂 Show artifact file path (open in editor)"""
+    path = open_artifact(artifact_id)
+    if path:
+        console.print(f"[cyan]{path}[/cyan]")
+    else:
+        console.print(f"[red]Artifact '{artifact_id}' not found.[/red]")
+
+
+@artifact_app.command("clean")
+def artifact_clean_cmd(keep: int = typer.Option(50, "--keep", help="Number to keep")):
+    """🧹 Clean old artifacts"""
+    clean_artifacts(keep=keep)
+
+
+# ══════════════════════════════════════
+# SCHEDULE SUBCOMMANDS
+# ══════════════════════════════════════
+
+@schedule_app.callback(invoke_without_command=True)
+def schedule_callback(ctx: typer.Context):
+    """⏰ Schedule recurring KURT tasks"""
+    if ctx.invoked_subcommand is None:
+        list_schedules()
+
+
+@schedule_app.command("list")
+def schedule_list_cmd():
+    """📋 List all scheduled tasks"""
+    list_schedules()
+
+
+@schedule_app.command("add")
+def schedule_add_cmd():
+    """➕ Add a new scheduled task"""
+    add_schedule()
+
+
+@schedule_app.command("remove")
+def schedule_remove_cmd(task_id: str = typer.Argument(..., help="Task ID")):
+    """🗑️  Remove a scheduled task"""
+    remove_schedule(task_id)
+
+
+@schedule_app.command("run")
+def schedule_run_cmd(task_id: str = typer.Argument(..., help="Task ID to run now")):
+    """▶️  Run a scheduled task immediately"""
+    load_env()
+    task_prompt = run_schedule(task_id)
+    if task_prompt:
+        # Execute the prompt via ask
+        analysis = analyze_task(task_prompt)
+        ai_mode = get_ai_mode()
+        if ai_mode in ("hybrid", "claude_only"):
+            analysis.provider = "anthropic"
+            analysis.model = "claude-3-5-haiku-20241022"
+        messages = []
+        lang_prompt = get_language_system_prompt()
+        if lang_prompt:
+            messages.append({"role": "system", "content": lang_prompt})
+        messages.append({"role": "user", "content": task_prompt})
+        asyncio.run(stream_response(
+            analysis=analysis, messages=messages,
+            session_id="schedule-run", no_memory=True, verbose=False, prompt=task_prompt
+        ))
+
+
+@schedule_app.command("toggle")
+def schedule_toggle_cmd(task_id: str = typer.Argument(..., help="Task ID")):
+    """⏸/▶️  Pause or resume a task"""
+    toggle_schedule(task_id)
 
 
 # ══════════════════════════════════════

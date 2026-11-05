@@ -20,6 +20,9 @@ class TaskType(Enum):
     WRITE = "write"
     TRANSLATE = "translate"
     GAME = "game"
+    DESIGN = "design"
+    ARTIFACT = "artifact"
+    SCHEDULE = "schedule"
     UNKNOWN = "unknown"
 
 
@@ -112,6 +115,27 @@ ROUTING_TABLE = {
         "fallback_model": "google/gemini-flash-1.5",
         "fallback_provider": "openrouter",
     },
+    TaskType.DESIGN: {
+        "model": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic",
+        "reason": "Claude Sonnet — pinaka-creative sa design tasks!",
+        "fallback_model": "meta-llama/llama-3.3-70b-instruct:free",
+        "fallback_provider": "openrouter",
+    },
+    TaskType.ARTIFACT: {
+        "model": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic",
+        "reason": "Claude Sonnet — best sa generating structured artifacts!",
+        "fallback_model": "deepseek/deepseek-coder",
+        "fallback_provider": "openrouter",
+    },
+    TaskType.SCHEDULE: {
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "provider": "openrouter",
+        "reason": "LLaMA 3.3 — handling schedule queries",
+        "fallback_model": "google/gemini-flash-1.5",
+        "fallback_provider": "openrouter",
+    },
     TaskType.UNKNOWN: {
         "model": "meta-llama/llama-3.3-70b-instruct:free",
         "provider": "openrouter",
@@ -168,6 +192,21 @@ TASK_KEYWORDS = {
     TaskType.TRANSCRIBE: [
         "transcribe", "audio to text", "speech to text", "i-transcribe",
         "gawin text", "mp3", "wav", "voice to text"
+    ],
+    TaskType.DESIGN: [
+        "design", "ui", "ux", "layout", "wireframe", "mockup", "prototype",
+        "color scheme", "typography", "figma", "logo design", "brand",
+        "i-design", "gumawa ng design", "interface", "frontend design",
+        "app design", "web design", "visual", "aesthetic"
+    ],
+    TaskType.ARTIFACT: [
+        "artifact", "save code", "export", "save output", "generate file",
+        "i-save", "i-export", "output file", "create artifact",
+    ],
+    TaskType.SCHEDULE: [
+        "schedule", "every day", "every hour", "cron", "recurring",
+        "daily", "weekly", "i-schedule", "mag-schedule", "automation",
+        "auto run", "regular task", "set reminder"
     ],
 }
 
