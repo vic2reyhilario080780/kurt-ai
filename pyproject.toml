@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kurt-ai"
+version = "0.1.0"
+description = "KURT — Kinetic Unified Response Terminal, auto-routes tasks to best AI model"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Victor Rey Hilario", email = "vic2reyhilario0807@gmail.com" }]
+keywords = ["ai", "cli", "orchestrator", "openrouter", "chatgpt", "claude", "gemini", "kurt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "black>=24.0",
+    "ruff>=0.4.0",
+]
+all = [
+    "groq>=0.9.0",
+    "openai>=1.30.0",
+    "anthropic>=0.30.0",
+    "google-generativeai>=0.7.0",
+    "mistralai>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/reyhilario/kurt-ai"
+Repository = "https://github.com/reyhilario/kurt-ai"
+Issues = "https://github.com/reyhilario/kurt-ai/issues"
+
+[project.scripts]
+kurt = "kurt.main:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kurt*"]
+
+[tool.setuptools.package-data]
+kurt = ["*.json", "skills/*.json", "plugins/*.json"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
