@@ -292,34 +292,72 @@ ZAPIER_APPS = {
 }
 
 
-def zapier_list(search: str = None, category: str = None):
-    """List Zapier apps catalog"""
-    console.print(f"\n[bold cyan]⚡ Zapier — 9,000+ App Automations[/bold cyan]")
-    console.print(f"[dim]Source: zapier.com | Trigger workflows from KURT[/dim]\n")
-
-    # Check if Zapier is configured
+def _get_zapier_key() -> str:
+    """Read Zapier NLA API key from ~/.kurt/.env"""
     env_path = KURT_DIR / ".env"
-    zapier_key = None
     if env_path.exists():
         with open(env_path) as f:
             for line in f:
                 if line.startswith("ZAPIER_NLA_API_KEY="):
-                    zapier_key = line.split("=", 1)[1].strip()
+                    val = line.split("=", 1)[1].strip()
+                    return val if val else None
+    return None
 
-    if zapier_key:
-        console.print(f"[green]✅ Zapier connected![/green]\n")
+
+def _fetch_zapier_live(search: str = None, limit: int = 50) -> list:
+    """Fetch live apps from Zapier NLA API"""
+    key = _get_zapier_key()
+    if not key:
+        return []
+    try:
+        params = {"limit": limit}
+        if search:
+            params["search"] = search
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(
+                "https://nla.zapier.com/api/v1/apps/",
+                headers={"X-API-KEY": key},
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, dict):
+                return data.get("results") or data.get("data") or []
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        console.print(f"[dim yellow]Zapier API error: {e} — using local catalog[/dim yellow]")
+        return []
+
+
+def zapier_list(search: str = None, category: str = None, limit: int = 0, show_all: bool = False):
+    """List Zapier apps — Live API if key exists, fallback to static catalog"""
+    console.print(f"\n[bold cyan]⚡ Zapier — 9,000+ App Automations[/bold cyan]")
+    console.print(f"[dim]Source: zapier.com | Trigger workflows from KURT[/dim]\n")
+
+    key = _get_zapier_key()
+    if key:
+        console.print(f"[green]✅ Zapier connected — fetching live catalog...[/green]\n")
+        fetch_limit = 200 if show_all else (limit if limit > 0 else 50)
+        live_apps = _fetch_zapier_live(search=search, limit=fetch_limit)
+        if live_apps:
+            _zapier_show_live(live_apps, search=search)
+            return
+        # fallback if live fetch failed
+        console.print(f"[yellow]Live fetch failed — showing local catalog[/yellow]\n")
     else:
-        console.print(f"[yellow]⚠️  Walang Zapier key. Run [cyan]kurt setup[/cyan] → ZAPIER_NLA_API_KEY[/yellow]\n")
+        console.print(f"[yellow]⚠️  Walang Zapier key → showing local catalog (48 apps)[/yellow]")
+        console.print(f"[dim]Run [cyan]kurt setup[/cyan] → ZAPIER_NLA_API_KEY para makita 9,000+ apps[/dim]\n")
 
+    # Static fallback
     shown = 0
     for cat_name, apps in ZAPIER_APPS.items():
         if category and category.lower() not in cat_name.lower():
             continue
-
+        filtered = apps
         if search:
-            apps = [(slug, name, desc) for slug, name, desc in apps
-                    if search.lower() in name.lower() or search.lower() in desc.lower()]
-            if not apps:
+            filtered = [(slug, name, desc) for slug, name, desc in apps
+                        if search.lower() in name.lower() or search.lower() in desc.lower()]
+            if not filtered:
                 continue
 
         table = Table(title=cat_name, box=box.SIMPLE, border_style="dim")
@@ -327,14 +365,143 @@ def zapier_list(search: str = None, category: str = None):
         table.add_column("Description", style="white", width=35)
         table.add_column("Connect", style="dim", width=28)
 
-        for slug, name, desc in apps:
+        for slug, name, desc in filtered:
             table.add_row(name, desc, f"kurt connect zapier {slug}")
             shown += 1
 
         console.print(table)
 
-    console.print(f"\n[dim]Showing {shown} popular apps. 9,000+ total sa zapier.com[/dim]")
-    console.print(f"[dim]💡 Tip: I-setup ang Zap sa zapier.com, tapos i-trigger via KURT[/dim]\n")
+    console.print(f"\n[dim]Showing {shown} popular apps from local catalog[/dim]")
+    console.print(f"[dim]💡 Get Zapier API key at [cyan]https://nla.zapier.com/settings/[/cyan][/dim]\n")
+
+
+def _zapier_show_live(apps: list, search: str = None):
+    """Display live Zapier apps in a Rich table"""
+    title = f"⚡ ZAPIER LIVE ({len(apps)} apps)"
+    if search:
+        title += f" — search: '{search}'"
+
+    table = Table(title=title, box=box.ROUNDED, border_style="cyan")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("App", style="cyan", width=28)
+    table.add_column("Slug", style="dim", width=22)
+    table.add_column("Description", style="white", width=40)
+
+    for i, app in enumerate(apps, 1):
+        name = app.get("title") or app.get("name") or ""
+        slug = app.get("slug") or app.get("id") or ""
+        desc = app.get("description") or ""
+        if len(desc) > 38:
+            desc = desc[:38] + "..."
+        table.add_row(str(i), name, slug, desc)
+
+    console.print(table)
+    console.print(f"\n[dim]💡 Use [cyan]kurt hub zapier --search <query>[/cyan] to filter[/dim]\n")
+
+
+# ══════════════════════════════════════
+# GPT PLUGINS / ACTIONS CATALOG
+# Archived from OpenAI plugin store (deprecated 2024)
+# Now lives as "GPT Actions" in CustomGPTs
+# ══════════════════════════════════════
+
+GPT_PLUGINS = {
+    "🔍 Search & Research": [
+        ("bing", "Bing Search", "Real-time web search by Microsoft"),
+        ("wolfram", "Wolfram Alpha", "Computation, math, science, data"),
+        ("scholar", "ScholarAI", "Search peer-reviewed papers (PubMed, ArXiv)"),
+        ("aylien", "AYLIEN News", "Real-time news search & analysis"),
+        ("metaphor", "Metaphor Search", "Neural search engine"),
+        ("you-search", "You.com Search", "Privacy-focused web search"),
+        ("edgar", "SEC EDGAR", "SEC filings & financial documents"),
+    ],
+    "🛒 Shopping & Price": [
+        ("klarna", "Klarna", "Shop 1,000+ stores — price compare"),
+        ("shein", "Shein", "Fashion & clothing search"),
+        ("instacart", "Instacart", "Grocery delivery"),
+        ("expedia", "Expedia", "Travel — flights, hotels, cars"),
+        ("kayak", "KAYAK", "Travel search & booking"),
+        ("opentable", "OpenTable", "Restaurant reservations"),
+        ("yelp", "Yelp", "Local businesses & reviews"),
+    ],
+    "💼 Productivity & Docs": [
+        ("noteable", "Noteable", "Create notebooks — Python, SQL, Markdown"),
+        ("askyourpdf", "AskYourPDF", "Chat with any PDF document"),
+        ("docmaker", "DocMaker", "Create PDFs from templates"),
+        ("smart-slides", "SmartSlides", "Generate slide presentations"),
+        ("mermaid", "MermaidChart", "Create diagrams & flowcharts"),
+        ("monday", "Monday.com", "Project management"),
+        ("trello", "Trello", "Kanban boards"),
+        ("jira", "Jira", "Issue & sprint tracking"),
+    ],
+    "🤖 Code & Dev": [
+        ("github-copilot", "GitHub Copilot", "Code suggestions & completion"),
+        ("replit", "Replit", "Run code in browser"),
+        ("code-runner", "Code Runner", "Execute Python, JS, SQL"),
+        ("sql-query", "SQL Query", "Natural language to SQL"),
+        ("zapier-ai", "Zapier AI Actions", "Connect 5,000+ apps"),
+        ("make", "Make (Integromat)", "Visual automation workflows"),
+    ],
+    "📊 Data & Finance": [
+        ("portfoliopilot", "PortfolioPilot", "AI investment advisor"),
+        ("clearbit", "Clearbit", "Company & contact data"),
+        ("polygon", "Polygon.io", "Real-time stock market data"),
+        ("world-news", "World News", "Global news aggregator"),
+        ("coinmarketcap", "CoinMarketCap", "Crypto prices & data"),
+        ("alpha-vantage", "Alpha Vantage", "Stock & forex data"),
+    ],
+    "🎨 Creative & Media": [
+        ("dalle-image", "DALL-E 3", "AI image generation (OpenAI built-in)"),
+        ("stable-diffusion", "Stable Diffusion", "Open-source image AI"),
+        ("video-insights", "Video Insights", "Chat with YouTube videos"),
+        ("photorealistic", "Photorealistic", "Detailed image prompts"),
+        ("there-is-an-ai", "There's An AI For That", "Find AI tools by use case"),
+    ],
+    "🌏 Philippine & SEA": [
+        ("lazada-ph", "Lazada Philippines", "PH e-commerce marketplace"),
+        ("shopee-ph", "Shopee Philippines", "SEA marketplace"),
+        ("gcash-api", "GCash", "PH mobile wallet integration"),
+        ("paymongo", "PayMongo", "PH payment gateway"),
+        ("grab", "Grab", "SEA transport & delivery"),
+        ("foodpanda", "foodpanda", "Food delivery in PH"),
+    ],
+}
+
+
+def gpt_plugins_list(search: str = None, category: str = None, show_all: bool = False):
+    """Browse ChatGPT plugins & GPT Actions catalog"""
+    console.print(f"\n[bold cyan]🤖 ChatGPT Plugins & GPT Actions Catalog[/bold cyan]")
+    console.print(f"[dim]Source: OpenAI Plugin Store archive + community GPT Actions[/dim]\n")
+    console.print(f"[yellow]ℹ️  OpenAI deprecated plugins in 2024 → now 'GPT Actions' in CustomGPTs[/yellow]\n")
+
+    shown = 0
+    for cat_name, plugins in GPT_PLUGINS.items():
+        if category and category.lower() not in cat_name.lower():
+            continue
+
+        filtered = plugins
+        if search:
+            sl = search.lower()
+            filtered = [(slug, name, desc) for slug, name, desc in plugins
+                        if sl in name.lower() or sl in desc.lower()]
+            if not filtered:
+                continue
+
+        table = Table(title=cat_name, box=box.SIMPLE, border_style="dim")
+        table.add_column("Plugin/Action", style="cyan", width=24)
+        table.add_column("Description", style="white", width=40)
+        table.add_column("Status", style="dim", width=16)
+
+        for slug, name, desc in filtered:
+            status = "✅ GPT Action" if slug in ("dalle-image",) else "📦 Archived plugin"
+            table.add_row(name, desc, status)
+            shown += 1
+
+        console.print(table)
+
+    total = sum(len(v) for v in GPT_PLUGINS.values())
+    console.print(f"\n[dim]Showing {shown} of {total} plugins in catalog[/dim]")
+    console.print(f"[dim]💡 These are usable as GPT Actions — integrate via OpenAI API or Zapier[/dim]\n")
 
 
 def n8n_trigger(workflow_id: str, data: dict = None):

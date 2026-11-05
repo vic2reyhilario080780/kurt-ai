@@ -447,41 +447,45 @@ def hub_callback(ctx: typer.Context):
 @hub_app.command("skills")
 def hub_skills(
     search: Optional[str] = typer.Argument(None, help="Search query"),
-    limit: int = typer.Option(20, "--limit", "-n"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max results (default 20)"),
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all results"),
 ):
     """🧠 Browse 909 skills from aitmpl.com"""
     from kurt.hub import hub_list
-    hub_list(component_type="skills", search=search, limit=limit)
+    hub_list(component_type="skills", search=search, limit=limit, show_all=show_all)
 
 
 @hub_app.command("agents")
 def hub_agents(
     search: Optional[str] = typer.Argument(None, help="Search query"),
-    limit: int = typer.Option(20, "--limit", "-n"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max results (default 20)"),
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all results"),
 ):
     """🤖 Browse 422 AI agents from aitmpl.com"""
     from kurt.hub import hub_list
-    hub_list(component_type="agents", search=search, limit=limit)
+    hub_list(component_type="agents", search=search, limit=limit, show_all=show_all)
 
 
 @hub_app.command("commands")
 def hub_commands(
     search: Optional[str] = typer.Argument(None, help="Search query"),
-    limit: int = typer.Option(20, "--limit", "-n"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max results (default 20)"),
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all results"),
 ):
     """⚡ Browse 288 slash commands from aitmpl.com"""
     from kurt.hub import hub_list
-    hub_list(component_type="commands", search=search, limit=limit)
+    hub_list(component_type="commands", search=search, limit=limit, show_all=show_all)
 
 
 @hub_app.command("mcp")
 def hub_mcp(
     search: Optional[str] = typer.Argument(None, help="Search query"),
-    limit: int = typer.Option(20, "--limit", "-n"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max results (default 20)"),
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all results"),
 ):
     """🔌 Browse 111 MCPs (aitmpl) + 500 community MCPs"""
     from kurt.hub import hub_list, mcp_list
-    hub_list(component_type="mcps", search=search, limit=limit)
+    hub_list(component_type="mcps", search=search, limit=limit, show_all=show_all)
     console.print("\n[bold cyan]Community MCPs (awesome-mcp-servers):[/bold cyan]")
     mcp_list(search=search)
 
@@ -531,10 +535,21 @@ def hub_n8n():
 def hub_zapier(
     search: Optional[str] = typer.Option(None, "--search", "-s", help="Search apps by name"),
     category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category"),
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all results"),
 ):
     """⚡ Browse 9,000+ Zapier app automations"""
     from kurt.hub.mcp_servers import zapier_list
-    zapier_list(search=search, category=category)
+    zapier_list(search=search, category=category, show_all=show_all)
+
+
+@hub_app.command("gpts")
+def hub_gpts(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search plugins"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category"),
+):
+    """🤖 Browse ChatGPT Plugins & GPT Actions catalog"""
+    from kurt.hub.mcp_servers import gpt_plugins_list
+    gpt_plugins_list(search=search, category=category)
 
 
 # ══════════════════════════════════════

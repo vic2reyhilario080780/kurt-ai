@@ -116,7 +116,7 @@ def get_counts() -> dict:
 
 
 def hub_list(component_type: str = None, category: str = None,
-             search: str = None, limit: int = 20):
+             search: str = None, limit: int = 20, show_all: bool = False):
     """List components from aitmpl.com hub"""
 
     console.print(f"\n[bold cyan]🌐 KURT Hub — aitmpl.com[/bold cyan]")
@@ -148,8 +148,11 @@ def hub_list(component_type: str = None, category: str = None,
         if not data:
             continue
 
+        shown = len(data) if show_all else min(limit, len(data))
+        total = len(data)
+        title_suffix = f"showing all {total}" if show_all else f"showing {shown} of {total} — use --all to see all"
         table = Table(
-            title=f"{icon} {ctype.upper()} ({len(data)} results)",
+            title=f"{icon} {ctype.upper()} ({title_suffix})",
             box=box.ROUNDED,
             border_style="cyan",
             show_lines=False,
@@ -159,7 +162,8 @@ def hub_list(component_type: str = None, category: str = None,
         table.add_column("Description", style="white", width=45)
         table.add_column("Downloads", style="green", width=10)
 
-        for item in data[:limit]:
+        display_data = data if show_all else data[:limit]
+        for item in display_data:
             downloads = item.get("downloadCount", 0)
             dl_str = f"↓ {downloads:,}" if downloads else "-"
             desc = item.get("description", "")
@@ -205,7 +209,8 @@ def hub_search(query: str, limit: int = 10):
     table.add_column("Category", style="dim", width=20)
     table.add_column("Description", style="white", width=45)
 
-    for item in results[:limit]:
+    display_results = results if limit == 0 else results[:limit]
+    for item in display_results:
         icon = TYPE_ICONS.get(item["_type"], "📦")
         desc = item.get("description", "")
         table.add_row(

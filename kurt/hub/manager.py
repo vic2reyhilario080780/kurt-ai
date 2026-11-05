@@ -11,7 +11,7 @@ from rich import box
 
 from .aitmpl import hub_list, hub_search, hub_install, hub_stats, TYPE_ICONS
 from .composio import composio_list, composio_connect, composio_status
-from .mcp_servers import mcp_list, langchain_list, n8n_list, n8n_trigger, zapier_list
+from .mcp_servers import mcp_list, langchain_list, n8n_list, n8n_trigger, zapier_list, gpt_plugins_list
 
 console = Console()
 
@@ -63,6 +63,14 @@ HUB_SOURCES = {
         "url": "https://zapier.com",
         "auth": "Zapier NLA API key",
         "count": "9,000+",
+    },
+    "gpt-plugins": {
+        "name": "ChatGPT Plugins/GPT Actions",
+        "icon": "🤖",
+        "description": "OpenAI plugin store archive + GPT Actions catalog",
+        "url": "https://openai.com/gpt-store",
+        "auth": "OpenAI API key",
+        "count": "1,000+",
     },
 }
 
