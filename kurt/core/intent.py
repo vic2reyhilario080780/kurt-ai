@@ -300,26 +300,43 @@ def _llm_detect(text: str) -> Optional[Intent]:
     import urllib.request
     import json
 
-    prompt = f"""Classify this user message into one of these intents:
-- task: user wants KURT to DO something (open app, click, type, play music, navigate browser)
-- search: user wants information (questions, facts, weather, news)
-- chat: casual conversation, greeting, opinion, feelings
-- memory: user refers to past interactions or wants to save/recall something
-- system: about KURT itself (settings, help, status)
+    prompt = f"""You are a smart assistant that extracts intent and entities from natural language commands.
+The user may speak in Taglish (Filipino-English mix).
+
+Classify the message and extract the CORE entity only (strip filler words, particles, context):
+
+Intents:
+- task: user wants something done (open app, screenshot, type, navigate, play music)
+- search: user wants information (questions, weather, facts, news)
+- chat: casual talk, greetings, opinions
+- memory: save/recall something
+- system: about the assistant itself
+
+Actions for task intent:
+- open_app: opening an application
+- close_app: closing an application
+- screenshot: taking a screenshot
+- navigate: open a URL in browser
+- search_web: search the internet
+- type_text: type something
+- play: play media
+
+IMPORTANT for target: extract ONLY the app name or search query. Remove:
+- Filipino particles: ang, ng, sa, mo, ko, naman, po, nga
+- Context phrases: "sa browser ko", "sa aking phone", "in my browser", "please", "ngayon"
+- Just the core noun: "spotify", "apple music", "calculator", "youtube.com"
 
 User message: "{text}"
 
-Reply with ONLY a JSON object like:
-{{"intent": "task", "confidence": 0.9, "action": "open_app", "target": "Spotify"}}
-
-For chat/search with no specific action, use "" for action and target."""
+Reply with ONLY valid JSON, no explanation:
+{{"intent": "task", "confidence": 0.95, "action": "open_app", "target": "Spotify"}}"""
 
     try:
         payload = json.dumps({
-            "model": "llama3",
+            "model": "llama3.2",   # try newest first
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": 0.1, "num_predict": 100},
+            "options": {"temperature": 0.1, "num_predict": 150},
         }).encode()
 
         req = urllib.request.Request(

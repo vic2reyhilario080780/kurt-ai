@@ -491,7 +491,8 @@ def chat(
             from kurt.core.intent import detect_intent, route_intent
             from kurt.core.intent import INTENT_TASK, INTENT_SEARCH, INTENT_MEMORY, INTENT_CHAT
 
-            intent = detect_intent(prompt, use_llm=False)  # fast path: keywords + regex only
+            # Layer 1+2: keywords+regex (instant). Layer 3: Ollama LLM if ambiguous.
+            intent = detect_intent(prompt, use_llm=True)
 
             if intent.type == INTENT_TASK and intent.confidence >= 0.75:
                 # Execute computer/browser action directly — no LLM call needed
@@ -507,20 +508,23 @@ def chat(
                     if handler == "computer.open_app":
                         from kurt.core.computer_use import open_app
                         import re as _re
-                        raw_name = kwargs.get("app_name", intent.target or "")
-                        # Strip leading particles 2x: "naman ng X" → "ng X" → "X"
-                        clean_name = raw_name
-                        for _ in range(2):
+                        # If LLM detected the intent, trust its target directly (already clean)
+                        if intent.detected_by == "llm":
+                            clean_name = intent.target.strip()
+                        else:
+                            # Regex/keyword path: clean up particles manually
+                            raw_name = kwargs.get("app_name", intent.target or "")
+                            clean_name = raw_name
+                            for _ in range(2):
+                                clean_name = _re.sub(
+                                    r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
+                                    '', clean_name, flags=_re.IGNORECASE
+                                ).strip()
                             clean_name = _re.sub(
-                                r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
+                                r'\s+(?:sa\s+(?:aking|iyong|browser|phone|pc|laptop|computer|imac|mac)|'
+                                r'in\s+my|on\s+my|using|via|please|pls|na|ngayon|now)\b.*$',
                                 '', clean_name, flags=_re.IGNORECASE
                             ).strip()
-                        # Strip trailing context: "sa browser ko", "sa aking phone", "please", etc.
-                        clean_name = _re.sub(
-                            r'\s+(?:sa\s+(?:aking|iyong|browser|phone|pc|laptop|computer|imac|mac)|'
-                            r'in\s+my|on\s+my|using|via|please|pls|na|ngayon|now)\b.*$',
-                            '', clean_name, flags=_re.IGNORECASE
-                        ).strip()
                         result = open_app(clean_name)
                         if result.success:
                             console.print(f"[green]✓[/green] Binuksan: [bold]{clean_name}[/bold]")
