@@ -2,7 +2,7 @@
 KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
-Includes 1,203 Engineering skills from Claude's marketplace.
+Includes 1,203 Engineering skills and 1,104 Code skills from Claude's marketplace.
 """
 
 import os
@@ -21,6 +21,16 @@ from kurt.skills.engineering import (
     get_domain_prompt as get_engineering_domain_prompt,
     get_stats as get_engineering_stats,
     ENGINEERING_DOMAINS,
+)
+
+# Code skills catalog
+from kurt.skills.code_skills import (
+    load_all_skills as load_code_skills,
+    search_skills as search_code_skills,
+    get_skill_context as get_code_skill_context,
+    get_domain_prompt as get_code_domain_prompt,
+    get_stats as get_code_stats,
+    CODE_DOMAINS,
 )
 
 console = Console()
@@ -294,6 +304,62 @@ def list_engineering_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill eng --search <query>  or  kurt skill eng --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_code_skills(domain: str = None, search: str = None):
+    """List or search code skills from Claude's marketplace"""
+    if search:
+        results = search_code_skills(search)
+        console.print(f"\n[cyan]🔍 Code skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = CODE_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]💻 Code domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_code_stats()
+    console.print(f"\n[bold cyan]💻 KURT Code Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "agentic_frameworks": "agentic-council, Agent Engineering, atomic-agents",
+        "code_review": "code-review, Deep Review, Adversarial Review",
+        "security": "OWASP Security Audit, Semgrep Guardian, Aikido",
+        "frontend": "liquid-glass-skills, Web Vitals Auditor, A11y Enforcer",
+        "backend": "Go Backend Skills, laravel-boost, spring-standards",
+        "cloud_devops": "aws-core, Kubernetes Mastery, terraform",
+        "testing": "E2E Test Generator, Cypress, Test Coverage Intelligence",
+        "ai_ml": "huggingface-skills, pydantic-ai, Langfuse Observability",
+        "mobile": "Flutter Skills, expo, SwiftUI guidance for macOS",
+        "data": "supabase, clickhouse-best-practices, DB Schema Spy",
+        "workflow_automation": "n8n Knowledge Base, Temporal, sdlc-kit",
+        "documentation": "diataxis, API Doc Generator, Mintlify",
+        "game_dev": "Unity, Unreal Engine Skills, PlayCanvas",
+        "enterprise": "D365FO X++ Development, boomi-integration, Celigo",
+        "shopify": "shopify-ai-toolkit, liquid-skills, Shopify App Builder",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill code --search <query>  or  kurt skill code --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
