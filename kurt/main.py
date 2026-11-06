@@ -506,7 +506,7 @@ def chat(
 
                 try:
                     if handler == "computer.open_app":
-                        from kurt.core.computer_use import open_app
+                        from kurt.core.behavior import smart_open_app
                         import re as _re
                         # If LLM detected the intent, trust its target directly (already clean)
                         if intent.detected_by == "llm":
@@ -525,11 +525,13 @@ def chat(
                                 r'in\s+my|on\s+my|using|via|please|pls|na|ngayon|now)\b.*$',
                                 '', clean_name, flags=_re.IGNORECASE
                             ).strip()
-                        result = open_app(clean_name)
+                        # Use smart_open_app — multi-layer diskarte ni Kurt
+                        result = smart_open_app(clean_name)
                         if result.success:
-                            console.print(f"[green]✓[/green] Binuksan: [bold]{clean_name}[/bold]")
+                            method_note = f" [dim]({result.method_used})[/dim]" if result.method_used not in ("open -a", "cached") else ""
+                            console.print(f"[green]✓[/green] {result.message}{method_note}")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] Hindi nabuksan: {result.message}")
+                            console.print(f"[yellow]⚠[/yellow] {result.message}")
 
                     elif handler == "browser.navigate":
                         from kurt.core.computer_use import open_url
