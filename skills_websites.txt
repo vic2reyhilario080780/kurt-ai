@@ -1,0 +1,285 @@
+playwright
+Apify
+Noibu
+Hostinger Connector
+Leadfeeder
+Superdesign
+AnimatedWebs
+Cloudflare
+firecrawl
+8B AI Website Builder
+Windsor.ai Ads and Marketing Data
+Claude SEO and GEO Site Audit
+vidIQ
+Agency MCP
+ux-ui-audit
+Website Copywriting & Positioning
+Website Design
+SEO-AEO-GEO Ultimate
+SEO Audit
+AEO Brand Scan
+A1 Gallery
+Image Deep Research
+TubeAlfred YouTube
+parallel
+Adology — Content Intelligence
+Design Steward
+AEOTester: AI SEO Audit and Fix
+wordpress-mcp
+Mobbin
+seal-copilot
+Bright Data
+liquid-skills
+Awesome Ecom Skills
+AdvisorPPC - Google Ads Analytics Tag Manager Search Console and YouTube Connector
+SEO Writers
+Agent Ingest Audit & Optimize
+website-quality-checker
+Manifold
+HTML/CSS to Image API
+Hyper Marketing
+SEO GSC Wizard
+inhabited design
+Shopify DevKit
+Adspirer Advertising Agent
+SearchFit SEO
+Accelerate AI Toolkit
+Agentic Beta Testers
+Supermetrics Ads & Marketing Analytics
+Netlify
+CutPro
+Shopify App Builder
+seo-geo-consultant
+AI Search Visibility & Brand Mentions (GEO/AEO)
+jp-web-design-guardrails
+UXKIN
+Market Intelligence
+Axe Accessibility
+AI Search Visibility (AEO/GEO)
+rampstack-seo
+WEM Price Compare
+SE Ranking
+Big If True
+storefront-theme-kit
+AI Search Visibility Tracker
+aeo
+HarborRank SEO
+Asyntai – AI Support Agent for Websites
+ViralHunt
+Internet Tools
+Artist Portfolio
+Wiser
+UnifAPI
+youdotcom-agent-skills
+Web Vitals Auditor
+Portfolio Interview
+Cargo
+AI-Advisors
+Fully SEO optimized Article with FAQ's
+Critic Layer
+AskAiRank
+amazon-location-service
+ScreenshotOne
+liquid-dev
+seo-check
+Arcmira: YouTube Transcript Search
+Marky
+Virlo
+Claistore
+claude-mac-chrome
+SuperCool Sites & Decks
+StarTap Launch Kit
+flowy
+Talk to Anyone
+Snagly
+Uniform
+LovableSEO
+Flint
+HasData
+SiteGPT
+Ullbek — AI website builder
+x-content-intelligence
+SerpApi Claude Plugin
+Context.dev
+Replo
+Intuitive Software Design
+HYPD AI - Paid Ads & Analytics
+AppFollow AI Toolkit
+mcp-gsc
+Stark
+BOLD Studios
+SearchAtlas Toolkit
+Website Check-up by SEO Records
+hormozi-offer-audit
+Responsive Check: Mobile Layout Tester
+DocsBot
+CRO Audit and Test Kit
+BugBug
+Ubersuggest
+Claude Bridge
+Checkly
+E2E Test Generator: Playwright and Cypress Tests
+scout
+clawpage
+authorityprompt-installer
+ViewsMax
+Lindo AI
+viral-launch-pipeline
+Perf Profiler: Lighthouse and Core Web Vitals
+QA My App
+SocialRobot
+Applixir
+BAMF.ai
+Socialstats
+Landbot
+Waldo fyi
+Programmatic SEO Gate
+Blogr
+Site Architecture & Faceted Navigation
+AppSkyline
+Unbounce Landing Page Builder
+d0ma1n
+Brendly
+citable
+Blogizi
+Actuent
+Planable SMM
+SEOcrawl AI Reports
+Maquinable GEO
+Copycat
+voice-of-customer
+Duda
+Search1API
+Adzviser
+Atly Places
+Iminify
+Trackian Marketing Analytics
+LurkAPI
+Spytrend MCP Skills
+diffbot
+Brandvane
+Zyte Web Data
+JSON Schema App MCP
+DomainKits
+Admaxxer
+Fastly
+Docket Tracker
+colosseum
+JSON SEO
+VariFlight
+Botify
+markgrab
+PolyBlog Blog Builder
+Quickchat AI
+Clicktrail
+lux
+Postproxy
+VibeMeASite
+Hive
+MAI Second Brain
+Serpzilla SEO Guest Posting and Link Insertions
+SiteSpeak Chatbot Manager
+shopee-review
+hubcap
+Liquid LSP
+Magento 2 / Mage-OS Skills
+Cast
+Olostep
+BioFlow
+Sonar ASO
+arvancloud-api
+Magpie
+Fullstory
+CheckSite
+StoreConnect Agent Skills
+eaa-audit
+Genviral
+VibeCS support chat
+Answe
+search-visibility-kit
+powmcp
+Kolosys Devkit
+Simple Host
+Sitelemetry
+wake-storefront
+ScanMalware
+Brilliant Directories
+RankControl
+Pollen
+Pluno WebMCP for Anything
+qa-quest
+Shipstar
+Searcherries
+Liner
+drewcrawford-skills
+Octen
+Stunt Double
+LogiCommerce Backoffice
+Mailtea
+socialync
+Upfunnels
+SocialFaktory
+Testers.ai CARBON Test Harness
+Dropthehassle
+ship
+SmartLinks App Growth
+Rolino
+logrocket
+rampstack-starter
+Share Artifacts
+Riskified Beacon Integration
+WeInc
+Rankability
+Mora
+Unfetch
+JuzPost
+Meticulous
+Keenable
+Tako
+Keytomic
+toolrouter
+Review Replier
+Kleap
+DialogBrain
+Falatu.ai
+Spyglasses
+Applyra
+Difficat
+Datafluxor
+Attri
+BacklinksWinkel
+Dopia
+Machine Relations Index
+Tabfleet Browser
+Porkbun
+Аграновский
+Relvato
+Pixelesq
+ThemeSniffer - WordPress Theme and Plugin Detector
+FrontDesk Chat
+Just.
+Zephyr Cloud
+Flowsery
+RedirHub
+Markaestro
+black-label-presence
+Newlogic Online
+JoomPulse
+Subtext
+Loomaly
+TesterArmy
+stacktree
+Mountaineering
+Gyoza Recipes
+mida-so
+Shipvela
+Swoop - X.com listening
+Showly
+Liftaven
+Seenode
+SDP Platform
+Botscope
+Vruum
+spun.ink
+country-flag-picker
+OPEN - what is open right now

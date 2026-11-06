@@ -42,7 +42,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     create_skill_template, get_skill_prompt, list_engineering_skills, list_code_skills, \
     list_files_docs_skills, list_designs_media_skills, list_pipelines_jobs_skills, \
     list_tickets_tasks_skills, list_notes_memory_skills, list_apis_skills, \
-    list_reference_docs_skills, list_ai_models_agents_skills
+    list_reference_docs_skills, list_ai_models_agents_skills, list_websites_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -573,6 +573,15 @@ def skill_aiagents(
 ):
     """Browse 311 AI Models & Agents skills from Claude's marketplace"""
     list_ai_models_agents_skills(domain=domain, search=search)
+
+
+@skill_app.command("websites")
+def skill_websites(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (seo_tools, website_builders, testing_qa, analytics_tracking, ecommerce, content_marketing, ads_paid_media, web_scraping_data, infrastructure_hosting, chatbot_support, design_ux, portfolio_showcase, niche_specialized)"),
+):
+    """Browse 285 Websites skills from Claude's marketplace"""
+    list_websites_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")
