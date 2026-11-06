@@ -1,9 +1,14 @@
-# TITO AI .gitignore
+# KURT AI .gitignore
 
 # NEVER commit these!
 .env
 *.env
 .tito/
+
+# Node — nasa project folder pero hindi i-commit (malaki!)
+node_modules/
+npm-debug.log*
+package-lock.json
 
 # Python
 __pycache__/

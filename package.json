@@ -1,0 +1,21 @@
+{
+  "name": "kurt-ai",
+  "version": "3.0.0",
+  "description": "K.U.R.T. — Kinetic Unified Response Terminal",
+  "private": true,
+  "scripts": {
+    "postinstall": "echo '✅ npm deps installed. Run: bash install_deps.sh'"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "latest",
+    "@google/gemini-cli": "latest"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "kurt": {
+    "note": "CLI tools are run via npx from node_modules — no global installs needed"
+  }
+}

@@ -8,7 +8,24 @@ import os
 import subprocess
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
+
+# Project root — all CLI tools run from here via npx (node_modules)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+NODE_BIN = PROJECT_ROOT / "node_modules" / ".bin"
+
+
+def _resolve_cmd(name: str) -> str:
+    """
+    Resolve a CLI command — prefer local node_modules/.bin over global.
+    This way LAHAT ng tools nasa project folder, hindi sa iMac globally.
+    """
+    local = NODE_BIN / name
+    if local.exists():
+        return str(local)
+    # Fallback: npx (still uses project node_modules first)
+    return f"npx --prefix {PROJECT_ROOT} {name}"
 
 
 @dataclass
@@ -44,7 +61,10 @@ SLASH_COMMANDS = {
 
 
 def _cmd_exists(cmd: str) -> bool:
-    """Check if a CLI tool is installed"""
+    """Check if a CLI tool is available — local node_modules first, then global"""
+    local = NODE_BIN / cmd
+    if local.exists():
+        return True
     return shutil.which(cmd) is not None
 
 
@@ -224,7 +244,7 @@ def handle_slash(
                 handled=True,
                 output=(
                     "❌ Claude Code CLI not found.\n"
-                    "Install: npm install -g @anthropic-ai/claude-code\n"
+                    "Run: npm install  (sa project folder)\n"
                     "Docs: https://claude.ai/code"
                 ),
                 continue_chat=True,
@@ -235,7 +255,8 @@ def handle_slash(
                 output="Usage: /claude <prompt>\ne.g. /claude review my main.py for bugs",
                 continue_chat=True,
             )
-        output = _run_shell("claude", f'--print "{args}"')
+        claude_cmd = _resolve_cmd("claude")
+        output = _run_shell(claude_cmd, f'--print "{args}"')
         return SlashResult(handled=True, output=f"🤖 Claude Code:\n\n{output}", continue_chat=True)
 
     # ── /gemini ─────────────────────────────────────────────────────
@@ -245,8 +266,7 @@ def handle_slash(
                 handled=True,
                 output=(
                     "❌ Gemini CLI not found.\n"
-                    "Install: npm install -g @google/gemini-cli\n"
-                    "Or: pip install google-generativeai"
+                    "Run: npm install  (sa project folder)"
                 ),
                 continue_chat=True,
             )
@@ -256,7 +276,8 @@ def handle_slash(
                 output="Usage: /gemini <prompt>\ne.g. /gemini what files are in this repo?",
                 continue_chat=True,
             )
-        output = _run_shell("gemini", f'-p "{args}"')
+        gemini_cmd = _resolve_cmd("gemini")
+        output = _run_shell(gemini_cmd, f'-p "{args}"')
         return SlashResult(handled=True, output=f"✨ Gemini:\n\n{output}", continue_chat=True)
 
     # ── /gh ─────────────────────────────────────────────────────────
