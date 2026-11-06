@@ -444,13 +444,59 @@ def chat(
     ))
     console.print("[dim]💡 Slash commands: /claude  /gemini  /gh  /run  /model  /skill  /save  /help[/dim]\n")
 
+    # ── Voice mode (Hey Kurt) ────────────────────────────────────────
+    # Wire in background voice listener — injects voice commands as if typed
+    _voice_queue: "list[str]" = []
+    _voice_active = False
+    try:
+        from kurt.core.wake_word import start_listening, check_dependencies as _voice_deps
+
+        def _voice_callback(event):
+            _voice_queue.append(event.text.strip())
+
+        _deps = _voice_deps()
+        if _deps.get("can_record") and _deps.get("can_transcribe"):
+            start_listening(callback=_voice_callback)
+            _voice_active = True
+            console.print("[dim]🎤 Voice active — say 'Hey Kurt' anytime (Ctrl+Shift+K to activate)[/dim]\n")
+    except Exception:
+        pass  # Voice is optional — chat still works without it
+
+    # ── Screen watcher (proactive mode) ─────────────────────────────
+    try:
+        from kurt.core.screen_watcher import KURTProactive
+        _proactive = KURTProactive()
+        _proactive.start()
+    except Exception:
+        _proactive = None
+
     while True:
+        # ── Inject voice command if any ──────────────────────────────
+        if _voice_queue:
+            _voice_input = _voice_queue.pop(0)
+            if _voice_input:
+                console.print(f"\n[bold cyan]You[/bold cyan] [dim](🎤 voice)[/dim]: {_voice_input}")
+                # Treat voice input exactly like typed input
+                prompt = _voice_input
+                # Jump straight to processing (skip the input() call below)
+                # We'll handle this via the goto pattern using a flag
+                _from_voice = True
+            else:
+                _from_voice = False
+        else:
+            _from_voice = False
         # ── Input ────────────────────────────────────────────────────
-        try:
-            prompt = console.input(f"[bold cyan]You[/bold cyan] [dim]›[/dim] ").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]👋 Bye![/dim]")
-            break
+        if not _from_voice:
+            try:
+                prompt = console.input(f"[bold cyan]You[/bold cyan] [dim]›[/dim] ").strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]👋 Bye![/dim]")
+                if _proactive:
+                    try:
+                        _proactive.stop()
+                    except Exception:
+                        pass
+                break
 
         if not prompt:
             continue
