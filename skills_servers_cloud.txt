@@ -1,0 +1,251 @@
+Unity
+Render
+Hostinger Connector
+supabase
+Cloudflare
+10x-Team
+Unreal Engine Skills
+Backend Design
+1Password Developer Tools
+Upstash Redis
+firebase
+huggingface-skills
+AI-Integration-Architect
+databricks
+Intuit Developer
+aws-core
+expo
+lovable
+KMJ CodeBridge
+AgentKeeper
+Agentic SDLC Kit
+Meta VR
+appwrite
+adb-mcp
+Greenstack Umbraco
+docker-skills
+AWS Startup Advisor
+AgentUI Tools
+NVIDIA Skills
+GeoAI Skills
+accelbyte-ai-plugins
+Grafana Assistant
+aws-data-analytics
+mcp-tunnels
+sentry
+Netlify
+AWS Startups Solution Architecture
+MetaFloor Supply Chain
+google-cloud-storage
+ESP32-AI-Agent-Skill
+Runpod
+neon
+railway
+Clean-Backend
+system-design-skills
+Grafana MCP
+together-ai-skills
+Testing
+New Relic
+aws-serverless
+aws-agents-for-devsecops
+aws-amplify
+deploy-on-aws
+Altimate Code
+claude-code-audit-stack
+Azure DevKit
+OpenSearch Agent Skills
+Dynatrace
+batocera
+Elastic
+Cargo
+Better Stack
+AgentAvow Trust
+MapMap
+Docker Image Scan
+Ngrok Agent Skills
+Catalyst by Zoho
+platform-skills
+arn-infra
+cto-toolkit
+Security Audit Loop by ATeam
+Ansight
+Rig
+elmah.io
+terraform
+oracle-ai-data-platform-workbench-spark-connectors
+Datadog
+aws-transform
+Preset API Skills
+Cerebrium Skills
+project-setup
+Celigo
+circle-skills
+dominodatalab
+cloud-sql-postgresql
+Anomity
+alloydb-omni
+WSL + Windows Workspace Connector
+Checkly
+spiceai/skills
+Kubernetes Mastery
+Supaflow
+GCP DevKit
+duckdb-skills
+Cloud FinOps by OptimNow
+Blaxel
+bash-guardrails
+Aiven
+Fine Structure
+ARMO Ctrl
+Ship A Cloudflare Worker
+Civic
+network-footprint
+amg-toolkit
+InsForge
+Zscaler MCP Server
+Ship
+cloud-sql-sqlserver
+arrfleet-toolkit
+Plan First
+AWS Cost Guard: Cloud Cost and Kubernetes Debugging
+ToolJet
+deepspace
+CogmemAi
+EnergyFlowX
+Fastly
+Qdrant
+Descope
+Spring Tools Language Server — Claude Code Plugin
+valet
+AppHaven
+CrowdSec Skill
+guile-skills
+Dev Environment Doctor
+Serverless Audit
+WhatBreaks
+migration-to-aws
+itential-builder
+mac-disk-cleaner
+CloudPloy/Claude-plugin
+idmp-plugin
+0bull
+cmux-ultimate
+logfire
+Go Backend Skills
+Sola Security
+Samebase
+ionoscloud-mcp
+Headlessmc
+Aqteron
+Carbide
+Temporal
+Observability Skills
+VillageSQL Skills
+aws-cost-audit
+Vertical Bar Agent
+LORM — Layered Operational Responsibility Model
+Preset CLI Skills
+arvancloud-api
+drupal-boost
+cwc-makers
+join-the-team
+Skiffly
+localstack
+mirrord Agent Skills
+sumologic-mcp
+hatchable
+oracle-ai-data-platform-workbench-aws-migrator
+clawback
+OneSignal
+deploycheck
+RootCX
+Mcpbackend
+N|Solid Skills
+TLS Radar
+Ory Agent Plugin
+TrustPin
+devrunway
+RAM Sleeper
+stackql-skills
+Daytona
+ergo
+envrelay
+SigNoz
+OBTO
+Monta
+ArcKit Netherlands Public Sector Overlay
+Dilaya
+Launchworthy
+Sprites
+groundcover
+Homelab Docker Ops
+coffee-paladin
+Env Setup Wizard: Project Setup and Onboarding
+ship
+Tailproxy
+nightvision
+Opsera DevSecOps
+session-sweep
+meetstream-ai-meeting-bot-api
+TD SYNNEX Plugin
+Latio Secure Supply Chain Skills
+Re8ch Tenant
+DoiT Cloud Intelligence
+Indigo claude plugin
+IaC Reviewer: Terraform Security and Cost Check
+Varlock Skill
+wawesome
+worktree-workspace
+Croft
+Costory FinOps Agent
+dataproc
+Eon
+Firetiger
+Impreza Host
+ManageLM
+followrabbit
+workshop-mode
+Lightrun
+keep-awake
+Idasen Desk Control
+terraform-lsp
+ilo
+mqtt
+Voitta YOLT
+hlx-admin-api-executor-guarded
+Cataam Compliance
+Zephyr Cloud
+sounds
+Exepad
+RateMyCode
+Xata
+Uptimely
+pilots
+ShiftControl
+mise-plugin
+JProfiler
+Shipvela
+vm-disk-cleanup
+Tigris
+datadops
+elastic-sense
+ORC8R
+perstat
+rustunnel
+kong-konnect
+upbound
+ohmyho.st
+Seenode
+pntr
+Fracfyi
+RubixKube
+sethu: command bridge
+Worktree Guard
+tmux-status
+pyvar-arch-storage
+SWIRL
+Pethost
+Elaichi
+EnergyInCloud
+Nimbus Land

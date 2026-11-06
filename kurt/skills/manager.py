@@ -5,7 +5,8 @@ Skills = domain knowledge na nag-ggguide sa AI behavior
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
 290 Notes & Memory skills, 346 APIs skills, 324 Reference Docs skills,
-311 AI Models & Agents skills, and 285 Websites skills from Claude's marketplace.
+311 AI Models & Agents skills, 285 Websites skills, and 251 Servers & Cloud skills
+from Claude's marketplace.
 """
 
 import os
@@ -124,6 +125,16 @@ from kurt.skills.websites import (
     get_domain_prompt as get_websites_domain_prompt,
     get_stats as get_websites_stats,
     WEBSITES_DOMAINS,
+)
+
+# Servers & Cloud skills catalog
+from kurt.skills.servers_cloud import (
+    load_all_skills as load_servers_cloud_skills,
+    search_skills as search_servers_cloud_skills,
+    get_skill_context as get_servers_cloud_skill_context,
+    get_domain_prompt as get_servers_cloud_domain_prompt,
+    get_stats as get_servers_cloud_stats,
+    SERVERS_CLOUD_DOMAINS,
 )
 
 console = Console()
@@ -934,6 +945,61 @@ def list_websites_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill websites --search <query>  or  kurt skill websites --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_servers_cloud_skills(domain: str = None, search: str = None):
+    """List or search Servers & Cloud skills from Claude's marketplace"""
+    if search:
+        results = search_servers_cloud_skills(search)
+        console.print(f"\n[cyan]🔍 Servers & Cloud skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = SERVERS_CLOUD_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]☁️  Servers & Cloud domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_servers_cloud_stats()
+    console.print(f"\n[bold cyan]☁️  KURT Servers & Cloud Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "aws": "aws-core, aws-serverless, AWS Startup Advisor, deploy-on-aws",
+        "gcp_azure": "google-cloud-storage, GCP DevKit, cloud-sql-postgresql, Azure DevKit",
+        "kubernetes_containers": "docker-skills, Kubernetes Mastery, localstack, mirrord Agent Skills",
+        "databases_cache": "supabase, neon, Upstash Redis, duckdb-skills, Qdrant",
+        "monitoring_observability": "Grafana, Datadog, New Relic, Dynatrace, sentry",
+        "security_devops": "ARMO Ctrl, Zscaler MCP Server, TrustPin, nightvision",
+        "serverless_paas": "Netlify, railway, Render, Ship A Cloudflare Worker, Blaxel",
+        "networking_cdn": "Cloudflare, Fastly, Ngrok Agent Skills, kong-konnect",
+        "iac_automation": "terraform, Temporal, circle-skills, system-design-skills",
+        "cloud_cost_finops": "Cloud FinOps by OptimNow, aws-cost-audit, Costory FinOps Agent",
+        "data_platforms": "databricks, huggingface-skills, Elastic, OpenSearch Agent Skills",
+        "developer_tools": "expo, lovable, appwrite, adb-mcp, Go Backend Skills",
+        "enterprise_integrations": "Catalyst by Zoho, Celigo, Intuit Developer, Descope",
+        "niche_specialized": "Unity, Unreal Engine, NVIDIA Skills, Meta VR, GeoAI Skills",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill serverscloud --search <query>  or  kurt skill serverscloud --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
