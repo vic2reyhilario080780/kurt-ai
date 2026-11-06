@@ -2,7 +2,8 @@
 KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
-Includes 1,203 Engineering skills and 1,104 Code skills from Claude's marketplace.
+Includes 1,203 Engineering skills, 1,104 Code skills, and 850 Files & Documents
+skills from Claude's marketplace.
 """
 
 import os
@@ -31,6 +32,16 @@ from kurt.skills.code_skills import (
     get_domain_prompt as get_code_domain_prompt,
     get_stats as get_code_stats,
     CODE_DOMAINS,
+)
+
+# Files & Documents skills catalog
+from kurt.skills.files_docs import (
+    load_all_skills as load_files_docs_skills,
+    search_skills as search_files_docs_skills,
+    get_skill_context as get_files_docs_skill_context,
+    get_domain_prompt as get_files_docs_domain_prompt,
+    get_stats as get_files_docs_stats,
+    FILES_DOCS_DOMAINS,
 )
 
 console = Console()
@@ -360,6 +371,59 @@ def list_code_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill code --search <query>  or  kurt skill code --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_files_docs_skills(domain: str = None, search: str = None):
+    """List or search files & documents skills from Claude's marketplace"""
+    if search:
+        results = search_files_docs_skills(search)
+        console.print(f"\n[cyan]🔍 Files & Documents skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = FILES_DOCS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📄 Files & Documents domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_files_docs_stats()
+    console.print(f"\n[bold cyan]📄 KURT Files & Documents Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "document_creation": "diataxis, GitBook, PDFBolt, PlantUML, Miro",
+        "seo_marketing": "SEO Audit, Ad Copy Preflight, B2B Personal Branding",
+        "resume_career": "CV Builder, ATS Resume Checker, Career Compass",
+        "legal_compliance": "commercial-legal, GDPRGard, PandaDoc, DocuSeal",
+        "memory_context": "claude-memory, Memory Bank, Obsidian Notes",
+        "writing_editing": "Copyedit & Proofreading, anti-ai-writing, DeepL",
+        "productivity_tools": "research-superpowers, MeetNotes, Cite2FN",
+        "data_spreadsheet": "CSV Cleanup, duckdb-skills, Datarails financeos",
+        "file_management": "firecrawl, HandwritingOCR, google-cloud-storage",
+        "project_management": "pm, sdlc-kit, Docket Tracker, roadmapsmith",
+        "ai_integration": "AI Skills, pinecone, RAG Evaluation, databricks",
+        "ecommerce_business": "Amazon Selling Partner, Invoice Generator, Replo",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill files --search <query>  or  kurt skill files --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

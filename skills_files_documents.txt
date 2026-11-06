@@ -1,0 +1,850 @@
+Claude for Financial Advisors
+Apify
+Noibu
+GC AI
+Humanizer
+Informatica
+Social Media Skills
+Amazon Selling Partner
+Unstructured Foundation
+incident.io
+Chronograph GP
+claude-memory
+Headroom: Large File and Log Reader
+humanizer
+AI Skills
+3D CAD Converter
+firecrawl
+Obsidian Notes
+Sales Cloud
+LinkedIn Profile Review & Resume Converter - ResumeNext
+Vanguard Advisor Tools
+GovTribe
+8B AI Website Builder
+Humanize Kit
+watch-video
+commercial-legal
+pptx-deck-plugin
+obsidian-sync
+claude-md-management
+Codesign
+Creative Claw
+research-superpowers
+analytics-skills
+Claude SEO and GEO Site Audit
+Upstash Redis
+Meshy
+AI Employees
+firebase
+audit-suite
+Website Copywriting & Positioning
+Claude ghost writer
+SEO-AEO-GEO Ultimate
+Academic PDF Translation
+Study Desk
+Video Cleanup
+anti-ai-writing
+IT Reelsmaker
+AI Video Enhancer Studio
+SEO Audit
+agent-discussion
+Power BI Accessibility (PBIP/PBIR)
+CV Builder
+Apodictic
+databricks
+8digit Planner
+UX Agent Skills
+litigation-legal
+Marketing Psychology Kit
+corporate-legal
+revit-bim
+Online Writing
+Agentics Beyond Code
+Founder OS
+management-consulting
+expo
+parallel
+writing-quality
+Presenton
+Prompt Fixer
+ATS Resume Checker & Resume Builder - ResumeNext
+Design Steward
+Reverse Engineering
+ux-superpowers
+strategy consultant
+AI YouTube OS
+transcribe-so
+wordpress-mcp
+privacy-legal
+Potion
+Arcads AI
+Bright Data
+Claude MD Optimizer
+employment-legal
+Agentic SDLC Kit
+Awesome Ecom Skills
+Accountable
+Google Drive → Markdown
+B2b Sales Enablement
+appwrite
+SEO Writers
+Career Desk
+AITOPIA
+ip-legal
+Ad Copy & Creative Preflight
+Writing Process
+Miro
+docker-skills
+Manifold
+google-multi-account
+Job Search by Develop21
+CellCog
+AgentUI Tools
+HTML/CSS to Image API
+Hyper Marketing
+Cairn Memory — CLAUDE.md & agent memory that stays true
+GeoAI Skills
+Career Compass
+Job Hunt Copilot (India)
+Autorender
+dataink
+render-visual-skill
+brand-md
+claude-context-optimizer
+Matematic Humanizer
+Jira Attachment Plugin
+aws-data-analytics
+unslop
+Fairmind Design
+Pdf To Excel
+Jinkō
+AgentOne Token Compression
+legal-clinic
+Slop Stopper
+Mobile Design System
+Admin Desk
+product-legal
+regulatory-legal
+learning-planner
+Career Navigator
+plugin-dev
+Blog Content Strategy, Content Calendar & Content Audit
+anchor-memory
+Job Hunt HQ
+B2B Research: Market and Account
+read-paper
+AI Search Visibility & Brand Mentions (GEO/AEO)
+Ai Playbook
+Made For You CV
+dataslayer-marketing-skills
+Icon Creator
+code-map
+ADA PDF Compliance
+ConvertAPI
+paper-review-system
+copy-that-sells
+B2B Events, PR and Launches
+Arcade
+iceberg
+MetaFloor Supply Chain
+Editorial OS
+FoundRole Jobs
+google-cloud-storage
+Mathbox
+mindmap-skills
+GitBook
+Interactive Docs
+AI Search Visibility (AEO/GEO)
+rampstack-seo
+doc-authoring-skills
+Token Inspector
+comp-skills
+Slidely
+Ansvar Compliance Skills
+content-analysis-plugin
+excalidraw-plugin
+OpenClips
+DeepL
+neon
+OpenClip
+SVG.new
+B2B Personal Branding
+legalzoom
+SE Ranking
+Adds Up
+Writing Desk
+Annotate
+DevExpress Office & PDF File API
+Everwrite
+Big If True
+CineFlo
+design-system-by-blue
+app-review
+conversiontools
+Worker K
+VideoRecompress Studio
+Spreadsheet (DWS Build)
+Poppify
+Higgs Hub
+archgram
+Writing Intelligence Studio
+aws-amplify
+betterposter
+MakeBox for Etsy
+LLM Project Docs
+claude-train-prep
+Wiser
+Cortex
+EasyPDF
+BoardRepo
+LR-AI
+Make Documentation
+Datarails financeos
+Resume Skills & Keywords by Role - ResumeNext
+archlens
+Writing With Agents
+Customer Research Kit
+AncestralFire
+arn-spark
+Agência Pessoal ONE
+Contentstack Agent Skills
+Notion Markdown Sync
+claude-performance
+Cover Letter Checker & Builder - ResumeNext
+OpenSearch Agent Skills
+tesserai
+Portfolio Interview
+ISO 24495 Plain Language
+axiomcore
+batocera
+Proofread
+aspiration-self-monitoring
+Cargo
+slide-revive
+BulkPublish
+Probabl Skills
+claude-blog-assistant
+carusela
+AAA ClauseBuilder
+Make Poster
+Competitive Skills by LMTY
+FullEnrich
+Fully SEO optimized Article with FAQ's
+Memory Bank
+asodev
+MapMap
+WordPress DevKit
+ArcKit UK NHS Clinical Safety Overlay
+app-preview-craft
+ALICE by Soundscape
+GDPRGard Compliance Skills
+akc-cycle
+StyleRef
+Catalyst by Zoho
+ZSL Superpowers
+fix-cv-find-job-skill
+Arkas
+Canon Check
+Job Match & Resume Keyword Scanner - ResumeNext
+Cite2FN
+HandwritingOCR
+sdd-superpowers
+Countz Accounting
+memory-agent
+Resume Bullet Point Checker & Action Verbs - ResumeNext
+MyChatBot
+Intent
+arn-infra
+Contratos Civiles y Mercantiles
+spaitial-ai
+career-brand
+llm-wiki-plugin
+Marky
+Claistore
+SuperCool Sites & Decks
+please-optimize-my-claude
+fiftyone
+create-smartfolder
+Mojulo
+hwpx-plugin
+Copyedit & Proofreading
+Music Catalog Diligence
+Financial Aid Office Workflow
+naksha-studio
+Loopky flashcards
+FAF Skills
+Nonprofit Grant Operations
+Bankstatemently
+Uniform
+Production Engine
+LovableSEO
+One
+SweetClaude
+harness-architect
+HasData
+Whimsical
+appfoyer
+oracle-ai-data-platform-workbench-spark-connectors
+TRES Finance Plugin
+Atria
+Lead Magnets
+Chat Auto exporter
+EasedUP
+storm
+Ullbek — AI website builder
+AgentPricing Connector
+InsightPins for Pinterest
+Resume Examples & Templates - ResumeNext
+Contratos Laborales y Asesoría Empresarial
+Context.dev
+Replo
+Mokaru
+Pitch Deck Advisor
+jevmem
+emem
+project-setup
+Clawness
+Altertable
+Litigación Civil España
+euxlab-skills
+Deep Refactor
+Kuliko AI
+ProseShape
+Meeting.ai
+htmldeck
+planning-skills-for-agents-and-humans
+Tweenkit
+BOLD Studios
+Lark/Feishu Integration
+vellum
+Templafy
+fet
+strategy-pack
+claude-context-auto-handoff
+translate epub
+Vault Anything
+DocsBot
+Document Vault
+Oracle AI Data Platform Workbench Engineer Agent
+dominodatalab
+OpenPlanr
+pm
+harness-bootstrap
+colophon
+tailwind-design-system
+oryxflow - Trustworthy AI Data Analysis
+WSL + Windows Workspace Connector
+Claudify
+host-html
+memory-toolkit
+JD Resume Tailor
+Translate Book: arXiv
+bake-claude-md-files
+GapToGrowth
+Kontext
+Litigación Contencioso-Administrativa España
+Local Whisper
+Baton
+Statutory Reporting Plugin
+IQland Real Estate
+scout
+clawpage
+authorityprompt-installer
+apcd
+Litigación Laboral España
+zentropi
+Filestack Claude Plugin
+smarts.bio
+Lindo AI
+pinecone
+viral-launch-pipeline
+open-document-skills
+Codebase Mentor
+duckdb-skills
+holistics-development
+Goal Composer
+PUML - PlantUML
+scrimba-explain
+Compliance ES
+Nickture Skills for interface polish, Russian copy and AI deslop
+ApplyArc
+RV and OpenRV Media Review
+ASO Specialist
+OpenCase
+PandaDoc
+Form.io
+BAMF.ai
+DalyKit
+preset-toolkit
+stock-portfolio-valuation
+Plans
+Programmatic SEO Gate
+biocharpro
+Alteryx
+Blogr
+Site Architecture & Faceted Navigation
+ClientGen Reach
+Fine Structure
+Referent
+Assetlib Audit
+Client Briefs
+Unbounce Landing Page Builder
+VibeLeads: B2B Lead Finder
+Invoice Generator
+beegait
+Brendly
+Blogizi
+Contracko
+StarZero
+PDFBolt
+Avontus Viewer
+Templify by Irvito
+Facade Ui
+beforeword
+Aria
+Planable SMM
+dyscalculia-support-skill
+Maquinable GEO
+PostEverywhere
+Data Protection
+Casely
+Duda
+Competitive Intel
+PostDaily
+InsForge
+visual-docs
+Gambit
+claude-todo-mirror
+Iminify
+MeetNotes
+Standards
+fcxo-toolkit
+Etincel
+hone
+Playbook
+MagicInterview
+arrfleet-toolkit
+QkConvert
+Contenta Converter
+save-your-work
+zaha
+crowdstrike-falcon-fusion
+ololand-dd
+Recharm
+Zyte Web Data
+GetEmployed
+Heimdall
+JSON Schema App MCP
+Product Tracking
+EnergyFlowX
+Telepath
+Learn Wiki
+sdlc-kit-extended
+ReadIt
+Docket Tracker
+PaperPorter
+Ifc Skills
+cialdini-influence-audit
+valet
+kordoc
+revelata
+regai — Vietnamese Legal Consultant
+SpeakCAD Slicer
+Booking FAQ
+markgrab
+Stable Baseline
+Publica Now
+HackMD
+PolyBlog Blog Builder
+Shipshape
+Three Pillars
+Aqtos
+itential-builder
+mac-disk-cleaner
+shipwright
+htmlpen
+bibtidy
+CSitRep Generator
+LVAI Pro
+CiteLLM
+CSV Cleanup
+zime-skills
+Extend
+freee
+Retirement Cash Flow Planner
+VibeMeASite
+GetSign
+Voice Messages
+maddog
+Propper
+FluidDocs Deck Builder
+Cladeon
+Harness Designing Plugin
+LilysAI
+changethisfile
+Infinite Resume
+Folio
+Pwa2play
+shopee-review
+Extranjería España
+CompanyOS
+PropertyMe
+Чуковский
+Aqteron
+Job Interview and Meeting Preparation
+Lexbeam EU AI Governance
+Markdown by mdedit.ai
+Klaket
+open-source-launch
+mana
+goalify
+recall
+brief-interview
+doc-authoring-skills-ja
+Estimate Builder
+Vibee
+Pencil Underwriting
+Dreambase
+Compact Ready
+LORM — Layered Operational Responsibility Model
+Genfeed
+Continuity
+Jotbook
+Слопотрон
+district-court-drafting
+keynot
+diataxis
+GetSearchablePDF
+Rapier
+Awayfolk
+Docbrain
+Briefcase
+Cut Weight
+Juniper Square
+handoff-doc
+Env Protector: Secret Scanner
+Tuteliq
+iPhone Backup for Linux
+StoreConnect Agent Skills
+CREparser Lease Abstraction
+QuizWrangler
+Textpass De
+Demand from the File
+Forge PII Scan
+NPMScan
+RoboSystems
+Nexaya OS
+Powabase
+Seudonimizador Clinico Juridico
+Discovery To Mvp
+hatchable
+csv-quality-gate
+Review Mode
+powmcp
+Mission
+handsontable-skills
+reef
+skipper
+Simple Host
+SpliceCraft
+Xsolla AI Toolkit
+Drydock
+Vulca
+Brilliant Directories
+PlausibleBA — Business Architecture Skills
+groundwork-specflow
+Instructions Cleanup
+Foliade
+mindpowers
+RAG Evaluation
+myocr.app
+OpenDocs
+echosy
+Wealthbox
+Pics.io
+RankControl
+supreme-court-drafting
+Pollen
+sdlc-kit
+dyslexia-support-skill
+Intelligo
+LCA and DEALA agent skills
+DSAIL: Rules Engine for Written Policy
+project-boundary
+Robin
+tlgr
+inSitu Sales
+DocuSeal
+Pdf Samenvoegen
+stackql-skills
+Recruiter Panel
+Retenot
+Foliyo
+SlideOps
+Schedule Health Check
+PromptReady
+Shipstar
+envrelay
+LaunchNotes
+indian-contracts-drafting
+Plugin Packaging
+OBTO
+Context — ctxt.io
+Contezza AI for Merchants
+Cyberine TaskBoard
+EASE OS
+FormBuilder
+indian-hc-drafting
+synapse
+Lumr Studio
+sync-docs
+Toego
+cflio
+i18n Sync: Missing Translations Finder
+LogiCommerce Backoffice
+Panscia
+Planpack
+Source Of Truth
+Tcxc Rate Deck
+Zero Slop Hosted
+Dilaya
+SignatureAPI
+Syndic8
+Upfunnels
+Cohesive
+Make My Product Clear
+wiki-wonka
+TellTale
+roadmapsmith
+Printago
+Dropthehassle
+pmm
+Comment.io
+Dragoman
+fixRAgent
+Freelaw Studio
+Env Setup Wizard: Project Setup and Onboarding
+Mcdx Toolbox
+plori
+Мильчин
+Linkly
+Rolino
+Виноградов
+Keelokit
+Sustain Skills
+Swallow Insurance Rating Engine
+重調クン (Jucho-kun)
+EUDR compliance
+transitrix
+Pitch'd Rails
+SDD Kit
+walkthrough
+lorkindoc
+rampstack-starter
+Superwall
+indian-consumer-drafting
+Joboostr
+Share Artifacts
+fakechat
+Радар вакансий
+indian-company-drafting
+Peristyle Grocery Cart
+Nemi
+wechat-audio-toolkit
+WeInc
+Rankability
+Mora
+Multi Mail
+Plan Chain
+Resurface
+Basit Kargo
+Stackin
+ddw
+PIASO
+Бахтин
+peepshow
+Rav Messer
+Merit Aktiva for AI Agents
+Ekamanam Study Companion
+StarryKit
+Nogbase
+Phase Runner
+wawesome
+liste
+Repo Standard Toolkit
+Spec Drift Detector
+Unboxing Editor
+Waterfall
+Receiptor AI
+seedkit
+toolrouter
+Vaara
+md-linker
+Shippo
+Dev Wrapped
+skill-provenance
+Kazap Adversarial Review
+pixinsight-connector-skills
+SpecDD
+Unofficial Telegram MCP
+Fin3000
+gist-design
+Numeric MCP Toolkit
+Resu Studio
+SpecsGraph
+ubl-star — facturas electrónicas a Power BI
+Resignation Letter Generator - ResumeNext
+truinorva-triz
+Glop Plugin
+indian-rent-control-drafting
+PurchasePlus
+STE Explain
+throughline
+Write Guard
+File Tools First
+repo-docs-system
+Karrito
+SDD Planner
+Reclamos de consumo Perú
+letX
+ManageLM
+MarketsEasy
+Tendrpro Lite
+Cmssy
+GoCycling AI
+Effective
+indian-ip-drafting
+RepoAtlas
+sdd
+tidycoder
+slim
+indian-family-drafting
+repoviewer
+TeX64
+lattice
+Seqout
+CodeRook
+indian-property-drafting
+genesis-governance-claude
+Pixelesq
+okrdev
+indian-labour-drafting
+Wassup
+Xestando
+Jamdesk
+The PDF Maker
+Clientmate
+Skyelight
+X/D Loom
+OpenOrange
+daitsch
+Farol
+Total CMS
+itinovo CRM
+Just.
+static.md
+Mibba
+nlsmdn
+Post-Job Summary
+Tailor.ia Lean
+Mirror
+ShareSign
+Newlogic Online
+Incubae
+Plans Lifecycle
+SPACEXPLORATION
+Редколлегия
+Matematic Reviewer
+Grace Guardian
+entalpa
+Formify Core
+Mattemena Nerve
+Sammati DPDP Readiness
+stacktree
+TDCv2 — Fake & Test Data Generator
+Paušal
+Nowistay
+Pragmatic Dev Toolkit
+Wassup (español)
+Gyoza Recipes
+ihmtools
+Privy BFCM Planner
+Range Roofing Portal
+indian-mact-drafting
+mise-plugin
+Stemma
+BriefGate
+Cyberine Snippets
+Datakart
+mail-muncher
+Overwrite Guard
+querymantic
+smdd-toolkit
+Product Returns
+SysML v2 Co-Pilot
+featuredrop
+Orbit by Noveum
+Revelica
+catdef
+Controlled Czech
+Legacy JRXML Toolkit
+Wyatt
+Tigris
+REST API for Perfex CRM
+SharedBrief
+Scope Changes
+fe-rail
+Titlize
+Groundtruth
+Ratification Docket
+UAE Healthcare Compliance by ATeam
+kong-konnect
+Persyst
+Taskpend
+XEDI
+RenooLab — Rénovation et artisans
+Convertia
+Milepost
+oJobinho
+RiverScript
+Saudi Healthcare Compliance by ATeam
+Seenode
+TenderKart
+SDP Platform
+sealmd
+Stalwart Mail
+PRFlow
+extractos-ar
+Tenant Replies
+Emboss
+Veteran Companion
+whydone
+Knotr
+Princi
+RoboWrite
+CopperJack
+Diamond Painting Converter
+jgs-magic-sysmlv1-read-skills
+Insight Badger
+intent-verify
+Vruum
+spun.ink
+Facehunch
+Helvabase
+KontoCSV
+SpiceGrinder
+Stayux Clear Answer
+tw-lvr-cli
+Fastah NetOps Tools
+Quillm
+Romana Clara
+Recap Studio
+OctoDoc
+Revensi
+Valha
+Lemmafour
+VCupid
+Verity
+Némos
+Claude Docs
+Mintlify
