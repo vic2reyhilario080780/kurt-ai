@@ -3,7 +3,7 @@ KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
-and 433 Designs & Media skills from Claude's marketplace.
+433 Designs & Media skills, and 368 Pipelines & Jobs skills from Claude's marketplace.
 """
 
 import os
@@ -52,6 +52,16 @@ from kurt.skills.designs_media import (
     get_domain_prompt as get_designs_media_domain_prompt,
     get_stats as get_designs_media_stats,
     DESIGNS_MEDIA_DOMAINS,
+)
+
+# Pipelines & Jobs skills catalog
+from kurt.skills.pipelines_jobs import (
+    load_all_skills as load_pipelines_jobs_skills,
+    search_skills as search_pipelines_jobs_skills,
+    get_skill_context as get_pipelines_jobs_skill_context,
+    get_domain_prompt as get_pipelines_jobs_domain_prompt,
+    get_stats as get_pipelines_jobs_stats,
+    PIPELINES_JOBS_DOMAINS,
 )
 
 console = Console()
@@ -487,6 +497,59 @@ def list_designs_media_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill designs --search <query>  or  kurt skill designs --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_pipelines_jobs_skills(domain: str = None, search: str = None):
+    """List or search pipelines & jobs skills from Claude's marketplace"""
+    if search:
+        results = search_pipelines_jobs_skills(search)
+        console.print(f"\n[cyan]🔍 Pipelines & Jobs skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = PIPELINES_JOBS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]⚙️ Pipelines & Jobs domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_pipelines_jobs_stats()
+    console.print(f"\n[bold cyan]⚙️ KURT Pipelines & Jobs Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "ci_cd_devops": "gitlab, harness, Checkly, deploycheck, Shipwright",
+        "project_management": "asana, linear, AgileHero, Plane, roadmapsmith",
+        "monitoring_observability": "Datadog, New Relic, Grafana MCP, Rootly, logfire",
+        "data_pipeline": "databricks, dbt-toolkit, Prefect, Temporal, Alteryx",
+        "cloud_infrastructure": "terraform, aws-core, docker-skills, Blaxel, NeonPanel",
+        "ai_agents": "agentic-council, Factory, Controller AI, RAGOps, Rig",
+        "testing_qa": "BugBug, TestAtlas, Checkly, functionize-mcp, assurance",
+        "business_automation": "ActiveCampaign, Customer.io, Celigo, Knock, Inngest",
+        "developer_tools": "postman, lovable, build-companion, superdevflow, Go Backend Skills",
+        "security_compliance": "crowdstrike-falcon-foundry, TrustPin, genesis-governance-claude",
+        "product_analytics": "amplitude, posthog, Mixpanel, Basedash, Qlik Agents",
+        "sdlc_planning": "Agentic SDLC, Think Before You Build, estimator, Hypotize",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill pipelines --search <query>  or  kurt skill pipelines --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

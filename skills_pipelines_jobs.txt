@@ -1,0 +1,368 @@
+ActiveCampaign
+Render
+incident.io
+Pendo Orchestrate
+gitlab
+10x-Team
+agentic-council
+Agent Protocols
+Upstash Redis
+AI Employees
+huggingface-skills
+AI-Integration-Architect
+Oncall
+Codex Dispatch
+databricks
+agentic-harness
+posthog
+Agentics Beyond Code
+aws-core
+agent-handoff
+expo
+lovable
+KMJ CodeBridge
+AI YouTube OS
+adisinsight
+Agentic SDLC Kit
+githubclip
+Factory
+Greenstack Umbraco
+docker-skills
+AgentUI Tools
+Agentic SDLC
+Autoresearch
+NetSuite SuiteSkills
+beads-superpowers
+Claude Code Survival Kit
+Autoresearch AI Plugin
+linear
+Agent Formal Verify
+Accelerate AI Toolkit
+asana
+Supermetrics Ads & Marketing Analytics
+amplitude
+Small Business Operator
+AWS Startups Solution Architecture
+lean-pm-skills
+Ruflo Ai Team
+Arcade
+Atlassian Teamwork Graph CLI
+postman
+MetaFloor Supply Chain
+Editorial OS
+AgileHero
+azure-sql-developer
+Runpod
+railway
+token-efficiency-audit
+zilliz
+cloud-coder
+Grafana MCP
+apiai.me
+Testing
+AI Context Bridge for HubSpot
+New Relic
+CI Optimizer: Faster GitHub Actions and GitLab CI
+aws-serverless
+Claude-Trinity
+claude-workflow
+Agile Sprint Close
+Contentstack Agent Skills
+Aictrl.dev
+Dynatrace
+axiomcore
+laravel-boost
+Elastic
+Cargo
+Better Stack
+Conductor
+Astronomer
+One-Shot — Agentic Feature Generation
+Controller AI
+MCP Workflow Audit
+Catalyst by Zoho
+platform-skills
+savvy
+arn-infra
+Agile Sprint Drain
+cto-toolkit
+Samautomation Workflows
+aio watermill-kit
+Rig
+datahub-skills
+elmah.io
+terraform
+SweetClaude
+assurance
+Mixpanel
+claude-forge
+Datadog
+Flow Studio Power Automate
+Airship Agent Tools
+Cerebrium Skills
+Decibel Superpowers
+Altertable
+Customer.io
+boomi-agentstudio
+Celigo
+project-pilot
+php harmony
+DataHub Cloud
+Imagelato Image Optimization
+Auto-log your Claude Code sessions as Odoo timesheets
+fet
+Oracle AI Data Platform Workbench Engineer Agent
+dominodatalab
+hyperflow
+OpenPlanr
+pm
+HarnessKit
+oryxflow - Trustworthy AI Data Analysis
+boomi-integration
+streaming-skills-plugin
+BugBug
+build-companion
+vstack
+crowdstrike-falcon-foundry
+Checkly
+magicweave
+spiceai/skills
+Supaflow
+MongoDB Atlas (Managed MCP)
+claude-release
+askrubberduck
+Adagio
+superdevflow
+Simple Progress Bars
+Blaxel
+Beer and code Harness
+Prefect
+Plans
+Alteryx
+Agile Forge Praxis
+boomi-data-integration
+octopus-ai
+beegait
+Maeve Social
+boomi-marketplace
+StarZero
+demand-insight
+Ship A Cloudflare Worker
+Quality Supervisor
+Civic
+dbt-toolkit
+harness
+Brainbase MCP
+InsForge
+Project Scaffolder — Synaptic Edition
+story
+Ship
+PartnerImpact
+dev-squad
+Krites
+Plane
+zaha
+crowdstrike-falcon-fusion
+Timesheet
+CloudBees Unify AI plugin
+deepspace
+Think Before You Build
+sdlc-kit-extended
+Cyberine ReleaseGuard
+Basedash
+Inngest
+Qlik Agents
+valet
+AppHaven
+StatsClaw
+Wave Planning
+Goodnight Alchemist
+Pipelinemd
+gangsta
+hiway-kit
+git-weekly-changelog
+Turbocharge
+delivery-skills
+Work Unit Roadmap
+Three Pillars
+Aqtos
+itential-builder
+CloudPloy/Claude-plugin
+mosaic
+Watchgoose Monitoring
+CSitRep Generator
+Running Workout
+cmux-ultimate
+Revenue Analytics for HubSpot
+BridgeApp
+wai-suite
+Kowalah
+logfire
+Go Backend Skills
+EasyEsuite
+Workflows Conductor
+NeonPanel
+Coconut Context
+outputai
+Headlessmc
+Carbide
+Temporal
+major
+Vertical Bar Agent
+Session Orchestration
+LORM — Layered Operational Responsibility Model
+dispatch-board
+drillspark-workflow-toolkit
+Genfeed
+two-gates
+Orbi
+Splashify Pro
+Preset CLI Skills
+drupal-boost
+devils-advocate
+Data Pipeline Builder: dbt and Airflow Checks
+join-the-team
+Hypotize
+localstack
+mirrord Agent Skills
+coderocket
+hatchable
+Gestão Ágil 2.0
+csv-quality-gate
+estimator
+harness-init
+Realize Plugin
+oracle-ai-data-platform-workbench-aws-migrator
+Elastishot
+Breeze
+clawback
+Mission
+JFrog
+pushnotifime - human in the loop
+deploycheck
+Oracle AI Data Platform Workbench Databricks Migrator
+loop-and-gate-build-kit
+ccgrapher
+Nauro
+kumi
+easy-tiger
+qa-quest
+SignalPilot
+oleander
+TrustPin
+devrunway
+stackql-skills
+ergo
+Toru Claude Agents
+Schedule Health Check
+Shipwright
+LaunchNotes
+Pipeline Reconcile
+Monta
+goodfellow
+n360-app-release
+Slashy
+greenfield-delivery
+drewcrawford-skills
+versori-skills
+Wave Planner Skill
+Hive
+RootCX
+Dilaya
+Upfunnels
+Cohesive
+Masthead Data
+roadmapsmith
+Printago
+Homelab Docker Ops
+SmartLinks App Growth
+plori
+teamcity-cli
+Keelokit
+shipwright
+Verdict
+WarmySender
+dvera
+dod-guard
+Eval Conductor
+astravue
+PagerDuty Pre-Commit Risk Score
+ddw
+Knock
+Robotics Lab
+Unleash Feature Flags
+RAGOps
+TestAtlas
+liste
+keelson
+grits
+functionize-mcp
+TimeDataModel-skill
+Inventok
+dataproc
+Sideboard
+Topo
+Firetiger
+Rootly
+ManageLM
+Genaya
+Just Keep Swimming
+BuzzBit X
+Flowglad
+Relvato
+SnapVisor
+Takshak
+genesis-governance-claude
+ilo
+gh-guard
+TinMan - Heartbeat for Claude Code
+mergify
+WaveEngine
+Plantime
+Waves Exovian
+hordev
+Sdlc Assist
+neonloops Workflows
+Revuity Systems
+Zephyr Cloud
+Revelara
+ship
+superstack
+undercover
+wf-toolkit
+Loopsii
+prepare-delivery
+Paramify
+pilots
+mise-plugin
+optikit
+Hawkscan Ci
+loopify
+Orbit by Noveum
+Motir
+Resonant Quantum Mechanics
+Stackhawk Data Seed
+overloop
+mister-anderson
+phaser
+datadops
+Notifly
+perstat
+XEDI
+upbound
+Сторож рекламы
+ohmyho.st
+Seenode
+RubixKube
+TestDino
+Roll Call
+spera
+mokata
+tsm
+papi
+featury
+Pragma
+Varis Plan Tracker
+Revensi
+Servo
+Dataiku Headless
