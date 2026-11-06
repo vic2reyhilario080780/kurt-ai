@@ -4,7 +4,7 @@ Skills = domain knowledge na nag-ggguide sa AI behavior
 
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
-and 290 Notes & Memory skills from Claude's marketplace.
+290 Notes & Memory skills, and 346 APIs skills from Claude's marketplace.
 """
 
 import os
@@ -83,6 +83,16 @@ from kurt.skills.notes_memory import (
     get_domain_prompt as get_notes_memory_domain_prompt,
     get_stats as get_notes_memory_stats,
     NOTES_MEMORY_DOMAINS,
+)
+
+# APIs skills catalog
+from kurt.skills.apis import (
+    load_all_skills as load_apis_skills,
+    search_skills as search_apis_skills,
+    get_skill_context as get_apis_skill_context,
+    get_domain_prompt as get_apis_domain_prompt,
+    get_stats as get_apis_stats,
+    APIS_DOMAINS,
 )
 
 console = Console()
@@ -674,6 +684,61 @@ def list_notes_memory_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill notes --search <query>  or  kurt skill notes --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_apis_skills(domain: str = None, search: str = None):
+    """List or search APIs skills from Claude's marketplace"""
+    if search:
+        results = search_apis_skills(search)
+        console.print(f"\n[cyan]🔍 APIs skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = APIS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🔌 APIs domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_apis_stats()
+    console.print(f"\n[bold cyan]🔌 KURT APIs Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "payment_billing": "Stripe, PayPal, Mercado Pago, Adapty, sumup",
+        "cloud_infrastructure": "aws-core, Netlify, Cloudflare, terraform, neon",
+        "developer_tools": "github, postman, Arcade, Checkly, 42crunch",
+        "marketing_ads": "Windsor.ai, AdWhispr, AdMakeAI, SE Ranking, Supermetrics",
+        "security_auth": "workos, Descope, crowdstrike, Fingerprint, Proofable",
+        "data_analytics": "looker, Allium, diffbot, HasData, Qlik Agents",
+        "communication_messaging": "slack, RingCentral, SignalWire, OneSignal, feishu",
+        "commerce_ecommerce": "shopify-ai-toolkit, Shippo, Printago, Linkly, Clinch",
+        "ai_ml_tools": "Plugin Management, claude-code-setup, lovable, ag2-tool-builder",
+        "monitoring_devops": "incident.io, Checkly, groundcover, Treblle, kong-konnect",
+        "finance_wealth": "Claude for Financial Advisors, Vanguard Advisor Tools, TradeOS AI",
+        "enterprise_integrations": "Celigo, boomi-agentstudio, Supaflow, Form.io, Atlassian",
+        "healthcare_bio": "Maven Bio, healthit-copilot, smarts.bio, open-targets",
+        "legal_compliance": "cocounsel-legal, ip-legal, Civic, Proofable, Casely",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill apis --search <query>  or  kurt skill apis --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

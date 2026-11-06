@@ -1,0 +1,346 @@
+Plugin Management
+github
+Claude for Financial Advisors
+claude-code-setup
+BlackRock Advisor Center
+Synthflow
+NetSuite AI Companion
+Maven Bio
+incident.io
+Omniout: LLM Retries and Model Fallback
+Cloudflare
+Sales Cloud
+Vanguard Advisor Tools
+agentic-council
+Backend Design
+Eddyter
+ai-governance-legal
+shopify-ai-toolkit
+Windsor.ai Ads and Marketing Data
+Stripe
+firebase
+AI-Integration-Architect
+AdWhispr Ads & Marketing Agent
+microsoft-docs
+Intuit Developer
+AdMakeAI
+slack
+aws-core
+mcp-server-dev
+lovable
+42crunch-api-security-testing
+AdCopilot for Google Ads, Google Analytics, Google Search Console & Google Tag Manager
+ag2-tool-builder
+Adapty
+github-cli-health-check
+Bright Data
+cocounsel-legal
+AdvisorPPC - Google Ads, Analytics, Tag Manager, Search Console and YouTube Connector
+ip-legal
+Manifold
+AssistantLabs — Personal Assistant for Business
+AgentUI Tools
+Hyper Marketing
+Blocksize Market Data
+accelbyte-ai-plugins
+Adspirer Advertising Agent
+Advise Project Approach
+Supermetrics Ads & Marketing Analytics
+Netlify
+Voicenter API Skills
+Shopify App Builder
+Hunter
+Car Image API
+API Contract Forge
+Apollo Skills
+mcp-apps
+API Doc Generator: OpenAPI from Your Code
+Arcade
+postman
+adplane
+MetaFloor Supply Chain
+GitBook
+AdsAgent
+EODHD Financial Data APIs
+Duende Agent Skills
+neon
+TradeOS AI
+SE Ranking
+Clean-Backend
+system-design-skills
+dataverse
+Zernio
+Mercado Pago
+resend
+aws-amplify
+deploy-on-aws
+Atlassian Forge Skills
+HarborRank SEO
+Internet Tools
+bitcoin-companies
+Socialinsider
+senior-developer
+Azure DevKit
+UnifAPI
+Mosaic
+Contentstack Agent Skills
+youdotcom-agent-skills
+API Drift Detector: TypeScript Contract Checker
+Cargo
+Ryze AI Marketing Skills
+asodev
+MapMap
+Ngrok Agent Skills
+Catalyst by Zoho
+coinpaprika
+platform-skills
+amazon-location-service
+MyChatBot
+adlane
+looker
+aio watermill-kit
+airwallex-dev
+mcp-connector
+Snagly
+terraform
+Allium
+One
+Instant
+HasData
+oracle-ai-data-platform-workbench-spark-connectors
+post bridge
+CodeQR
+Voicenter MCP
+SerpApi Claude Plugin
+Anson
+Preset API Skills
+Airship Agent Tools
+HYPD AI - Paid Ads & Analytics
+athena-tools
+Billing Plane
+mcp-gsc
+boomi-agentstudio
+Celigo
+Agora
+DataHub Cloud
+BOLD Studios
+circle-skills
+Imagelato Image Optimization
+PayPal
+aomi-build
+CryptoETF Flows
+dominodatalab
+boomi-integration
+streaming-skills-plugin
+trip-json
+GovTribe
+crowdstrike-falcon-foundry
+Checkly
+spiceai/skills
+Supaflow
+Sent
+clawpage
+PWP-Project Workflow Protocol
+smarts.bio
+GCP DevKit
+PaidSync
+open-targets
+Form.io
+hive
+FluidityIQ Patent Intelligence
+Daymark
+Anysite GTM
+apptweak-api
+healthit-copilot
+Fine Structure
+API Load Tester: Latency and Throughput Tests
+Confident AI Client
+Cheapest Domains
+ARMO Ctrl
+Endgame
+PostSyncer
+Civic
+network-footprint
+Casely
+Copycat
+Crossbeam Skills
+InsForge
+diffbot
+cairo
+Domain Check Skill
+swagger-contract-testing
+arrfleet-toolkit
+cds-mcp
+Plan First
+ASO Atlas
+Contentstack Vibe Docs
+soundcheck
+DomainKits
+gen-sage
+Fastly
+Beeceptor
+CarsXE
+fiber-ai-plugin
+lseg
+Descope
+JointJS Code Playground
+Qlik Agents
+PlayDrop
+Cala
+CrowdSec Skill
+CoCart API
+Webhook Contract
+Quickchat AI
+Clicktrail
+Ultralayer
+workos
+Postproxy
+Simplio3D
+Proofable
+anVendor
+Go Backend Skills
+Sola Security
+CoinLobster
+Samebase
+Serpzilla SEO Guest Posting and Link Insertions
+Waggle
+Chicago Cityscape
+Vibee
+GraphQL Guardian: Breaking Changes and N+1 Check
+major
+idea-launch
+Styx
+mcp2cli
+Olostep
+Bigmind
+arvancloud-api
+Antevo Wealth
+Magekwik Magento Toolkit
+LeadMagic
+protect-mcp
+localstack
+glean-dev-docs
+kap
+Hopkin
+Yes2SDK
+FXMacroData
+VPNDetection
+Realize Plugin
+powmcp
+Fingerprint
+OneSignal
+wake-storefront
+Xsolla AI Toolkit
+sumup
+Kampalo
+ScanMalware
+Trendyol Marketplace Integration
+Sugra API Skills
+RankControl
+Mcpbackend
+Pollen
+Pluno WebMCP for Anything
+SupaBird
+TLS Radar
+Ory Agent Plugin
+mastercard-developers
+stackql-skills
+RepoAccess
+LinkJolt
+mcp-client-kit
+Installed Api
+Contezza AI for Merchants
+Searcherries
+versori-skills
+Paymob Integration
+Hive
+Dilaya
+SignatureAPI
+doDomain
+groundcover
+Syndic8
+Printago
+DiscoLike
+Linkly
+Toyroom
+Clinch
+Tool Schemas
+Superwall
+nightvision
+jambonz-skills
+Riskified Beacon Integration
+meetstream-ai-meeting-bot-api
+monl — backend compiler
+TD SYNNEX Plugin
+Unfetch
+Knock
+Mora
+Indigo claude plugin
+ThoughtSpot Spottercode
+concordia-protocol
+Monaiq
+Orbit by Postman API and MCP Server
+SenderKit
+Synter
+ScaleSKUs
+Croft
+Storeadops
+Vaara
+Shippo
+MarcoPolo
+Open Voice Shield
+Vobiz
+unipaas
+Applyra
+Karrito
+Shipmail
+IDC Quanta
+Cmssy
+Porkbun
+lead411
+Letterdrop
+Saas Rfp
+Golf Intelligence
+KiteGTM
+mqtt
+rdsh
+hlx-admin-api-executor-guarded
+PeerPush
+protogrid
+Steep
+Signaturit
+feishu
+Revelara
+LinqAlpha
+RedirHub
+freshprobe
+turtini
+Haggly
+Umbhost Mcp
+MerchantFlow
+Mattemena Nerve
+Treblle
+wf-toolkit
+Sadakio Developer Docs
+pyvar-arch-api-gateway
+lite-bb
+querymantic
+Service Boundary Tests: Containers, Contracts and Mocks
+vda5050
+kong-konnect
+XEDI
+pntr
+Fracfyi
+Restless
+SWIRL
+Fastah NetOps Tools
+Rapiboy
+Elaichi
+Urdi
+URL Shortener by A.af
+Rapilog
+LNURL Auth
+Limonene
+Mintlify
+Runway Dev
+SignalWire
