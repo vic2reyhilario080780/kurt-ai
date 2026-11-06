@@ -6,7 +6,7 @@ Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
 290 Notes & Memory skills, 346 APIs skills, 324 Reference Docs skills,
 311 AI Models & Agents skills, 285 Websites skills, 251 Servers & Cloud skills,
-246 Contacts & Leads skills, and 246 Databases skills from Claude's marketplace.
+246 Contacts & Leads skills, 246 Databases skills, and 230 Finance skills from Claude's marketplace.
 """
 
 import os
@@ -145,6 +145,16 @@ from kurt.skills.contacts_leads import (
     get_domain_prompt as get_contacts_leads_domain_prompt,
     get_stats as get_contacts_leads_stats,
     CONTACTS_LEADS_DOMAINS,
+)
+
+# Finance skills catalog
+from kurt.skills.finance import (
+    load_all_skills as load_finance_skills,
+    search_skills as search_finance_skills,
+    get_skill_context as get_finance_skill_context,
+    get_domain_prompt as get_finance_domain_prompt,
+    get_stats as get_finance_stats,
+    FINANCE_DOMAINS,
 )
 
 # Databases skills catalog
@@ -1071,6 +1081,55 @@ def list_contacts_leads_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill contactsleads --search <query>  or  kurt skill contactsleads --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_finance_skills(domain: str = None, search: str = None):
+    """List or search Finance skills from Claude's marketplace"""
+    if search:
+        results = search_finance_skills(search)
+        console.print(f"\n[cyan]🔍 Finance skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = FINANCE_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]💰 Finance domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_finance_stats()
+    console.print(f"\n[bold cyan]💰 KURT Finance Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "investment_wealth": "BlackRock Advisor Center, Morningstar, lseg, sp-global",
+        "accounting_erp": "NetSuite Finance Analyst, QuickBooks, freee, Datarails",
+        "payments_fintech": "Stripe, PayPal, Mollie, Checkout Page, StreamPay",
+        "trading_crypto": "TradingCalc, Blocksize Market Data, CryptoETF Flows",
+        "risk_insurance": "RiskModels, pyvar-credit-risk, Swallow Insurance",
+        "marketing_analytics": "Windsor.ai, AdCopilot, Supermetrics, Adspirer",
+        "cloud_cost_ops": "Cloud FinOps by OptimNow, aws-cost-audit, DoiT",
+        "niche_specialized": "cashflow, Small Business Operator, cofounders",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill finance --search <query>  or  kurt skill finance --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
