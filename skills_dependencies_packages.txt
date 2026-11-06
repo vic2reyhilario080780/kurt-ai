@@ -1,0 +1,97 @@
+Hostinger Connector
+Setup Audit
+huggingface-skills
+expo
+figma-suite
+WordPress Dev Skills
+legal-builder-hub
+AgentKeeper
+Meta VR
+ip-legal
+Awesome Repositories
+Claude skills updater
+MetaFloor Supply Chain
+Java Backend Skills
+Ansvar Compliance Skills
+Runpod
+Aikido
+Web Vitals Auditor
+arn-code
+AgentAvow Trust
+Docker Image Scan
+Very Good AI Flutter Plugin
+arn-infra
+SonarQube
+Security Audit Loop by ATeam
+qrp
+Enpitech AI Tools
+terraform
+Shield
+php-lsp — Claude Code Plugin
+aws-transform
+Celigo
+project-pilot
+aomi-build
+Acumatica Plugin
+Anomity
+streaming-skills-plugin
+laravel-best-practices
+plugin-pilot
+knowledge-catalog
+Rust CLI Skills
+Dependency Sentinel: Vulnerability and License Scanner
+boomi-marketplace
+ARMO Ctrl
+Repo Pruefer
+dbt-toolkit
+Pi Security
+CloudBees Unify AI plugin
+Laravel AI Starter
+Cyberine ReleaseGuard
+Bugsee
+Dev Environment Doctor
+LeakStop
+Bundle Size Sentinel: JavaScript Bundle Analyzer
+prism
+Headlessmc
+Install Checkpoint
+arvancloud-api
+sync-my-skills
+cwc-makers
+impact-analysis
+NPMScan
+jar-explorer
+powmcp
+JFrog
+Review Ready
+N|Solid Skills
+devrunway
+dependency-evaluator
+Installed Api
+envrelay
+Plugin Packaging
+drewcrawford-skills
+Vet Before Install
+Mora
+Latio Secure Supply Chain Skills
+Re8ch Tenant
+TemplateCentral
+dx-guard
+koin-migration
+Gateway Tariff Calculator
+PurchasePlus
+FreightUtils
+Kenwea Notary
+gortex
+gh-guard
+public-repo-readiness
+RegAffairs AI
+GrapeRoot
+turbocharge
+mise-plugin
+optikit
+Mollie
+sonatype-guide
+Release Notes Index
+skillkeel-starter
+NerdyGeek

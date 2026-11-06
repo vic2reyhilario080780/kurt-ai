@@ -1,0 +1,88 @@
+Informatica
+analytics-skills
+pubmed
+databricks
+Research integrity
+adisinsight
+analytics-office
+GeoAI Skills
+dataink
+aws-data-analytics
+Jinkō
+clinical-trials
+bigquery-data-analytics
+biorxiv
+content-analysis-plugin
+Altimate Code
+LR-AI
+Probabl Skills
+Astronomer
+boltz
+coinpaprika
+Economic Mind
+looker
+chembl
+datahub-skills
+oracle-ai-data-platform-workbench-spark-connectors
+snowflake-cortex-code
+Preset API Skills
+Altertable
+DataHub Cloud
+Oracle AI Data Platform Workbench Engineer Agent
+dominodatalab
+Zetesis
+oryxflow - Trustworthy AI Data Analysis
+DAX for agents
+knowledge-catalog
+spiceai/skills
+SAP HANA CLI
+Supaflow
+owkin
+ml-pipeline
+Preset MCP Skills
+smarts.bio
+holistics-development
+AI for Database
+open-targets
+DalyKit
+preset-toolkit
+Alteryx
+boomi-data-integration
+demand-insight
+dbt-toolkit
+Pigment
+Basedash
+Cala
+boomi-datahub
+giskard-skills
+Data Pipeline Builder: dbt and Airflow Checks
+holistics-reporting
+csv-quality-gate
+oracle-ai-data-platform-workbench-aws-migrator
+Rill
+SignalPilot
+oleander
+Pipeline Reconcile
+synapse
+popper-probe
+Credible
+Masthead Data
+Honeydew Semantic Modeling Tools
+PIASO
+FactIQ
+dataproc
+MarcoPolo
+DataFrey
+Seqout
+Rancher
+rdsh
+Steep
+trove
+supalens
+Potato annotation tasks
+spanner
+DataCEVA US Layoff Notices
+Ingest Labs
+Clinical trial forecast
+Dataiku Headless
+Tableau

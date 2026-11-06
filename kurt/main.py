@@ -46,7 +46,8 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_servers_cloud_skills, list_contacts_leads_skills, list_databases_skills, \
     list_finance_skills, list_marketing_skills, list_logs_errors_skills, \
     list_email_messages_skills, list_pull_requests_skills, \
-    list_sales_skills, list_operations_skills, list_product_skills, list_research_skills
+    list_sales_skills, list_operations_skills, list_product_skills, list_research_skills, \
+    list_dependencies_skills, list_learning_skills, list_data_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -694,6 +695,33 @@ def skill_research(
 ):
     """Browse 94 Research skills from Claude's marketplace"""
     list_research_skills(domain=domain, search=search)
+
+
+@skill_app.command("deps")
+def skill_deps(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (security_compliance, package_management, cloud_infrastructure, framework_platform, integration_automation, code_quality, niche_specialized)"),
+):
+    """Browse 97 Dependencies & Packages skills from Claude's marketplace"""
+    list_dependencies_skills(domain=domain, search=search)
+
+
+@skill_app.command("learn")
+def skill_learn(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (study_productivity, tutoring_coaching, language_learning, knowledge_management, academic_research, creative_experiential, niche_specialized)"),
+):
+    """Browse 93 Learning skills from Claude's marketplace"""
+    list_learning_skills(domain=domain, search=search)
+
+
+@skill_app.command("data")
+def skill_data(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (analytics_bi, data_engineering, data_quality, life_sciences, ml_ai_data, data_platforms, niche_specialized)"),
+):
+    """Browse 88 Data skills from Claude's marketplace"""
+    list_data_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")

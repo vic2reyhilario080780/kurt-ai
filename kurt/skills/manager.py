@@ -249,6 +249,36 @@ from kurt.skills.research import (
     RESEARCH_DOMAINS,
 )
 
+# Dependencies & Packages skills catalog
+from kurt.skills.dependencies_packages import (
+    load_all_skills as load_dependencies_skills,
+    search_skills as search_dependencies_skills,
+    get_skill_context as get_dependencies_skill_context,
+    get_domain_prompt as get_dependencies_domain_prompt,
+    get_stats as get_dependencies_stats,
+    DEPENDENCIES_DOMAINS,
+)
+
+# Learning skills catalog
+from kurt.skills.learning import (
+    load_all_skills as load_learning_skills,
+    search_skills as search_learning_skills,
+    get_skill_context as get_learning_skill_context,
+    get_domain_prompt as get_learning_domain_prompt,
+    get_stats as get_learning_stats,
+    LEARNING_DOMAINS,
+)
+
+# Data skills catalog
+from kurt.skills.data_skills import (
+    load_all_skills as load_data_skills,
+    search_skills as search_data_skills,
+    get_skill_context as get_data_skill_context,
+    get_domain_prompt as get_data_domain_prompt,
+    get_stats as get_data_stats,
+    DATA_DOMAINS,
+)
+
 console = Console()
 
 KURT_DIR = Path.home() / ".kurt"
@@ -1639,6 +1669,147 @@ def list_research_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill research --search <query>  or  kurt skill research --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_dependencies_skills(domain: str = None, search: str = None):
+    """List or search Dependencies & Packages skills from Claude's marketplace"""
+    if search:
+        results = search_dependencies_skills(search)
+        console.print(f"\n[cyan]🔍 Dependencies & Packages skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = DEPENDENCIES_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📦 Dependencies domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_dependencies_stats()
+    console.print(f"\n[bold cyan]📦 KURT Dependencies & Packages Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "security_compliance": "Aikido, SonarQube, Docker Image Scan, LeakStop, gh-guard",
+        "package_management": "NPMScan, JFrog, Bundle Size Sentinel, Vet Before Install",
+        "cloud_infrastructure": "terraform, aws-transform, Runpod, arvancloud-api",
+        "framework_platform": "expo, figma-suite, Laravel AI Starter, Rust CLI Skills",
+        "integration_automation": "Celigo, boomi-marketplace, sync-my-skills, Mollie",
+        "code_quality": "Web Vitals Auditor, impact-analysis, N|Solid Skills, optikit",
+        "niche_specialized": "legal-builder-hub, ip-legal, PurchasePlus, FreightUtils",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill deps --search <query>  or  kurt skill deps --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_learning_skills(domain: str = None, search: str = None):
+    """List or search Learning skills from Claude's marketplace"""
+    if search:
+        results = search_learning_skills(search)
+        console.print(f"\n[cyan]🔍 Learning skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = LEARNING_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🎓 Learning domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_learning_stats()
+    console.print(f"\n[bold cyan]🎓 KURT Learning Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "study_productivity": "ADHD Study Coach, Study Desk, Study Planner, Holdtime",
+        "tutoring_coaching": "Tutor, Teach Me, socratic-mentor, math-olympiad",
+        "language_learning": "baba Hebrew, HSK Tutor, LingoBab, Zhixing Dojo",
+        "knowledge_management": "KnowMine, Loopky flashcards, mindmap-skills, bibtidy",
+        "academic_research": "paper-to-course, law-student, YouTube Transcriber",
+        "creative_experiential": "playground, Vibe Wise, Kata, MarineVerse",
+        "niche_specialized": "Famlore, SIEM Lab Coach, Fisica, Speedread tool",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill learn --search <query>  or  kurt skill learn --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_data_skills(domain: str = None, search: str = None):
+    """List or search Data skills from Claude's marketplace"""
+    if search:
+        results = search_data_skills(search)
+        console.print(f"\n[cyan]🔍 Data skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = DATA_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📊 Data domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_data_stats()
+    console.print(f"\n[bold cyan]📊 KURT Data Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "analytics_bi": "looker, analytics-skills, Tableau, Preset API Skills, Pigment",
+        "data_engineering": "databricks, dbt-toolkit, Astronomer, bigquery, Informatica",
+        "data_quality": "DataHub Cloud, giskard-skills, Masthead Data, csv-quality-gate",
+        "life_sciences": "pubmed, clinical-trials, chembl, owkin, boltz, biorxiv",
+        "ml_ai_data": "Probabl Skills, GeoAI Skills, Alteryx, dominodatalab",
+        "data_platforms": "Rill, Cala, Tableau, supalens, FactIQ, MarcoPolo",
+        "niche_specialized": "coinpaprika, Jinkō, Research integrity, Zetesis",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill data --search <query>  or  kurt skill data --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
