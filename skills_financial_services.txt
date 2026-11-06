@@ -1,0 +1,82 @@
+Claude for Financial Advisors
+BlackRock Advisor Center
+NetSuite Finance Analyst
+Chronograph LP
+Zocks Advisor Intelligence
+Chronograph GP
+Vanguard Advisor Tools
+Intuit Developer
+Corbis
+Blocksize Market Data
+Distilla Investment Research
+Ansvar Compliance Skills
+Worker K
+Mercado Pago
+bitcoin-companies
+Fiscal.ai
+venture-capital-intelligence
+coinpaprika
+airwallex-dev
+Allium
+TRES Finance Plugin
+ACI Risk Indicators
+Statutory Reporting Plugin
+private-credit
+PhaseFolio
+ClientGen Reach
+cortellis
+finsharpe
+lseg
+revelata
+Insider Trades
+Ultralayer
+sp-global
+IFG
+Brouky
+Antevo Wealth
+Briefcase
+Juniper Square
+kap
+Nonresident Tax
+FXMacroData
+ArcKit UK Financial Services Payments Overlay
+myocr.app
+Wealthbox
+MySSAgent for Financial Advisors
+Intelligo
+RiskModels
+mastercard-developers
+Silicon Floor
+Vivid
+Paymob Integration
+DokladBot
+Verus by Markst
+pyvar-credit-risk
+PrivCo Data
+Stackin
+pyvar-market-risk
+Merit Aktiva for AI Agents
+Fin3000
+Numeric MCP Toolkit
+ubl-star — facturas electrónicas a Power BI
+unipaas
+pyvar-mcp
+pyvar-operational-risk
+YoFacturo
+Xestando
+pyvar-derivatives
+pyvar-liquidity-risk
+Normlotse
+RegAffairs AI
+Kabuken
+Compabase
+Sammati DPDP Readiness
+Paušal
+pyvar-regulatory
+waybill.ge
+pyvar-alm
+extractos-ar
+TickerTrac
+KontoCSV
+GulfPitch
+BlindPay

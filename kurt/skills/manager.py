@@ -279,6 +279,76 @@ from kurt.skills.data_skills import (
     DATA_DOMAINS,
 )
 
+# Financial Services skills catalog
+from kurt.skills.financial_services import (
+    load_all_skills as load_financial_services_skills,
+    search_skills as search_financial_services_skills,
+    get_skill_context as get_financial_services_skill_context,
+    get_domain_prompt as get_financial_services_domain_prompt,
+    get_stats as get_financial_services_stats,
+    FINANCIAL_SERVICES_DOMAINS,
+)
+
+# Design skills catalog
+from kurt.skills.design_skills import (
+    load_all_skills as load_design_skills,
+    search_skills as search_design_skills,
+    get_skill_context as get_design_skill_context,
+    get_domain_prompt as get_design_domain_prompt,
+    get_stats as get_design_stats,
+    DESIGN_DOMAINS,
+)
+
+# Legal skills catalog
+from kurt.skills.legal_skills import (
+    load_all_skills as load_legal_skills,
+    search_skills as search_legal_skills,
+    get_skill_context as get_legal_skill_context,
+    get_domain_prompt as get_legal_domain_prompt,
+    get_stats as get_legal_stats,
+    LEGAL_DOMAINS,
+)
+
+# Jobs & Career skills catalog
+from kurt.skills.jobs_career import (
+    load_all_skills as load_jobs_career_skills,
+    search_skills as search_jobs_career_skills,
+    get_skill_context as get_jobs_career_skill_context,
+    get_domain_prompt as get_jobs_career_domain_prompt,
+    get_stats as get_jobs_career_stats,
+    JOBS_CAREER_DOMAINS,
+)
+
+# IT & Security skills catalog
+from kurt.skills.it_security import (
+    load_all_skills as load_it_security_skills,
+    search_skills as search_it_security_skills,
+    get_skill_context as get_it_security_skill_context,
+    get_domain_prompt as get_it_security_domain_prompt,
+    get_stats as get_it_security_stats,
+    IT_SECURITY_DOMAINS,
+)
+
+# Retail & E-commerce skills catalog
+from kurt.skills.retail_ecommerce import (
+    load_all_skills as load_retail_ecommerce_skills,
+    search_skills as search_retail_ecommerce_skills,
+    get_skill_context as get_retail_ecommerce_skill_context,
+    get_domain_prompt as get_retail_ecommerce_domain_prompt,
+    get_stats as get_retail_ecommerce_stats,
+    RETAIL_ECOMMERCE_DOMAINS,
+)
+
+# HR skills catalog
+from kurt.skills.hr import (
+    load_all_skills as load_hr_skills,
+    search_skills as search_hr_skills,
+    get_skill_context as get_hr_skill_context,
+    get_domain_prompt as get_hr_domain_prompt,
+    get_stats as get_hr_stats,
+    HR_DOMAINS,
+)
+
 console = Console()
 
 KURT_DIR = Path.home() / ".kurt"
@@ -1811,6 +1881,230 @@ def list_data_skills(domain: str = None, search: str = None):
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill data --search <query>  or  kurt skill data --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_financial_services_skills(domain: str = None, search: str = None):
+    """List or search Financial Services skills from Claude's marketplace"""
+    if search:
+        results = search_financial_services_skills(search)
+        console.print(f"\n[cyan]🔍 Financial Services skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = FINANCIAL_SERVICES_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]💰 Financial Services domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_financial_services_stats()
+    console.print(f"\n[bold cyan]💰 KURT Financial Services Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill finserv --search <query>  or  kurt skill finserv --domain <name>[/dim]")
+
+
+def list_design_skills(domain: str = None, search: str = None):
+    """List or search Design skills from Claude's marketplace"""
+    if search:
+        results = search_design_skills(search)
+        console.print(f"\n[cyan]🔍 Design skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = DESIGN_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🎨 Design domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_design_stats()
+    console.print(f"\n[bold cyan]🎨 KURT Design Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill design --search <query>  or  kurt skill design --domain <name>[/dim]")
+
+
+def list_legal_skills(domain: str = None, search: str = None):
+    """List or search Legal skills from Claude's marketplace"""
+    if search:
+        results = search_legal_skills(search)
+        console.print(f"\n[cyan]🔍 Legal skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = LEGAL_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]⚖️  Legal domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_legal_stats()
+    console.print(f"\n[bold cyan]⚖️  KURT Legal Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill legal --search <query>  or  kurt skill legal --domain <name>[/dim]")
+
+
+def list_jobs_career_skills(domain: str = None, search: str = None):
+    """List or search Jobs & Career skills from Claude's marketplace"""
+    if search:
+        results = search_jobs_career_skills(search)
+        console.print(f"\n[cyan]🔍 Jobs & Career skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = JOBS_CAREER_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]💼 Jobs & Career domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_jobs_career_stats()
+    console.print(f"\n[bold cyan]💼 KURT Jobs & Career Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill career --search <query>  or  kurt skill career --domain <name>[/dim]")
+
+
+def list_it_security_skills(domain: str = None, search: str = None):
+    """List or search IT & Security skills from Claude's marketplace"""
+    if search:
+        results = search_it_security_skills(search)
+        console.print(f"\n[cyan]🔍 IT & Security skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = IT_SECURITY_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🔒 IT & Security domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_it_security_stats()
+    console.print(f"\n[bold cyan]🔒 KURT IT & Security Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill itsec --search <query>  or  kurt skill itsec --domain <name>[/dim]")
+
+
+def list_retail_ecommerce_skills(domain: str = None, search: str = None):
+    """List or search Retail & E-commerce skills from Claude's marketplace"""
+    if search:
+        results = search_retail_ecommerce_skills(search)
+        console.print(f"\n[cyan]🔍 Retail & E-commerce skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = RETAIL_ECOMMERCE_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🛒 Retail & E-commerce domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_retail_ecommerce_stats()
+    console.print(f"\n[bold cyan]🛒 KURT Retail & E-commerce Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill retail --search <query>  or  kurt skill retail --domain <name>[/dim]")
+
+
+def list_hr_skills(domain: str = None, search: str = None):
+    """List or search HR skills from Claude's marketplace"""
+    if search:
+        results = search_hr_skills(search)
+        console.print(f"\n[cyan]🔍 HR skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = HR_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]👥 HR domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_hr_stats()
+    console.print(f"\n[bold cyan]👥 KURT HR Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count))
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill hr --search <query>  or  kurt skill hr --domain <name>[/dim]")
 
 
 def remove_skill(skill_id: str):
