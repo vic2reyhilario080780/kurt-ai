@@ -175,7 +175,7 @@ TOOLS = [
     },
     {
         "name": "run_applescript",
-        "description": "Run an AppleScript command for Mac automation.",
+        "description": "Run an AppleScript command for Mac automation. Mac only — returns error on Windows/Linux.",
         "parameters": {
             "script": "string — AppleScript to execute",
         },
@@ -405,6 +405,9 @@ def execute_tool(tool_name: str, params: dict) -> str:
             return f"❌ {result.error}"
 
         elif tool_name == "run_applescript":
+            import platform as _platform
+            if _platform.system() != "Darwin":
+                return "❌ run_applescript is Mac only. Use run_command with PowerShell (Windows) or bash (Linux) instead."
             script = params.get("script", "")
             if not script:
                 return "❌ No script given"
@@ -490,7 +493,7 @@ async def run_agent(
         "5. One tool call per response — be efficient\n"
         "6. If a tool fails, try an alternative approach\n"
         "7. For web tasks: use search_web or open_url instead of manual typing when possible\n"
-        "8. Use run_applescript for complex Mac automation tasks\n"
+        "8. Use run_applescript for Mac-only automation; use run_command with PowerShell/bash on Windows/Linux\n"
         "\nEXAMPLE MULTI-STEP TASK (open spotify in safari):\n"
         "Step 1: open_app('Safari')\n"
         "Step 2: screenshot() — verify Safari opened\n"

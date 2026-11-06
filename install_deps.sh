@@ -1,8 +1,9 @@
 #!/bin/bash
 # ============================================================
-# KURT v3.0 — One-command setup
+# KURT v3.0 — One-command setup (macOS / Linux)
 # Run once after cloning: bash install_deps.sh
 #
+# Windows users: use install_deps.ps1 instead
 # LAHAT ng tools nasa project folder — walang global installs!
 # ============================================================
 
@@ -10,9 +11,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Detect OS
+OS_TYPE="$(uname -s 2>/dev/null || echo "Unknown")"
+IS_MAC=false
+IS_LINUX=false
+[[ "$OS_TYPE" == "Darwin" ]] && IS_MAC=true
+[[ "$OS_TYPE" == "Linux" ]] && IS_LINUX=true
+
 echo ""
 echo "🤖 Setting up K.U.R.T. — Kinetic Unified Response Terminal"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "   Platform: $OS_TYPE"
 echo ""
 
 # ── Node / npm tools (Claude Code CLI, Gemini CLI) ──────────
