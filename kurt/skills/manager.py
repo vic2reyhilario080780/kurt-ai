@@ -3,8 +3,8 @@ KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
-433 Designs & Media skills, 368 Pipelines & Jobs skills, and 365 Tickets & Tasks
-skills from Claude's marketplace.
+433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
+and 290 Notes & Memory skills from Claude's marketplace.
 """
 
 import os
@@ -73,6 +73,16 @@ from kurt.skills.tickets_tasks import (
     get_domain_prompt as get_tickets_tasks_domain_prompt,
     get_stats as get_tickets_tasks_stats,
     TICKETS_TASKS_DOMAINS,
+)
+
+# Notes & Memory skills catalog
+from kurt.skills.notes_memory import (
+    load_all_skills as load_notes_memory_skills,
+    search_skills as search_notes_memory_skills,
+    get_skill_context as get_notes_memory_skill_context,
+    get_domain_prompt as get_notes_memory_domain_prompt,
+    get_stats as get_notes_memory_stats,
+    NOTES_MEMORY_DOMAINS,
 )
 
 console = Console()
@@ -613,6 +623,57 @@ def list_tickets_tasks_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill tickets --search <query>  or  kurt skill tickets --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_notes_memory_skills(domain: str = None, search: str = None):
+    """List or search notes & memory skills from Claude's marketplace"""
+    if search:
+        results = search_notes_memory_skills(search)
+        console.print(f"\n[cyan]🔍 Notes & Memory skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = NOTES_MEMORY_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📓 Notes & Memory domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_notes_memory_stats()
+    console.print(f"\n[bold cyan]📓 KURT Notes & Memory Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "personal_knowledge_management": "Obsidian Notes, notion, Tana, GTD Brain, Reflect",
+        "ai_memory_systems": "claude-memory, Cowork Memory, MAI Second Brain, AI Passport",
+        "note_taking_apps": "Obsidian Notes, Reflect, Day One Journal, Jotbook",
+        "learning_study": "ADHD Study Coach, Study Desk, Loopky flashcards, Finance Tutor",
+        "writing_content": "Claude ghost writer, Online Writing, novel-studio, Prompt Coach",
+        "productivity_context": "GTD Brain, AssistantLabs, workflow-toolkit, Busymate AI",
+        "career_professional": "LinkedIn Career Intelligence, Career Compass, Founder OS",
+        "social_community": "Social Media Skills, Ayrshare, Planable SMM, Famlore",
+        "research_analysis": "Research Desk, Glean, Docbrain, Firmament, CompanyOS",
+        "tools_integrations": "Google Drive → Markdown, Glean, Meeting Memory by Grain",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill notes --search <query>  or  kurt skill notes --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
