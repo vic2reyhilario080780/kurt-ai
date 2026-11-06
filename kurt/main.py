@@ -508,10 +508,18 @@ def chat(
                         from kurt.core.computer_use import open_app
                         import re as _re
                         raw_name = kwargs.get("app_name", intent.target or "")
-                        # Strip Filipino particles that slipped through
+                        # Strip leading particles 2x: "naman ng X" → "ng X" → "X"
+                        clean_name = raw_name
+                        for _ in range(2):
+                            clean_name = _re.sub(
+                                r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
+                                '', clean_name, flags=_re.IGNORECASE
+                            ).strip()
+                        # Strip trailing context: "sa browser ko", "sa aking phone", "please", etc.
                         clean_name = _re.sub(
-                            r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
-                            '', raw_name, flags=_re.IGNORECASE
+                            r'\s+(?:sa\s+(?:aking|iyong|browser|phone|pc|laptop|computer|imac|mac)|'
+                            r'in\s+my|on\s+my|using|via|please|pls|na|ngayon|now)\b.*$',
+                            '', clean_name, flags=_re.IGNORECASE
                         ).strip()
                         result = open_app(clean_name)
                         if result.success:

@@ -205,8 +205,9 @@ def _keyword_detect(text: str) -> Optional[Intent]:
 
 # (pattern, intent_type, action, target_group)
 PATTERNS = [
-    # Open app: "buksan ang Spotify", "open Spotify", "i-open ang Chrome", "pa open naman ng X"
-    (r"(?:pa\s+)?(?:buksan|open|launch|i-open|i-launch|start)\s+(?:(?:naman|mo|po|nga)\s+)?(?:(?:ang|ng|si)\s+)?(.+)",
+    # Open app: "buksan ang Spotify", "open Spotify", "pa open naman ng apple music"
+    # Stops at "sa", "para", "in my", "sa aking", etc. to avoid grabbing extra words
+    (r"(?:pa\s+)?(?:buksan|open|launch|i-open|i-launch|start)\s+(?:(?:naman|mo|po|nga)\s+)?(?:(?:ang|ng|si)\s+)?([\w\s]+?)(?:\s+(?:sa|para|in|on|using|via|sa\s+aking|sa\s+iyong|sa\s+browser|sa\s+phone|ngayon|na|please|pls)\b.*)?$",
      INTENT_TASK, "open_app", 1),
 
     # Navigate: "punta sa youtube.com", "go to netflix.com", "buksan ang google.com"
@@ -266,9 +267,13 @@ def _pattern_detect(text: str) -> Optional[Intent]:
             if target_group > 0:
                 try:
                     target = match.group(target_group).strip()
-                    # Clean up common Filipino particles (prefix and suffix)
+                    # Clean up common Filipino particles (prefix)
                     target = re.sub(r'^(ang|ng|sa|mo|ko|niya|natin|naman|po)\s+', '', target, flags=re.IGNORECASE)
+                    # Strip trailing particles and phrases
                     target = re.sub(r'\s+(naman|po|nga|daw|raw|pala|na|lang|lamang)$', '', target, flags=re.IGNORECASE)
+                    # Strip "sa X", "sa aking X", "sa browser/phone/pc" at the end
+                    target = re.sub(r'\s+sa\s+(aking|iyong|browser|phone|pc|laptop|computer|iMac|Mac).*$', '', target, flags=re.IGNORECASE)
+                    target = target.strip()
                 except IndexError:
                     pass
 
