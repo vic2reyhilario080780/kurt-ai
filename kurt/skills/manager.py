@@ -5,8 +5,8 @@ Skills = domain knowledge na nag-ggguide sa AI behavior
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
 290 Notes & Memory skills, 346 APIs skills, 324 Reference Docs skills,
-311 AI Models & Agents skills, 285 Websites skills, and 251 Servers & Cloud skills
-from Claude's marketplace.
+311 AI Models & Agents skills, 285 Websites skills, 251 Servers & Cloud skills,
+and 246 Contacts & Leads skills from Claude's marketplace.
 """
 
 import os
@@ -135,6 +135,16 @@ from kurt.skills.servers_cloud import (
     get_domain_prompt as get_servers_cloud_domain_prompt,
     get_stats as get_servers_cloud_stats,
     SERVERS_CLOUD_DOMAINS,
+)
+
+# Contacts & Leads skills catalog
+from kurt.skills.contacts_leads import (
+    load_all_skills as load_contacts_leads_skills,
+    search_skills as search_contacts_leads_skills,
+    get_skill_context as get_contacts_leads_skill_context,
+    get_domain_prompt as get_contacts_leads_domain_prompt,
+    get_stats as get_contacts_leads_stats,
+    CONTACTS_LEADS_DOMAINS,
 )
 
 console = Console()
@@ -1000,6 +1010,57 @@ def list_servers_cloud_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill serverscloud --search <query>  or  kurt skill serverscloud --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_contacts_leads_skills(domain: str = None, search: str = None):
+    """List or search Contacts & Leads skills from Claude's marketplace"""
+    if search:
+        results = search_contacts_leads_skills(search)
+        console.print(f"\n[cyan]🔍 Contacts & Leads skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = CONTACTS_LEADS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📇 Contacts & Leads domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_contacts_leads_stats()
+    console.print(f"\n[bold cyan]📇 KURT Contacts & Leads Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "crm_sales": "HubSpot Sales, Sales Cloud, Wealthbox, Customer.io, Loops",
+        "b2b_prospecting": "Hunter, apollo, RocketReach, VibeLeads, FullEnrich",
+        "job_search_career": "Career Coaching, MagicInterview, GetEmployed, ApplyArc",
+        "marketing_outreach": "ActiveCampaign, Mysocial Intelligence, Dash Social, Banger",
+        "financial_advisors": "Claude for Financial Advisors, Zocks Advisor Intelligence",
+        "hr_recruiting": "Greenhouse, Windmill HR, UKG Bryte, Lusha Talent Sourcing",
+        "real_estate_property": "PropertyMe, cicada.guide, Funraise Taiwan Real Estate",
+        "customer_success": "Customer Success: Churn and QBRs, SiteGPT, FrontDesk Chat",
+        "data_enrichment": "HasData, diffbot, FullEnrich, Middesk, ClearBounce Email",
+        "niche_specialized": "Leadfeeder, Revenue Grid, instagram, Voicenter API Skills",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill contactsleads --search <query>  or  kurt skill contactsleads --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
