@@ -261,7 +261,9 @@ def open_app(app_name: str) -> ActionResult:
             candidates = [c for c in candidates if c not in seen and not seen.add(c)]
 
             result = None
+            tried_candidates = []
             for candidate in candidates:
+                tried_candidates.append(candidate)
                 result = subprocess.run(
                     ["open", "-a", candidate],
                     capture_output=True, text=True, timeout=10
@@ -269,13 +271,7 @@ def open_app(app_name: str) -> ActionResult:
                 if result.returncode == 0:
                     app_name = candidate  # Remember the working name
                     break
-
-            if result and result.returncode != 0:
-                # Try without -a flag (for CLI tools / paths)
-                result = subprocess.run(
-                    ["open", app_name],
-                    capture_output=True, text=True, timeout=10
-                )
+            # NOTE: No fallback to "open <name>" — that treats it as a file path
 
         elif OS == "Windows":
             result = subprocess.run(
@@ -290,11 +286,14 @@ def open_app(app_name: str) -> ActionResult:
                 start_new_session=True
             )
 
-        if result.returncode == 0:
+        if result and result.returncode == 0:
             time.sleep(1.5)  # Give app time to open
             return ActionResult(success=True, message=f"Opened: {app_name}")
         else:
-            return ActionResult(success=False, message=result.stderr.strip() or f"Could not open {app_name}")
+            if OS == "Darwin":
+                tried = ", ".join(f'"{c}"' for c in tried_candidates)
+                return ActionResult(success=False, message=f"App not found. Tried: {tried}")
+            return ActionResult(success=False, message=f"Could not open: {app_name}")
 
     except subprocess.TimeoutExpired:
         return ActionResult(success=False, message=f"Timeout opening {app_name}")
