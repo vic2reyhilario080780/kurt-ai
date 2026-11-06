@@ -3,7 +3,8 @@ KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
-433 Designs & Media skills, and 368 Pipelines & Jobs skills from Claude's marketplace.
+433 Designs & Media skills, 368 Pipelines & Jobs skills, and 365 Tickets & Tasks
+skills from Claude's marketplace.
 """
 
 import os
@@ -62,6 +63,16 @@ from kurt.skills.pipelines_jobs import (
     get_domain_prompt as get_pipelines_jobs_domain_prompt,
     get_stats as get_pipelines_jobs_stats,
     PIPELINES_JOBS_DOMAINS,
+)
+
+# Tickets & Tasks skills catalog
+from kurt.skills.tickets_tasks import (
+    load_all_skills as load_tickets_tasks_skills,
+    search_skills as search_tickets_tasks_skills,
+    get_skill_context as get_tickets_tasks_skill_context,
+    get_domain_prompt as get_tickets_tasks_domain_prompt,
+    get_stats as get_tickets_tasks_stats,
+    TICKETS_TASKS_DOMAINS,
 )
 
 console = Console()
@@ -550,6 +561,58 @@ def list_pipelines_jobs_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill pipelines --search <query>  or  kurt skill pipelines --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_tickets_tasks_skills(domain: str = None, search: str = None):
+    """List or search tickets & tasks skills from Claude's marketplace"""
+    if search:
+        results = search_tickets_tasks_skills(search)
+        console.print(f"\n[cyan]🔍 Tickets & Tasks skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = TICKETS_TASKS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🎫 Tickets & Tasks domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_tickets_tasks_stats()
+    console.print(f"\n[bold cyan]🎫 KURT Tickets & Tasks Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "project_task_management": "asana, linear, ClickUp, notion, Jira, GTD Brain",
+        "crm_sales": "HubSpot Sales, Sales Cloud, apollo, SalesEQ, Endgame",
+        "legal_compliance": "commercial-legal, PandaDoc, GetSign, Casely, Freelaw",
+        "hr_recruiting": "Greenhouse, comp-skills, Remote.com, ApplyArc, Joboostr",
+        "customer_support": "SiteGPT, DocsBot, Quickchat AI, Landbot, SmartReply",
+        "finance_accounting": "Intuit QuickBooks, NetSuite SuiteSkills, freee, Invoice Matcher",
+        "project_planning": "AgileHero, lean-pm-skills, strategy-pack, Featurebase",
+        "communication_meetings": "Meeting.ai, MeetNotes, Lark/Feishu, RingCentral",
+        "ecommerce_operations": "Amazon Selling Partner, MakeBox for Etsy, PropertyMe",
+        "monitoring_incident": "incident.io, Oncall, Rootly, paging-mcp, Uptimely",
+        "productivity_tools": "notion-memory, MAI Second Brain, Briefcase, Kontext",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill tickets --search <query>  or  kurt skill tickets --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

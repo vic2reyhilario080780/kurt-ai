@@ -1,0 +1,365 @@
+github
+Claude for Financial Advisors
+HubSpot Sales
+Intuit QuickBooks
+Amazon Selling Partner
+incident.io
+Pendo Analytics
+Skills For Real Engineers
+gitlab
+notion
+Sales Cloud
+GovTribe
+Greenhouse
+commercial-legal
+Revenue Grid
+Windsor.ai Ads and Marketing Data
+Agency MCP
+Oncall
+8digit Planner
+litigation-legal
+Zentrik
+Marketing Ideas & Growth Experiments
+corporate-legal
+agentic-harness
+Agentics Beyond Code
+Founder OS
+Advisory Council
+project-artifact
+wordpress-mcp
+Agentic user research at scale
+privacy-legal
+apollo
+employment-legal
+SuperMatt
+coding-agent-skills
+Career Desk
+Factory
+GIA Chief of Staff
+AssistantLabs — Personal Assistant for Business
+Job Search by Develop21
+NetSuite SuiteSkills
+Checkvist
+beads-superpowers
+Finance & Ops Skills Index
+Job Hunt Copilot (India)
+Jira Attachment Plugin
+linear
+legal-clinic
+Admin Desk
+asana
+product-legal
+regulatory-legal
+beckett
+Voicenter API Skills
+Job Hunt HQ
+amplitude
+Small Business Operator
+EULER for Partner Managers
+lean-pm-skills
+B2B Events, PR and Launches
+Arcade
+Atlassian Teamwork Graph CLI
+MetaFloor Supply Chain
+notion-memory
+AgileHero
+UKG Bryte
+comp-skills
+claude-jira-skill
+Sales Enablement Kit
+AI Context Bridge for HubSpot
+Higgs Hub
+MakeBox for Etsy
+Above Security
+Sales Skills by Arrows
+Agile Merge Review
+Agile Sprint Close
+ado-testcraft
+Aictrl.dev
+axiomcore
+Cargo
+claude-meeting-todos
+Customer Success: Churn and QBRs
+ZSL Superpowers
+fix-cv-find-job-skill
+RingCentral
+MyChatBot
+Bonusly
+prepkit-product
+Mind++ for Claude
+Financial Aid Office Workflow
+The Pragmatic PM Toolkit
+Nonprofit Grant Operations
+Snagly
+Production Engine
+One
+HasData
+SiteGPT
+Human in the loop
+ClickUp
+Voicenter MCP
+Contratos Laborales y Asesoría Empresarial
+YourGPT
+Mokaru
+Litigación Civil España
+AppFollow AI Toolkit
+Meeting.ai
+BOLD Studios
+Lark/Feishu Integration
+Auto-log your Claude Code sessions as Odoo timesheets
+Acumatica Plugin
+Property Management Operator
+strategy-pack
+hormozi-offer-audit
+Remote.com
+DocsBot
+BigID
+Found
+Consultant Assignments
+Kontext
+Litigación Contencioso-Administrativa España
+Baton
+private-credit
+GetYourJob
+Litigación Laboral España
+workflow-toolkit
+Obriym CRM
+askrubberduck
+QA My App
+context-vault
+GTD Brain
+Litigación Penal España
+ApplyArc
+PandaDoc
+Landbot
+Daymark
+Flow
+closedloop-skills
+Referent
+Client Briefs
+beegait
+Contracko
+The Hard Half
+Endgame
+Casely
+Crossbeam Skills
+Gambit
+claude-todo-mirror
+MeetNotes
+story
+fcxo-toolkit
+medidata
+Plane
+Timesheet
+IDD: Issue-Driven Development
+GetEmployed
+Answering Agent
+Hiring Interviews
+Think Before You Build
+YnotOne
+BidSkim - UK Tenders & Contract Renewals
+devil-advocate
+Booking FAQ
+backlog
+Catchup
+toughtongue
+delivery-skills
+Aqtos
+Quickchat AI
+Windmill HR
+CSitRep Generator
+kept
+shazam
+zime-skills
+freee
+Invoice Matcher
+GetSign
+BridgeApp
+User Intuition
+MAI Second Brain
+EasyEsuite
+Usero
+Hydrant
+LegalizaObra
+Toggl Time Tracker
+ChatDaddy
+PropertyMe
+Greenflash
+Carbide
+mana
+SmartReply
+Melxis
+Make It Work
+CoverCount Staff
+NeverApply
+Bigmind
+Commslayer
+Dealertide
+Briefcase
+Juniper Square
+Demand from the File
+Nonresident Tax
+MCPBinder
+Naysayer
+Gestão Ágil 2.0
+drata-grc-skills
+estimator
+Breeze
+Kampalo
+dailybot
+Brilliant Directories
+Featurebase
+pm-augmente
+Wealthbox
+SuperBooks
+oxagen
+Worklittle Jobs
+Meeting Memory by Grain
+SalesEQ
+Clearskies
+inSitu Sales
+Churn Prevention Kit
+LazyTools
+Recruiter Panel
+Retenot
+zero-trust-feature-team
+GetItDone
+Shipwright
+LaunchNotes
+theprotocol.it
+Cyberine TaskBoard
+greenfield-delivery
+reviewbot
+FormBuilder
+Wave Planner Skill
+Zeeg
+LogiCommerce Backoffice
+Hive
+Todo4
+VA Medicaid Work Rule Guide (unofficial)
+Tana
+Upfunnels
+Ayda
+Printago
+fixRAgent
+Freelaw Studio
+Product Support Investigator
+Clinch
+Delimit
+stride-ideation
+Greca Travel
+Joboostr
+Радар вакансий
+astravue
+TD SYNNEX Plugin
+Resurface
+Basit Kargo
+claude-todo-gtd
+Deck
+Casefile
+keelson
+grits
+functionize-mcp
+RolePark
+Phished
+Chiho.ai Telegram CRM
+PodPitch
+DialogBrain
+Product in Acquisitions OS
+toggl
+Bizopa CRM
+Inventok
+Tenisle
+Resu Studio
+Supovia helpdesk chat
+Sideboard
+Topo
+Karrito
+Shipmail
+Rootly
+Reclamos de consumo Perú
+Ddna
+MarketsEasy
+Genaya
+Cmssy
+Unreasonable Eco
+paging-mcp
+Gratefully
+Takshak
+okrdev
+YoFacturo
+Casapay Connect
+Xestando
+KiteGTM
+Nyblit
+FrontDesk Chat
+Plantime
+itinovo CRM
+Reo.Dev Your Developer GTM Copilot
+simple-workflow
+Mibba
+Minz.ai
+Revuity Systems
+Deposit Requester
+ShareSign
+turtini
+Issue Dial
+Sana from Workday
+Tally
+Usercall: User Interviews
+entalpa
+wf-toolkit
+Nowistay
+Loopsii
+Uptimely
+Zillasales
+Range Roofing Portal
+ShiftControl
+Tinylawn
+RedReplier
+Odyssey365
+Product Returns
+waybill.ge
+LivingMeeting
+Orbit by Noveum
+Motir
+SuperBot
+MMPM Cognitive OS
+Wyatt
+Gurusup Brain
+mister-anderson
+REST API for Perfex CRM
+Scope Changes
+CoverCount Explore
+Ratification Docket
+Persyst
+PR Story Aligner: Pull Request vs Ticket Check
+Taskpend
+standup-logger
+Trupeo
+RenooLab — Rénovation et artisans
+togello
+Busymate AI
+Lovelio
+Section11
+oJobinho
+PrefMark
+SamDesk Support
+LICHIDARE.MD
+opentriangle
+TenderKart
+SDP Platform
+Veteran Companion
+CopperJack
+featury
+QuotaBird
+EZ Flow Pro
+QuestionPunk
+Rapiboy
+MantisBT Integration
+DobroDesk Support
+I Do Crew
+i118 Phone Assistant
+tengrade
+Concronex
+Ando
