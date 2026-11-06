@@ -249,11 +249,28 @@ def open_app(app_name: str) -> ActionResult:
     """
     try:
         if OS == "Darwin":
-            result = subprocess.run(
-                ["open", "-a", app_name],
-                capture_output=True, text=True, timeout=10
-            )
-            if result.returncode != 0:
+            # Try multiple capitalizations: as-is, Title Case, all variations
+            candidates = [
+                app_name,
+                app_name.title(),           # "apple music" → "Apple Music"
+                app_name.capitalize(),       # "spotify" → "Spotify"
+                app_name.upper(),
+            ]
+            # Remove duplicates but keep order
+            seen = set()
+            candidates = [c for c in candidates if c not in seen and not seen.add(c)]
+
+            result = None
+            for candidate in candidates:
+                result = subprocess.run(
+                    ["open", "-a", candidate],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0:
+                    app_name = candidate  # Remember the working name
+                    break
+
+            if result and result.returncode != 0:
                 # Try without -a flag (for CLI tools / paths)
                 result = subprocess.run(
                     ["open", app_name],

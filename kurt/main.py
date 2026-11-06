@@ -517,7 +517,7 @@ def chat(
                         if result.success:
                             console.print(f"[green]✓[/green] Binuksan: [bold]{clean_name}[/bold]")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] Hindi nabuksan: {result.error}")
+                            console.print(f"[yellow]⚠[/yellow] Hindi nabuksan: {result.message}")
 
                     elif handler == "browser.navigate":
                         from kurt.core.computer_use import open_url
@@ -525,7 +525,7 @@ def chat(
                         if result.success:
                             console.print(f"[green]✓[/green] Binuksan ang URL: [bold]{kwargs.get('url')}[/bold]")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+                            console.print(f"[yellow]⚠[/yellow] {result.message}")
 
                     elif handler == "browser.search_web":
                         from kurt.core.computer_use import open_url
@@ -536,7 +536,7 @@ def chat(
                         if result.success:
                             console.print(f"[green]✓[/green] Naghanap: [bold]{query}[/bold]")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+                            console.print(f"[yellow]⚠[/yellow] {result.message}")
 
                     elif handler == "computer.screenshot":
                         from kurt.core.computer_use import screenshot
@@ -544,7 +544,7 @@ def chat(
                         if result.success:
                             console.print(f"[green]✓[/green] Screenshot saved: [dim]{result.data}[/dim]")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+                            console.print(f"[yellow]⚠[/yellow] {result.message}")
 
                     elif handler == "computer.type_text":
                         from kurt.core.computer_use import type_text
@@ -552,7 +552,7 @@ def chat(
                         if result.success:
                             console.print(f"[green]✓[/green] Na-type ang text.")
                         else:
-                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+                            console.print(f"[yellow]⚠[/yellow] {result.message}")
 
                     else:
                         # Unknown handler — fall through to LLM
