@@ -44,7 +44,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_tickets_tasks_skills, list_notes_memory_skills, list_apis_skills, \
     list_reference_docs_skills, list_ai_models_agents_skills, list_websites_skills, \
     list_servers_cloud_skills, list_contacts_leads_skills, list_databases_skills, \
-    list_finance_skills
+    list_finance_skills, list_marketing_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -620,6 +620,15 @@ def skill_finance(
 ):
     """Browse 230 Finance skills from Claude's marketplace"""
     list_finance_skills(domain=domain, search=search)
+
+
+@skill_app.command("marketing")
+def skill_marketing(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (seo_search, paid_ads, social_media, content_seo, email_marketing, growth_analytics, creative_assets, niche_specialized)"),
+):
+    """Browse 221 Marketing skills from Claude's marketplace"""
+    list_marketing_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")

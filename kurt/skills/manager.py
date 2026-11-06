@@ -6,7 +6,8 @@ Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
 290 Notes & Memory skills, 346 APIs skills, 324 Reference Docs skills,
 311 AI Models & Agents skills, 285 Websites skills, 251 Servers & Cloud skills,
-246 Contacts & Leads skills, 246 Databases skills, and 230 Finance skills from Claude's marketplace.
+246 Contacts & Leads skills, 246 Databases skills, 230 Finance skills,
+and 221 Marketing skills from Claude's marketplace.
 """
 
 import os
@@ -165,6 +166,16 @@ from kurt.skills.databases import (
     get_domain_prompt as get_databases_domain_prompt,
     get_stats as get_databases_stats,
     DATABASES_DOMAINS,
+)
+
+# Marketing skills catalog
+from kurt.skills.marketing import (
+    load_all_skills as load_marketing_skills,
+    search_skills as search_marketing_skills,
+    get_skill_context as get_marketing_skill_context,
+    get_domain_prompt as get_marketing_domain_prompt,
+    get_stats as get_marketing_stats,
+    MARKETING_DOMAINS,
 )
 
 console = Console()
@@ -1179,6 +1190,55 @@ def list_databases_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill databases --search <query>  or  kurt skill databases --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_marketing_skills(domain: str = None, search: str = None):
+    """List or search Marketing skills from Claude's marketplace"""
+    if search:
+        results = search_marketing_skills(search)
+        console.print(f"\n[cyan]🔍 Marketing skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = MARKETING_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📣  Marketing domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_marketing_stats()
+    console.print(f"\n[bold cyan]📣  KURT Marketing Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "seo_search": "Claude SEO and GEO Site Audit, SEO-AEO-GEO Ultimate, SE Ranking",
+        "paid_ads": "AdWhispr, AdCopilot for Google Ads, Adspirer, Windsor.ai",
+        "social_media": "Social Media Skills, Ayrshare, Planable SMM, vidIQ",
+        "content_seo": "Website Copywriting, Product Marketing, Editorial OS, Blogr",
+        "email_marketing": "ActiveCampaign, kopi-email-marketing, Loops, Seguno",
+        "growth_analytics": "Pendo Orchestrate, Ryze AI Marketing, Fractional CMO Brain",
+        "creative_assets": "Abracadabrax AI Product Photo, Creative Claw, AI UGC Video Ads",
+        "niche_specialized": "Agency MCP, 8digit Planner, Unbounce Landing Page Builder",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill marketing --search <query>  or  kurt skill marketing --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
