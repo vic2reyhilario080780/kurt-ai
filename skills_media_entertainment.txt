@@ -1,0 +1,12 @@
+Letterboxd
+JustWatch
+Reelgood
+TV Time
+Trakt
+Plex Skills
+Jellyfin
+Infuse
+Serializd
+Goodreads
+StoryGraph
+Bookly

@@ -1,0 +1,25 @@
+Crossword Compiler
+CrosswordNexus
+Puzzle Baron
+Puzzlemaker
+Numerade Puzzles
+Brilliant.org Puzzles
+Art of Problem Solving
+Project Euler
+Advent of Code
+LeetCode Puzzles
+HackerRank Puzzles
+Codewars
+Exercism
+Kata.ai
+Pramp
+Codingame
+CheckiO
+Edabit
+CodinGame
+CSSBattle
+FlexboxFroggy
+GridGarden
+CSS Diner
+VimAdventures
+Shortcut Foo

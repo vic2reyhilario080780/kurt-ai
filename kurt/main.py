@@ -50,7 +50,13 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_dependencies_skills, list_learning_skills, list_data_skills, \
     list_financial_services_skills, list_design_skills, list_legal_skills, \
     list_jobs_career_skills, list_it_security_skills, list_retail_ecommerce_skills, \
-    list_hr_skills
+    list_hr_skills, list_music_skills, list_personal_finance_skills, list_events_skills, \
+    list_healthcare_skills, list_customer_support_skills, list_writing_skills, \
+    list_puzzles_skills, list_travel_skills, list_health_fitness_skills, list_games_skills, \
+    list_shopping_skills, list_government_skills, list_family_relationships_skills, \
+    list_media_entertainment_skills, list_education_skills, list_food_skills, \
+    list_sports_skills, list_faith_skills, list_home_skills, list_travel_hospitality_skills, \
+    list_books_skills, list_nonprofit_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -788,6 +794,204 @@ def skill_hr(
 ):
     """Browse 41 HR skills from Claude's marketplace"""
     list_hr_skills(domain=domain, search=search)
+
+
+@skill_app.command("music")
+def skill_music(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search music skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 38 Music skills from Claude's marketplace"""
+    list_music_skills(domain=domain, search=search)
+
+
+@skill_app.command("finance-personal")
+def skill_personal_finance(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search personal finance skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 35 Personal Finance skills from Claude's marketplace"""
+    list_personal_finance_skills(domain=domain, search=search)
+
+
+@skill_app.command("events")
+def skill_events(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search events skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 31 Events skills from Claude's marketplace"""
+    list_events_skills(domain=domain, search=search)
+
+
+@skill_app.command("healthcare")
+def skill_healthcare(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search healthcare skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 32 Healthcare skills from Claude's marketplace"""
+    list_healthcare_skills(domain=domain, search=search)
+
+
+@skill_app.command("support")
+def skill_customer_support(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search customer support skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 30 Customer Support skills from Claude's marketplace"""
+    list_customer_support_skills(domain=domain, search=search)
+
+
+@skill_app.command("writing")
+def skill_writing(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search writing skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 29 Writing skills from Claude's marketplace"""
+    list_writing_skills(domain=domain, search=search)
+
+
+@skill_app.command("puzzles")
+def skill_puzzles(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search puzzles skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 25 Puzzles skills from Claude's marketplace"""
+    list_puzzles_skills(domain=domain, search=search)
+
+
+@skill_app.command("travel")
+def skill_travel(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search travel skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 25 Travel skills from Claude's marketplace"""
+    list_travel_skills(domain=domain, search=search)
+
+
+@skill_app.command("fitness")
+def skill_health_fitness(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search health & fitness skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 21 Health & Fitness skills from Claude's marketplace"""
+    list_health_fitness_skills(domain=domain, search=search)
+
+
+@skill_app.command("games")
+def skill_games(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search games skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 14 Games skills from Claude's marketplace"""
+    list_games_skills(domain=domain, search=search)
+
+
+@skill_app.command("shopping")
+def skill_shopping(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search shopping skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 13 Shopping skills from Claude's marketplace"""
+    list_shopping_skills(domain=domain, search=search)
+
+
+@skill_app.command("gov")
+def skill_government(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search government skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 15 Government skills from Claude's marketplace"""
+    list_government_skills(domain=domain, search=search)
+
+
+@skill_app.command("family")
+def skill_family_relationships(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search family & relationships skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 12 Family & Relationships skills from Claude's marketplace"""
+    list_family_relationships_skills(domain=domain, search=search)
+
+
+@skill_app.command("media")
+def skill_media_entertainment(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search media & entertainment skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 12 Media & Entertainment skills from Claude's marketplace"""
+    list_media_entertainment_skills(domain=domain, search=search)
+
+
+@skill_app.command("edu")
+def skill_education(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search education skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 10 Education skills from Claude's marketplace"""
+    list_education_skills(domain=domain, search=search)
+
+
+@skill_app.command("food")
+def skill_food(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search food skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 8 Food skills from Claude's marketplace"""
+    list_food_skills(domain=domain, search=search)
+
+
+@skill_app.command("sports")
+def skill_sports(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search sports skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 8 Sports skills from Claude's marketplace"""
+    list_sports_skills(domain=domain, search=search)
+
+
+@skill_app.command("faith")
+def skill_faith(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search faith skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 7 Faith skills from Claude's marketplace"""
+    list_faith_skills(domain=domain, search=search)
+
+
+@skill_app.command("home")
+def skill_home(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search home skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 6 Home skills from Claude's marketplace"""
+    list_home_skills(domain=domain, search=search)
+
+
+@skill_app.command("hospitality")
+def skill_travel_hospitality(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search travel hospitality skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 6 Travel Hospitality skills from Claude's marketplace"""
+    list_travel_hospitality_skills(domain=domain, search=search)
+
+
+@skill_app.command("books")
+def skill_books(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search books skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 5 Books skills from Claude's marketplace"""
+    list_books_skills(domain=domain, search=search)
+
+
+@skill_app.command("nonprofit")
+def skill_nonprofit(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search nonprofit skills"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+):
+    """Browse 4 Nonprofit skills from Claude's marketplace"""
+    list_nonprofit_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")
