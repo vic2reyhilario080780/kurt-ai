@@ -205,8 +205,8 @@ def _keyword_detect(text: str) -> Optional[Intent]:
 
 # (pattern, intent_type, action, target_group)
 PATTERNS = [
-    # Open app: "buksan ang Spotify", "open Spotify", "i-open ang Chrome"
-    (r"(?:buksan|open|launch|i-open|i-launch|start)\s+(?:ang\s+|mo\s+|nang\s+)?(.+)",
+    # Open app: "buksan ang Spotify", "open Spotify", "i-open ang Chrome", "pa open naman ng X"
+    (r"(?:pa\s+)?(?:buksan|open|launch|i-open|i-launch|start)\s+(?:(?:naman|mo|po|nga)\s+)?(?:(?:ang|ng|si)\s+)?(.+)",
      INTENT_TASK, "open_app", 1),
 
     # Navigate: "punta sa youtube.com", "go to netflix.com", "buksan ang google.com"
@@ -266,8 +266,9 @@ def _pattern_detect(text: str) -> Optional[Intent]:
             if target_group > 0:
                 try:
                     target = match.group(target_group).strip()
-                    # Clean up common Filipino particles
-                    target = re.sub(r'^(ang|ng|sa|mo|ko|niya|natin)\s+', '', target, flags=re.IGNORECASE)
+                    # Clean up common Filipino particles (prefix and suffix)
+                    target = re.sub(r'^(ang|ng|sa|mo|ko|niya|natin|naman|po)\s+', '', target, flags=re.IGNORECASE)
+                    target = re.sub(r'\s+(naman|po|nga|daw|raw|pala|na|lang|lamang)$', '', target, flags=re.IGNORECASE)
                 except IndexError:
                     pass
 

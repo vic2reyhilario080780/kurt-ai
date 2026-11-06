@@ -484,6 +484,96 @@ def chat(
                 break
             continue
 
+        # ── Intent Detection ─────────────────────────────────────────
+        # Detect if the user typed a task/command (Taglish supported)
+        # e.g. "buksan ang spotify", "open spotify", "screenshot"
+        try:
+            from kurt.core.intent import detect_intent, route_intent
+            from kurt.core.intent import INTENT_TASK, INTENT_SEARCH, INTENT_MEMORY, INTENT_CHAT
+
+            intent = detect_intent(prompt, use_llm=False)  # fast path: keywords + regex only
+
+            if intent.type == INTENT_TASK and intent.confidence >= 0.75:
+                # Execute computer/browser action directly — no LLM call needed
+                routed = route_intent(intent)
+                handler = routed.get("handler", "")
+                kwargs = routed.get("kwargs", {})
+
+                console.print(
+                    f"\n[bold green]🤖 Kurt[/bold green] [dim](intent: {intent.action} · {intent.confidence:.0%})[/dim]"
+                )
+
+                try:
+                    if handler == "computer.open_app":
+                        from kurt.core.computer_use import open_app
+                        import re as _re
+                        raw_name = kwargs.get("app_name", intent.target or "")
+                        # Strip Filipino particles that slipped through
+                        clean_name = _re.sub(
+                            r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
+                            '', raw_name, flags=_re.IGNORECASE
+                        ).strip()
+                        result = open_app(clean_name)
+                        if result.success:
+                            console.print(f"[green]✓[/green] Binuksan: [bold]{clean_name}[/bold]")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] Hindi nabuksan: {result.error}")
+
+                    elif handler == "browser.navigate":
+                        from kurt.core.computer_use import open_url
+                        result = open_url(kwargs.get("url", ""))
+                        if result.success:
+                            console.print(f"[green]✓[/green] Binuksan ang URL: [bold]{kwargs.get('url')}[/bold]")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+
+                    elif handler == "browser.search_web":
+                        from kurt.core.computer_use import open_url
+                        import urllib.parse
+                        query = kwargs.get("query", prompt)
+                        url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+                        result = open_url(url)
+                        if result.success:
+                            console.print(f"[green]✓[/green] Naghanap: [bold]{query}[/bold]")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+
+                    elif handler == "computer.screenshot":
+                        from kurt.core.computer_use import screenshot
+                        result = screenshot()
+                        if result.success:
+                            console.print(f"[green]✓[/green] Screenshot saved: [dim]{result.data}[/dim]")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+
+                    elif handler == "computer.type_text":
+                        from kurt.core.computer_use import type_text
+                        result = type_text(kwargs.get("text", ""))
+                        if result.success:
+                            console.print(f"[green]✓[/green] Na-type ang text.")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] {result.error}")
+
+                    else:
+                        # Unknown handler — fall through to LLM
+                        raise ValueError(f"Unknown handler: {handler}")
+
+                    # Log to habit memory
+                    try:
+                        from kurt.core.habit_memory import log_interaction
+                        log_interaction(prompt, handler, True)
+                    except Exception:
+                        pass
+
+                    continue  # Skip LLM call
+
+                except Exception as e:
+                    # Action failed — tell user and fall through to LLM
+                    console.print(f"[dim]⚡ Direct action failed ({e}), asking AI instead...[/dim]")
+
+        except ImportError:
+            pass  # Intent module not available — skip silently
+
         # ── AI Chat ──────────────────────────────────────────────────
         analysis = analyze_task(prompt)
         if current_model != "auto":
