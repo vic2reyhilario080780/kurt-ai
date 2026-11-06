@@ -41,7 +41,8 @@ from kurt.core.persona import (
 from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     create_skill_template, get_skill_prompt, list_engineering_skills, list_code_skills, \
     list_files_docs_skills, list_designs_media_skills, list_pipelines_jobs_skills, \
-    list_tickets_tasks_skills, list_notes_memory_skills, list_apis_skills
+    list_tickets_tasks_skills, list_notes_memory_skills, list_apis_skills, \
+    list_reference_docs_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -554,6 +555,15 @@ def skill_apis(
 ):
     """Browse 346 APIs skills from Claude's marketplace"""
     list_apis_skills(domain=domain, search=search)
+
+
+@skill_app.command("refdocs")
+def skill_refdocs(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (legal_research, knowledge_documentation, market_research, medical_health, developer_reference, business_strategy, government_public_sector, education_learning, seo_marketing, finance_economics, productivity_tools, real_estate_property, data_analytics, niche_specialized)"),
+):
+    """Browse 324 Reference Docs skills from Claude's marketplace"""
+    list_reference_docs_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")

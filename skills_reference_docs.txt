@@ -1,0 +1,324 @@
+GC AI
+Informatica
+Maven Bio
+incident.io
+Skills For Real Engineers
+context7
+notion
+verification-foundation
+GovTribe
+Research Desk
+ai-governance-legal
+research-superpowers
+Verisk Underwriting Intelligence
+pubmed
+SEO-AEO-GEO Ultimate
+Product Marketing
+microsoft-docs
+litigation-legal
+Zentrik
+Research integrity
+Marketing Psychology Kit
+corporate-legal
+A1 Gallery
+Image Deep Research
+TubeAlfred YouTube
+parallel
+ag2-agent-guide
+agent-context-kit
+strategy consultant
+design-dev-bridge
+brand-studio
+Career Coaching
+Agentic user research at scale
+privacy-legal
+adisinsight
+Corbis
+law-student
+cocounsel-legal
+B2b Sales Enablement
+SuperMatt
+Agent Ingest, Audit & Optimize
+Ad Copy & Creative Preflight
+liquid-glass
+cofounders
+Jinkō
+legal-clinic
+regulatory-legal
+Crypto & Bitcoin Analyst — Charts & Research
+Blog Content Strategy, Content Calendar & Content Audit
+B2B Research: Market and Account
+clinical-trials
+Marketing for Life Sciences
+Citation Needed
+2hongo
+Atlassian Teamwork Graph CLI
+Editorial OS
+n8n Knowledge Base
+Market Intelligence
+Mathbox
+Thesis Examiner
+notion-memory
+GitBook
+doc-authoring-skills
+Ansvar Compliance Skills
+SE Ranking
+system-design-skills
+Big If True
+Sales Enablement Kit
+Worker K
+Writing Intelligence Studio
+Agile Product
+AI Search Visibility Tracker
+wiley-scholar-gateway
+wikipedia
+Fiscal.ai
+youdotcom-agent-skills
+Refero
+ArcKit Austrian Overlay
+Competition Checker
+Competitive Skills by LMTY
+asodev
+AIResearch — Multi-Lens Stock Deep Dive
+ArcKit UK NHS Clinical Safety Overlay
+GDPRGard Compliance Skills
+akc-cycle
+Arkas
+Contratos Civiles y Mercantiles
+llm-wiki-plugin
+Community & Reddit Marketing
+Economic Mind
+prepkit-product
+StarTap Launch Kit
+scriptorium-cowork
+Talk to Anyone
+ArcKit EU Overlay
+Music Catalog Diligence
+The Pragmatic PM Toolkit
+LawDiver
+loop-and-gate-foundation
+guide
+storm
+Oak National Academy
+Legalcode
+SerpApi Claude Plugin
+Glean
+baba Hebrew
+claude-war-room
+Kube by Kuberno
+emem
+ACI Risk Indicators
+SearchAtlas Toolkit
+cicada.guide
+Codigo Civil Formulacion Juridica
+Zetesis
+BigID
+trip-json
+Ubersuggest
+DAX for agents
+product-discovery-flow
+Litigación Contencioso-Administrativa España
+IQland Real Estate
+Ignite UI MCP Tools
+Litigación Laboral España
+duckdb-skills
+Litigación Penal España
+Compliance ES
+PhaseFolio
+open-targets
+OpenCase
+FluidityIQ Patent Intelligence
+Waldo fyi
+dev-forge
+AppSkyline
+Newsletter Creator Tools
+In Case Of Crisis
+ArcKit Repository Tooling
+SEOcrawl AI Reports
+dyscalculia-support-skill
+Maquinable GEO
+Data Protection
+Search1API
+Pi Security
+Gambit
+Catalyst
+Ship
+medidata
+MCP Conduct Register
+Contentstack Vibe Docs
+AlphaYou
+Brandvane
+Redpine
+cortellis
+finsharpe
+Grammaropolis for Teachers
+BidSkim - UK Tenders & Contract Renewals
+Cala
+revelata
+regai — Vietnamese Legal Consultant
+Botify
+markgrab
+Stable Baseline
+Polskie Prawo
+lookout
+Work Unit Roadmap
+Daily Journal
+bibtidy
+LVAI Pro
+sp-global
+shazam
+fhir-format
+Tirion
+The Stoic Library
+Harness Designing Plugin
+ArcKit French Public Sector Overlay
+Extranjería España
+Lexbeam EU AI Governance
+ArcKit USA Federal Civilian Overlay
+open-source-launch
+vectorgov
+IFG
+Bible by Midvash
+conotate
+ArcKit Canadian Federal Overlay
+Olostep
+Commslayer
+Brouky
+diataxis
+Buyer Engagement Sales Engine -- Free
+ArcKit UAE Federal Overlay
+norma-claude-skill
+holistics-reporting
+Fractional CMO Brain
+glean-dev-docs
+kap
+Scio Knowledge
+Nonresident Tax
+socratic-mentor
+StarGlass Research
+FXMacroData
+ArcKit UK Financial Services Payments Overlay
+Marcora: Brand Context & Writing
+CompanyTrack
+Pour Picks
+Sugra API Skills
+lotlytics
+dyslexia-support-skill
+SalesEQ
+DSAIL: Rules Engine for Written Policy
+Moveo.AI
+realLaw AI
+ArcKit Australian Energy Sector Overlay
+Ragjur
+greenfield-delivery
+Silicon Floor
+Liner
+synapse
+vvuq4ai
+Panscia
+Pitwall F1
+VA Medicaid Work Rule Guide (unofficial)
+LienDeadline
+Lightbringer
+nuberea
+saas-corpus
+Hammer Worlds
+Medusa
+Menas
+重調クン (Jucho-kun)
+EUDR compliance
+transitrix
+TrendsAGI
+stride-ideation
+MarineVerse
+spec-first
+tbh
+decipher
+Deck
+Open Ephemeris
+ThoughtSpot Spottercode
+Monitly
+Keytomic
+toolrouter
+FactIQ
+SpecsGraph
+Supovia helpdesk chat
+Spyglasses
+eonik
+FreightUtils
+PeerPanda
+IDC Quanta
+Oxford Ledge
+XiaoHongShu RedNote Local Guide to China
+Tendrpro Lite
+Machine Relations Index
+Effective
+patristic
+Rezandovoy
+Plumb
+ASO Keyword Sorter
+Jamdesk
+Funraise Taiwan Real Estate
+Market Map by Bali Leads
+Wireless Choices
+Normlotse
+Total CMS
+trove
+RegAffairs AI
+Lightning TV Expert Plugin
+Bucky
+Installflow
+Shrimad Bhagwatam Guide – Srila BV Narayan Goswami Maharaj
+Usercall: User Interviews
+Kabuken
+Compabase
+Directoryz
+Mountaineering
+review-times
+Flash Veille
+Everest Group AI
+ihmtools
+Sadakio Developer Docs
+Sphinx
+EscapeBot
+Muffed — verified NFL stats
+UCE Evidence Lens
+ITIN Finance
+Dossierfy
+MMPM Cognitive OS
+Quellpass
+vda5050
+Release Notes Index
+BuyerCaddy
+Busymate AI
+Convertia
+Percolate
+slash-commands-jp
+Potato annotation tasks
+Perfume Picks
+RoyaleTools
+TenderKart
+Fracfyi
+MORVS
+ContextIQ
+Popety.io
+Tenant Replies
+Knotr
+Mackforge Outside View
+DataCEVA US Layoff Notices
+PT-Weiterbildung
+Helvabase
+Northsea
+GrappleMaps
+GulfPitch
+ComplyOnSite
+NerdyGeek
+Helprism sync
+SerialHunt
+SDSentry HazCom
+The Founding Reader
+Invokary Platform Requirements
+Sovrnti
+RailJournal India
+Notit
+ProvenTools

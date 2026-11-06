@@ -4,7 +4,8 @@ Skills = domain knowledge na nag-ggguide sa AI behavior
 
 Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 433 Designs & Media skills, 368 Pipelines & Jobs skills, 365 Tickets & Tasks,
-290 Notes & Memory skills, and 346 APIs skills from Claude's marketplace.
+290 Notes & Memory skills, 346 APIs skills, and 324 Reference Docs skills
+from Claude's marketplace.
 """
 
 import os
@@ -93,6 +94,16 @@ from kurt.skills.apis import (
     get_domain_prompt as get_apis_domain_prompt,
     get_stats as get_apis_stats,
     APIS_DOMAINS,
+)
+
+# Reference Docs skills catalog
+from kurt.skills.reference_docs import (
+    load_all_skills as load_reference_docs_skills,
+    search_skills as search_reference_docs_skills,
+    get_skill_context as get_reference_docs_skill_context,
+    get_domain_prompt as get_reference_docs_domain_prompt,
+    get_stats as get_reference_docs_stats,
+    REFERENCE_DOCS_DOMAINS,
 )
 
 console = Console()
@@ -739,6 +750,61 @@ def list_apis_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill apis --search <query>  or  kurt skill apis --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_reference_docs_skills(domain: str = None, search: str = None):
+    """List or search Reference Docs skills from Claude's marketplace"""
+    if search:
+        results = search_reference_docs_skills(search)
+        console.print(f"\n[cyan]🔍 Reference Docs skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = REFERENCE_DOCS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📚 Reference Docs domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_reference_docs_stats()
+    console.print(f"\n[bold cyan]📚 KURT Reference Docs Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "legal_research": "litigation-legal, cocounsel-legal, Legalcode, LawDiver",
+        "knowledge_documentation": "notion, GitBook, microsoft-docs, context7, diataxis",
+        "market_research": "Research Desk, AIResearch, CompanyTrack, GovTribe",
+        "medical_health": "pubmed, clinical-trials, fhir-format, medidata",
+        "developer_reference": "duckdb-skills, DAX for agents, Ignite UI, dev-forge",
+        "business_strategy": "strategy consultant, Sales Enablement Kit, Agile Product",
+        "government_public_sector": "GovTribe, ArcKit USA, ArcKit EU, ArcKit UK NHS",
+        "education_learning": "Oak National Academy, wikipedia, socratic-mentor, Citation Needed",
+        "seo_marketing": "SE Ranking, SEOcrawl, Ubersuggest, Botify, Maquinable GEO",
+        "finance_economics": "Fiscal.ai, FXMacroData, AIResearch, finsharpe, sp-global",
+        "productivity_tools": "parallel, agent-context-kit, MMPM Cognitive OS, claude-war-room",
+        "real_estate_property": "IQland Real Estate, Popety.io, Tenant Replies, Silicon Floor",
+        "data_analytics": "duckdb-skills, holistics-reporting, ThoughtSpot, FactIQ",
+        "niche_specialized": "重調クン, XiaoHongShu, GrappleMaps, MarineVerse, Pitwall F1",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill refdocs --search <query>  or  kurt skill refdocs --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 
