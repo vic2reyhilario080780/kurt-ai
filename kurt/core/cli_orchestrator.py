@@ -39,6 +39,7 @@ SLASH_COMMANDS = {
     "/history":   "Show session history",
     "/save":      "Save last response as a file",
     "/info":      "Show KURT session info",
+    "/mcp":       "MCP tools: /mcp list | /mcp tools | /mcp call server/tool",
 }
 
 
@@ -278,6 +279,76 @@ def handle_slash(
             )
         output = _run_shell("gh", args)
         return SlashResult(handled=True, output=f"🐙 GitHub CLI:\n\n{output}", continue_chat=True)
+
+    # ── /mcp ────────────────────────────────────────────────────────
+    if cmd == "/mcp":
+        # /mcp list | /mcp tools | /mcp call server/tool {params}
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else "list"
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+
+        if sub_cmd == "list":
+            from kurt.core.mcp_client import load_registry
+            registry = load_registry()
+            if not registry:
+                return SlashResult(
+                    handled=True,
+                    output="No MCP connections.\nAdd one: kurt mcp add <name> --url <url>",
+                    continue_chat=True,
+                )
+            lines = ["", "🔌 Connected MCP Servers", "─" * 40]
+            for name, conn in registry.items():
+                target = conn.url or conn.command or "—"
+                status = "✓" if conn.enabled else "○"
+                lines.append(f"  {status} {name}  [{conn.transport}]  {target[:40]}")
+            return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
+
+        elif sub_cmd == "tools":
+            import asyncio as _asyncio
+            from kurt.core.mcp_client import show_tools, load_registry
+            registry = load_registry()
+            if not registry:
+                return SlashResult(
+                    handled=True,
+                    output="No MCP connections. Add one with: kurt mcp add",
+                    continue_chat=True,
+                )
+            lines = ["", "🔧 MCP Tools", "─" * 40]
+            for name, conn in registry.items():
+                if not conn.enabled:
+                    continue
+                from kurt.core.mcp_client import list_tools as _list_tools
+                try:
+                    tools = _asyncio.run(_list_tools(conn))
+                    lines.append(f"\n[{name}]")
+                    for t in tools[:8]:
+                        lines.append(f"  • {t.name}  {t.description[:50]}")
+                except Exception as e:
+                    lines.append(f"\n[{name}] ❌ {e}")
+            return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
+
+        elif sub_cmd == "call":
+            # /mcp call server/tool {"key": "val"}
+            import asyncio as _asyncio
+            import json as _json
+            parts2 = sub_args.split(None, 1)
+            if not parts2:
+                return SlashResult(handled=True, output="Usage: /mcp call server/tool {params}", continue_chat=True)
+            tool_ref = parts2[0]
+            params_raw = parts2[1] if len(parts2) > 1 else "{}"
+            try:
+                params = _json.loads(params_raw)
+            except Exception:
+                params = {}
+            from kurt.core.mcp_client import execute_mcp_tool
+            result = _asyncio.run(execute_mcp_tool(tool_ref, params))
+            return SlashResult(handled=True, output=f"🔌 {tool_ref}:\n\n{result}", continue_chat=True)
+
+        return SlashResult(
+            handled=True,
+            output="Usage: /mcp list | /mcp tools | /mcp call server/tool {params}",
+            continue_chat=True,
+        )
 
     # ── Unknown slash command ────────────────────────────────────────
     return SlashResult(

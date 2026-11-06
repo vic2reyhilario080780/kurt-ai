@@ -1421,36 +1421,171 @@ def plugin_disable(plugin_id: str = typer.Argument(...)):
 
 
 # ══════════════════════════════════════
-# MCP SUBCOMMANDS
+# MCP SUBCOMMANDS (Phase 4 — full MCP tool-call loop)
 # ══════════════════════════════════════
 
 @mcp_app.command("list")
 def mcp_list():
-    """List MCP connections"""
-    console.print("[bold cyan]🔌 MCP Connections[/bold cyan]")
-    console.print("[dim]Coming soon! MCP support in v0.2[/dim]")
-    console.print("\nPlanned connectors:")
-    mcps = [
-        ("gmail", "📧 Gmail"),
-        ("notion", "📝 Notion"),
-        ("github", "🐙 GitHub"),
-        ("slack", "💬 Slack"),
-        ("tiktok", "🎵 TikTok"),
-        ("shopee", "🛒 Shopee"),
-        ("gcal", "📅 Google Calendar"),
-        ("gdrive", "📁 Google Drive"),
-        ("supabase", "🗄️  Supabase"),
-        ("n8n", "⚙️  n8n"),
-    ]
-    for mcp_id, name in mcps:
-        console.print(f"  [dim]kurt mcp connect {mcp_id}[/dim]  — {name}")
+    """📋 List all saved MCP connections"""
+    from kurt.core.mcp_client import show_connections
+    show_connections()
 
 
-@mcp_app.command("connect")
-def mcp_connect(service: str = typer.Argument(...)):
-    """Connect an MCP service"""
-    from kurt.hub import composio_connect
-    composio_connect(service)
+@mcp_app.command("tools")
+def mcp_tools(
+    server: Optional[str] = typer.Argument(None, help="Server name (or all if omitted)"),
+):
+    """🔧 List available tools from connected MCP servers"""
+    from kurt.core.mcp_client import show_tools
+    asyncio.run(show_tools(server))
+
+
+@mcp_app.command("add")
+def mcp_add(
+    name: str = typer.Argument(..., help="Unique name for this connection"),
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="HTTP/SSE server URL"),
+    command: Optional[str] = typer.Option(None, "--cmd", "-c", help="Stdio command (e.g. 'npx')"),
+    args: Optional[str] = typer.Option(None, "--args", "-a", help="Command args (space-separated)"),
+    env_vars: Optional[str] = typer.Option(None, "--env", "-e", help="Env vars KEY=VAL,KEY2=VAL2"),
+    header: Optional[str] = typer.Option(None, "--header", "-H", help="HTTP headers KEY:VAL,KEY2:VAL2"),
+    description: str = typer.Option("", "--desc", "-d", help="Description"),
+    preset: Optional[str] = typer.Option(None, "--preset", "-p", help="Use a preset (filesystem/github/postgres/brave-search/sqlite/puppeteer)"),
+):
+    """➕ Add an MCP server connection"""
+    from kurt.core.mcp_client import MCPConnection, add_connection, get_preset, list_presets
+
+    if preset:
+        conn = get_preset(preset)
+        if not conn:
+            console.print(f"[red]❌ Unknown preset: {preset}[/red]")
+            list_presets()
+            return
+        conn.name = name or preset
+        result = add_connection(conn)
+        console.print(f"[green]{result}[/green]")
+        console.print(f"[dim]Test it: kurt mcp test {conn.name}[/dim]")
+        return
+
+    if not url and not command:
+        console.print("[red]❌ Provide either --url (HTTP) or --cmd (stdio)[/red]")
+        console.print("\n[bold]Examples:[/bold]")
+        console.print("  [dim]# HTTP server:[/dim]")
+        console.print("  kurt mcp add myserver --url http://localhost:3000/mcp")
+        console.print("  [dim]# Stdio server:[/dim]")
+        console.print("  kurt mcp add myserver --cmd npx --args '-y @modelcontextprotocol/server-filesystem .'")
+        console.print("  [dim]# From preset:[/dim]")
+        console.print("  kurt mcp add mygithub --preset github")
+        return
+
+    # Parse transport
+    transport = "http" if url else "stdio"
+
+    # Parse env vars
+    env = {}
+    if env_vars:
+        for pair in env_vars.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                env[k.strip()] = v.strip()
+
+    # Parse headers
+    headers = {}
+    if header:
+        for pair in header.split(","):
+            if ":" in pair:
+                k, v = pair.split(":", 1)
+                headers[k.strip()] = v.strip()
+
+    # Parse args list
+    cmd_args = args.split() if args else []
+
+    conn = MCPConnection(
+        name=name,
+        transport=transport,
+        command=command,
+        args=cmd_args,
+        env=env,
+        url=url,
+        headers=headers,
+        description=description,
+    )
+
+    result = add_connection(conn)
+    console.print(f"[green]{result}[/green]")
+    console.print(f"[dim]Test it: kurt mcp test {name}[/dim]")
+
+
+@mcp_app.command("remove")
+def mcp_remove(name: str = typer.Argument(..., help="Connection name to remove")):
+    """🗑️  Remove an MCP connection"""
+    from kurt.core.mcp_client import remove_connection
+    result = remove_connection(name)
+    color = "green" if result.startswith("✅") else "red"
+    console.print(f"[{color}]{result}[/{color}]")
+
+
+@mcp_app.command("test")
+def mcp_test(name: str = typer.Argument(..., help="Connection name to test")):
+    """🧪 Test an MCP connection — list its tools"""
+    from kurt.core.mcp_client import load_registry, show_tools
+    registry = load_registry()
+    if name not in registry:
+        console.print(f"[red]❌ Connection not found: {name}[/red]")
+        console.print("[dim]Run: kurt mcp list[/dim]")
+        return
+    console.print(f"[cyan]🧪 Testing {name}…[/cyan]")
+    asyncio.run(show_tools(name))
+
+
+@mcp_app.command("call")
+def mcp_call(
+    tool_ref: str = typer.Argument(..., help="Tool to call: 'server/tool' or 'tool'"),
+    params_json: str = typer.Option("{}", "--params", "-p", help="JSON params"),
+):
+    """⚡ Call an MCP tool directly"""
+    from kurt.core.mcp_client import execute_mcp_tool
+    import json as _json
+    try:
+        params = _json.loads(params_json)
+    except _json.JSONDecodeError:
+        console.print("[red]❌ Invalid JSON params[/red]")
+        return
+    console.print(f"[dim]Calling {tool_ref}…[/dim]")
+    result = asyncio.run(execute_mcp_tool(tool_ref, params))
+    console.print(result)
+
+
+@mcp_app.command("presets")
+def mcp_presets():
+    """⚡ Show quick-add presets for popular MCP servers"""
+    from kurt.core.mcp_client import list_presets
+    list_presets()
+
+
+@mcp_app.command("enable")
+def mcp_enable(name: str = typer.Argument(...)):
+    """✅ Enable an MCP connection"""
+    from kurt.core.mcp_client import load_registry, save_registry
+    registry = load_registry()
+    if name not in registry:
+        console.print(f"[red]❌ Not found: {name}[/red]")
+        return
+    registry[name].enabled = True
+    save_registry(registry)
+    console.print(f"[green]✅ Enabled: {name}[/green]")
+
+
+@mcp_app.command("disable")
+def mcp_disable(name: str = typer.Argument(...)):
+    """🚫 Disable an MCP connection (keep saved, don't use)"""
+    from kurt.core.mcp_client import load_registry, save_registry
+    registry = load_registry()
+    if name not in registry:
+        console.print(f"[red]❌ Not found: {name}[/red]")
+        return
+    registry[name].enabled = False
+    save_registry(registry)
+    console.print(f"[dim]Disabled: {name}[/dim]")
 
 
 # ══════════════════════════════════════

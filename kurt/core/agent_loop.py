@@ -22,6 +22,10 @@ from kurt.core.file_ops import (
     read_file, read_file_summary, apply_edit,
     write_new_file, run_file, run_code_string, list_dir
 )
+from kurt.core.mcp_client import (
+    load_registry, list_tools as mcp_list_tools,
+    call_tool as mcp_call_tool, execute_mcp_tool
+)
 
 console = Console()
 
@@ -96,7 +100,38 @@ TOOLS = [
             "summary": "string — what was accomplished",
         },
     },
+    {
+        "name": "mcp_tool",
+        "description": "Call a tool from a connected MCP server. Use 'server_name/tool_name' format.",
+        "parameters": {
+            "tool_ref": "string — 'server_name/tool_name' or just 'tool_name'",
+            "params": "object — tool parameters as JSON object",
+        },
+    },
 ]
+
+
+async def _build_mcp_tools_prompt() -> str:
+    """Build MCP tools section for system prompt"""
+    registry = load_registry()
+    enabled = {n: c for n, c in registry.items() if c.enabled}
+    if not enabled:
+        return ""
+
+    lines = ["\n\nCONNECTED MCP TOOLS (use with mcp_tool):"]
+    for name, conn in enabled.items():
+        try:
+            tools = await mcp_list_tools(conn)
+            if tools:
+                lines.append(f"\n[{name}]")
+                for t in tools[:10]:  # Cap at 10 per server
+                    params = list(t.input_schema.get("properties", {}).keys())[:4]
+                    lines.append(f"  {name}/{t.name}: {t.description[:60]}"
+                                 + (f"  ({', '.join(params)})" if params else ""))
+        except Exception:
+            pass
+
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 TOOLS_PROMPT = """You have access to these tools. To call a tool, respond with a JSON block:
 ```tool
@@ -210,6 +245,15 @@ def execute_tool(tool_name: str, params: dict) -> str:
             except Exception as e:
                 return f"❌ {e}"
 
+        elif tool_name == "mcp_tool":
+            tool_ref = params.get("tool_ref", "")
+            mcp_params = params.get("params", {})
+            if not tool_ref:
+                return "❌ mcp_tool requires 'tool_ref'"
+            import asyncio as _asyncio
+            loop = _asyncio.get_event_loop()
+            return loop.run_until_complete(execute_mcp_tool(tool_ref, mcp_params))
+
         elif tool_name == "done":
             return f"DONE: {params.get('summary', 'Task complete.')}"
 
@@ -269,15 +313,20 @@ async def run_agent(
     steps = []
     files_changed = []
 
+    # Build MCP tools section
+    mcp_section = await _build_mcp_tools_prompt()
+
     system_prompt = (
         f"You are KURT, an AI coding assistant. You are working in directory: {cwd}\n\n"
-        f"{TOOLS_PROMPT}\n\n"
+        f"{TOOLS_PROMPT}"
+        f"{mcp_section}\n\n"
         "Rules:\n"
         "1. Always read a file before editing it.\n"
         "2. After making changes, run the file to verify it works.\n"
         "3. When done, call the 'done' tool with a summary.\n"
         "4. Be concise. One tool call per response.\n"
         "5. If you encounter an error, fix it and try again.\n"
+        "6. For MCP tools, use: mcp_tool with tool_ref='server/toolname' and params={...}\n"
     )
 
     messages = [
