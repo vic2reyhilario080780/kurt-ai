@@ -43,7 +43,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_files_docs_skills, list_designs_media_skills, list_pipelines_jobs_skills, \
     list_tickets_tasks_skills, list_notes_memory_skills, list_apis_skills, \
     list_reference_docs_skills, list_ai_models_agents_skills, list_websites_skills, \
-    list_servers_cloud_skills, list_contacts_leads_skills
+    list_servers_cloud_skills, list_contacts_leads_skills, list_databases_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -601,6 +601,15 @@ def skill_contactsleads(
 ):
     """Browse 246 Contacts & Leads skills from Claude's marketplace"""
     list_contacts_leads_skills(domain=domain, search=search)
+
+
+@skill_app.command("databases")
+def skill_databases(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (sql_relational, nosql_vector, data_warehouse_analytics, orm_migration, erp_enterprise, cloud_data_platforms, test_seed_data, niche_specialized)"),
+):
+    """Browse 246 Databases skills from Claude's marketplace"""
+    list_databases_skills(domain=domain, search=search)
 
 
 @skill_app.command("pipelines")

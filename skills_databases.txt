@@ -1,0 +1,246 @@
+Claude for Financial Advisors
+NetSuite Finance Analyst
+Informatica
+NetSuite AI Companion
+Render
+Amazon Selling Partner
+Hostinger Connector
+Chronograph GP
+AI Skills
+supabase
+10x-Team
+agentic-council
+Backend Design
+Upstash Redis
+firebase
+huggingface-skills
+databricks
+posthog
+aws-core
+coding-skills
+appwrite
+ABP Sensei
+analytics-office
+CellCog
+AgentUI Tools
+GeoAI Skills
+aws-data-analytics
+Jinkō
+backend-performance-review
+bigquery-data-analytics
+MetaFloor Supply Chain
+supabase-expert
+Odoo Tools
+azure-sql-developer
+comp-skills
+neon
+railway
+zilliz
+system-design-skills
+dataverse
+AI Context Bridge for HubSpot
+Spreadsheet (DWS Build)
+aws-amplify
+ERP Upgrade & Fit-Gap Advisor
+Altimate Code
+Datarails financeos
+Contentstack Agent Skills
+OpenSearch Agent Skills
+Elastic
+Cargo
+Astronomer
+WordPress DevKit
+Catalyst by Zoho
+looker
+fiftyone
+chembl
+datahub-skills
+Allium
+oracle-ai-data-platform-workbench-spark-connectors
+TRES Finance Plugin
+snowflake-cortex-code
+databases-on-aws
+Mixpanel
+NetSuite SuiteCloud
+aws-transform
+Preset API Skills
+Adaption
+Altertable
+athena-tools
+Celigo
+php harmony
+DataHub Cloud
+Lark/Feishu Integration
+MongoDB (Self-Managed MCP)
+py-pit
+Oracle AI Data Platform Workbench Engineer Agent
+redis-development
+dominodatalab
+cloud-sql-postgresql
+alloydb-omni
+BigID
+oryxflow - Trustworthy AI Data Analysis
+streaming-skills-plugin
+clickhouse-best-practices
+knowledge-catalog
+spiceai/skills
+SAP HANA CLI
+Supaflow
+Global Database
+ml-pipeline
+PWP-Project Workflow Protocol
+MongoDB Atlas (Managed MCP)
+workflow-toolkit
+Preset MCP Skills
+smarts.bio
+pinecone
+duckdb-skills
+holistics-development
+AI for Database
+DB Schema Spy: Database Schema Explorer and ERD
+kopi-email-marketing
+Azure Cosmos DB
+DalyKit
+Aiven
+Anysite GTM
+preset-toolkit
+Alteryx
+healthit-copilot
+Fine Structure
+boomi-data-integration
+demand-insight
+Civic
+dbt-toolkit
+sagemaker-ai
+InsForge
+Adzviser
+Trackian Marketing Analytics
+Standards
+cloud-sql-mysql
+cloud-sql-sqlserver
+ololand-dd
+Pigment
+ToolJet
+cortellis
+Qdrant
+JointJS Code Playground
+Basedash
+antiagree
+Qlik Agents
+revelata
+oracledb
+idmp-plugin
+RLS Schema Explorer for Supabase
+Revenue Analytics for HubSpot
+MARFOR Marketing Mix Modeling
+Go Backend Skills
+EasyEsuite
+NeonPanel
+boomi-datahub
+Vibee
+VillageSQL Skills
+db-migration-guard
+Dreambase
+LORM — Layered Operational Responsibility Model
+alloydb
+Headset
+Dealertide
+Magekwik Magento Toolkit
+VerseDB: Comic Book Tracker
+Skiffly
+holistics-reporting
+StoreConnect Agent Skills
+mirrord Agent Skills
+RoboSystems
+Powabase
+hatchable
+cockroachdb
+oracle-ai-data-platform-workbench-aws-migrator
+Oracle AI Data Platform Workbench Databricks Migrator
+RootCX
+Rill
+Mcpbackend
+LCA and DEALA agent skills
+Clearskies
+SignalPilot
+oleander
+formal-agent-contracts
+RiskModels
+inSitu Sales
+Churn Prevention Kit
+Pipeline Reconcile
+OBTO
+TrueGradient Planning Analysis
+versori-skills
+synapse
+Query Inspector
+Planpack
+Dilaya
+Syndic8
+Credible
+Masthead Data
+Opinionated Prisma Skills
+Athena by Zeta
+Honeydew Semantic Modeling Tools
+Medusa
+Opsera DevSecOps
+Claude Piggy Bank
+Nemi
+monl — backend compiler
+TD SYNNEX Plugin
+Re8ch Tenant
+PIASO
+InternetData
+Merit Aktiva for AI Agents
+firestore-native
+Nogbase
+Croft
+NeoSQL MCP
+TimeDataModel-skill
+Eqolux
+MarcoPolo
+Numeric MCP Toolkit
+ubl-star — facturas electrónicas a Power BI
+Glop Plugin
+PurchasePlus
+Karrito
+Mock Data Hydrator: Seed and Test Data Generator
+Couchbase
+DataFrey
+followrabbit
+Seqout
+Rancher
+rdsh
+The Expected Value
+Workiom
+IdkRx
+Steep
+supalens
+Elixir/Phoenix: Ecto
+MerchantFlow
+TDCv2 — Fake & Test Data Generator
+Xata
+Privy BFCM Planner
+pyvar-regulatory
+MosoFin
+Service Boundary Tests: Containers, Contracts and Mocks
+Stackhawk Data Seed
+catdef
+whodb
+Persyst
+Сторож рекламы
+Seenode
+Fracfyi
+MORVS
+spanner
+TypedbEx — TypeDB for Elixir
+pyvar-arch-data-ingestion
+pyvar-arch-storage
+SpiceGrinder
+SWIRL
+Ingest Labs
+StringSpec
+systolics
+Dataiku Headless
+QuickBooks Labs
+Tableau
