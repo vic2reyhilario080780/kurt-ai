@@ -69,6 +69,13 @@ from kurt.core.artifacts import (
 from kurt.core.scheduler import (
     list_schedules, add_schedule, remove_schedule, run_schedule, toggle_schedule
 )
+from kurt.core.file_ops import (
+    read_file, list_dir, apply_edit, write_new_file, run_file, run_code_string
+)
+from kurt.core.codebase import (
+    index_codebase, show_index_summary, get_git_diff, get_git_log,
+    parse_diff_stats, build_diff_review_prompt, get_codebase_context
+)
 
 app = typer.Typer(
     name="kurt",
@@ -534,6 +541,338 @@ def chat(
         _hist = _gh(session_id, limit=1)
         if _hist and _hist[-1]["role"] == "assistant":
             last_response = _hist[-1]["content"]
+
+
+# ══════════════════════════════════════
+# PHASE 2 — FILE COMMANDS
+# ══════════════════════════════════════
+
+@app.command()
+def read(
+    path: str = typer.Argument(..., help="File path to read"),
+    lines: Optional[str] = typer.Option(None, "--lines", "-l", help="Line range e.g. '10-25' or '10'"),
+    ask: Optional[str] = typer.Option(None, "--ask", "-a", help="Ask AI a question about this file"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+):
+    """📖 Read a file — with optional AI analysis"""
+    load_env()
+    content = read_file(path, lines)
+    console.print(content)
+
+    if ask:
+        init_db()
+        from kurt.core.file_ops import read_file_summary
+        file_info = read_file_summary(path)
+        if "error" in file_info:
+            console.print(f"[red]{file_info['error']}[/red]")
+            return
+        analysis = analyze_task(ask)
+        if model:
+            analysis.model = model
+        session_id = str(uuid.uuid4())
+        messages = [
+            {"role": "system", "content": "You are KURT, an expert code reviewer. Be concise and practical."},
+            {"role": "user", "content": f"File: {file_info['path']}\n\n```{file_info['ext']}\n{file_info['content'][:6000]}\n```\n\nQuestion: {ask}"},
+        ]
+        _theme = get_theme()
+        console.print(f"\n[{_theme['primary']}]🤖 KURT[/{_theme['primary']}] [dim]({analysis.model}):[/dim]")
+        asyncio.run(stream_response(
+            analysis=analysis, messages=messages,
+            session_id=session_id, no_memory=True, verbose=False, prompt=ask,
+        ))
+
+
+@app.command()
+def edit(
+    path: str = typer.Argument(..., help="File to edit"),
+    instruction: str = typer.Argument(..., help="What to change, in plain English"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview only — don't write"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+):
+    """✏️  AI-powered file editing — describe what to change"""
+    load_env()
+    init_db()
+
+    from kurt.core.file_ops import read_file_summary, apply_edit
+    file_info = read_file_summary(path)
+    if "error" in file_info:
+        console.print(f"[red]{file_info['error']}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[cyan]📄 {file_info['name']}[/cyan] [dim]({file_info['lines']} lines)[/dim]")
+    console.print(f"[dim]Instruction: {instruction}[/dim]\n")
+
+    # Ask AI to generate the edit as old_str/new_str
+    edit_prompt = (
+        f"You must edit this file. Return ONLY a JSON object with 'old_str' and 'new_str' keys.\n"
+        f"old_str: exact text from the file to replace (must be unique)\n"
+        f"new_str: the replacement text\n\n"
+        f"File: {file_info['path']}\n"
+        f"Instruction: {instruction}\n\n"
+        f"File content:\n```{file_info['ext']}\n{file_info['content'][:6000]}\n```\n\n"
+        f"Return ONLY this JSON format (no explanation):\n"
+        f'{{"old_str": "...", "new_str": "..."}}'
+    )
+
+    analysis = analyze_task(instruction)
+    if model:
+        analysis.model = model
+    # Force to code-capable model
+    if analysis.model not in ("deepseek/deepseek-coder", "anthropic/claude-3.5-sonnet"):
+        analysis.model = "deepseek/deepseek-coder"
+        analysis.provider = "openrouter"
+
+    session_id = str(uuid.uuid4())
+    messages = [
+        {"role": "system", "content": "You are a precise code editor. Output only valid JSON."},
+        {"role": "user", "content": edit_prompt},
+    ]
+
+    console.print("[dim]🤖 Generating edit…[/dim]")
+    full_response = ""
+
+    async def _get_edit():
+        nonlocal full_response
+        from kurt.core.router import ModelRouter
+        router = ModelRouter()
+        async for chunk in router.route(provider=analysis.provider, model=analysis.model, messages=messages):
+            full_response += chunk
+
+    asyncio.run(_get_edit())
+
+    # Parse JSON from response
+    import json as _json
+    json_match = re.search(r'\{[^{}]*"old_str"[^{}]*\}', full_response, re.DOTALL)
+    if not json_match:
+        console.print("[red]❌ AI did not return valid JSON edit.[/red]")
+        console.print(f"[dim]{full_response[:500]}[/dim]")
+        raise typer.Exit(1)
+
+    try:
+        edit_data = _json.loads(json_match.group(0))
+        old_str = edit_data.get("old_str", "")
+        new_str = edit_data.get("new_str", "")
+    except _json.JSONDecodeError as e:
+        console.print(f"[red]❌ JSON parse error: {e}[/red]")
+        raise typer.Exit(1)
+
+    if not old_str:
+        console.print("[red]❌ AI returned empty old_str.[/red]")
+        raise typer.Exit(1)
+
+    # Preview
+    console.print(Panel(
+        f"[red]- {old_str[:200]}[/red]\n[green]+ {new_str[:200]}[/green]",
+        title="Proposed Edit", box=box.ROUNDED,
+    ))
+
+    if dry_run:
+        console.print("[dim]Dry run — no changes written.[/dim]")
+        return
+
+    if not yes:
+        if not Confirm.ask("Apply this edit?"):
+            console.print("[dim]Cancelled.[/dim]")
+            return
+
+    result = apply_edit(path, old_str, new_str)
+    color = "green" if result.startswith("✅") else "red"
+    console.print(f"[{color}]{result}[/{color}]")
+
+
+@app.command("run")
+def run_cmd(
+    path: str = typer.Argument(..., help="File to execute (.py .sh .js)"),
+    args: str = typer.Option("", "--args", "-a", help="Arguments to pass"),
+    explain: bool = typer.Option(False, "--explain", "-e", help="Ask AI to explain the output"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+):
+    """▶️  Execute a file and optionally explain the output"""
+    load_env()
+
+    console.print(f"[cyan]▶ Running {path}[/cyan] [dim]{args}[/dim]\n")
+    result = run_file(path, args)
+
+    if "error" in result:
+        console.print(f"[red]{result['error']}[/red]")
+        raise typer.Exit(1)
+
+    stdout = result.get("stdout", "")
+    stderr = result.get("stderr", "")
+    rc = result.get("returncode", 0)
+    rt = result.get("runtime_ms", 0)
+
+    status_color = "green" if rc == 0 else "red"
+    console.print(f"[{status_color}]Exit {rc}[/{status_color}] [dim]· {rt}ms[/dim]")
+    if stdout:
+        console.print(stdout)
+    if stderr:
+        console.print(f"[yellow]{stderr}[/yellow]")
+
+    if explain:
+        init_db()
+        from kurt.core.file_ops import read_file_summary
+        file_info = read_file_summary(path)
+        analysis = analyze_task("explain code output")
+        if model:
+            analysis.model = model
+        session_id = str(uuid.uuid4())
+        messages = [
+            {"role": "system", "content": "You are KURT, an expert debugger. Explain clearly and concisely."},
+            {"role": "user", "content": (
+                f"File: {path}\nCode:\n```\n{file_info.get('content','')[:3000]}\n```\n\n"
+                f"Output (exit {rc}):\n{stdout[:2000]}\n{stderr[:1000]}\n\n"
+                f"Explain what happened and if there are any issues."
+            )},
+        ]
+        _theme = get_theme()
+        console.print(f"\n[{_theme['primary']}]🤖 KURT[/{_theme['primary']}] [dim]({analysis.model}):[/dim]")
+        asyncio.run(stream_response(
+            analysis=analysis, messages=messages,
+            session_id=session_id, no_memory=True, verbose=False,
+        ))
+
+
+@app.command()
+def ls(
+    path: str = typer.Argument(".", help="Directory to list"),
+    depth: int = typer.Option(2, "--depth", "-d", help="Tree depth 1-3"),
+):
+    """📁 List directory as tree"""
+    console.print(list_dir(path, depth))
+
+
+# ══════════════════════════════════════
+# PHASE 3 — AGENT + CODEBASE + DIFF
+# ══════════════════════════════════════
+
+@app.command()
+def agent(
+    task: str = typer.Argument(..., help="Task for the agent to complete autonomously"),
+    path: str = typer.Option(".", "--path", "-p", help="Working directory"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    max_steps: int = typer.Option(15, "--max-steps", help="Max agent steps (safety limit)"),
+):
+    """🤖 Agentic mode — multi-step AI task execution (like Claude Code!)"""
+    load_env()
+    init_db()
+
+    from kurt.core.agent_loop import run_agent
+    from kurt.core.router import ModelRouter
+
+    analysis = analyze_task(task)
+    # Agent mode: prefer code-capable model
+    if not model:
+        analysis.model = "deepseek/deepseek-coder"
+        analysis.provider = "openrouter"
+        analysis.fallback_model = "anthropic/claude-3.5-sonnet"
+    else:
+        analysis.model = model
+
+    router = ModelRouter()
+    result = asyncio.run(run_agent(
+        task=task,
+        analysis=analysis,
+        router=router,
+        cwd=str(Path(path).expanduser().resolve()),
+        max_steps=max_steps,
+    ))
+
+    if result.files_changed:
+        console.print(f"\n[dim]📝 Files changed: {', '.join(result.files_changed)}[/dim]")
+
+
+@app.command()
+def index(
+    path: str = typer.Argument(".", help="Project directory to index"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-index"),
+    ask: Optional[str] = typer.Option(None, "--ask", "-a", help="Ask AI about the codebase"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+):
+    """🔍 Index codebase — understand project structure"""
+    load_env()
+
+    idx = index_codebase(path, force=force)
+    if "error" in idx:
+        console.print(f"[red]{idx['error']}[/red]")
+        raise typer.Exit(1)
+
+    show_index_summary(idx)
+
+    if ask:
+        init_db()
+        context = get_codebase_context(idx, query=ask)
+        analysis = analyze_task(ask)
+        if model:
+            analysis.model = model
+        session_id = str(uuid.uuid4())
+        messages = [
+            {"role": "system", "content": "You are KURT, an expert software architect. Answer based on the codebase context."},
+            {"role": "user", "content": f"{context}\n\nQuestion: {ask}"},
+        ]
+        _theme = get_theme()
+        console.print(f"\n[{_theme['primary']}]🤖 KURT[/{_theme['primary']}] [dim]({analysis.model}):[/dim]")
+        asyncio.run(stream_response(
+            analysis=analysis, messages=messages,
+            session_id=session_id, no_memory=True, verbose=False, prompt=ask,
+        ))
+
+
+@app.command()
+def diff(
+    path: str = typer.Argument(".", help="Git repo path"),
+    staged: bool = typer.Option(False, "--staged", "-s", help="Review staged changes only"),
+    commits: Optional[str] = typer.Option(None, "--commits", "-c", help="Commit range e.g. 'HEAD~3..HEAD'"),
+    focus: Optional[str] = typer.Option(None, "--focus", "-f", help="Focus area e.g. 'security' or 'performance'"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+):
+    """🔎 AI-powered git diff review"""
+    load_env()
+    init_db()
+
+    # Get diff
+    diff_content = get_git_diff(path, staged_only=staged, commits=commits)
+    if not diff_content.strip():
+        console.print("[dim]No changes to review.[/dim]")
+        return
+    if diff_content.startswith("❌"):
+        console.print(f"[red]{diff_content}[/red]")
+        raise typer.Exit(1)
+
+    stats = parse_diff_stats(diff_content)
+    console.print(Panel(
+        f"[cyan]{stats['files_changed']} files[/cyan]  "
+        f"[green]+{stats['additions']}[/green] [red]-{stats['deletions']}[/red]\n"
+        f"[dim]{', '.join(stats['files'][:5])}{'…' if len(stats['files']) > 5 else ''}[/dim]",
+        title="📊 Diff Stats", box=box.ROUNDED,
+    ))
+
+    # Recent commits context
+    log = get_git_log(path, n=3)
+    if log:
+        console.print(f"[dim]Recent commits:\n{log}[/dim]\n")
+
+    # AI review
+    review_prompt = build_diff_review_prompt(diff_content, focus or "")
+    analysis = analyze_task("code review")
+    analysis.model = model or "anthropic/claude-3-5-haiku"
+    analysis.provider = "anthropic"
+    analysis.fallback_model = "deepseek/deepseek-coder"
+    analysis.fallback_provider = "openrouter"
+
+    session_id = str(uuid.uuid4())
+    messages = [
+        {"role": "system", "content": "You are KURT, a senior code reviewer. Be direct, concise, and actionable."},
+        {"role": "user", "content": review_prompt},
+    ]
+
+    _theme = get_theme()
+    console.print(f"[{_theme['primary']}]🤖 KURT Code Review[/{_theme['primary']}] [dim]({analysis.model}):[/dim]\n")
+    asyncio.run(stream_response(
+        analysis=analysis, messages=messages,
+        session_id=session_id, no_memory=True, verbose=False,
+    ))
 
 
 # ══════════════════════════════════════
