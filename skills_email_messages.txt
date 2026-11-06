@@ -1,0 +1,187 @@
+ActiveCampaign
+HubSpot Sales
+Intuit QuickBooks
+Hostinger Connector
+Pendo Orchestrate
+instagram
+Revenue Grid
+telegram
+discord
+Windsor.ai Ads and Marketing Data
+slack
+Posty: Social Media Scheduler
+AgentMail
+GIA Chief of Staff
+AssistantLabs — Personal Assistant for Business
+google-multi-account
+Hyper Marketing
+Content Studio
+imessage
+Ayrshare - Unified Social Media API for AI Agents
+Career Navigator
+ACA Native MCP Skills
+Job Hunt HQ
+Arcade
+Upload-Post
+Cold Email, LinkedIn Outreach & Deliverability
+B2B Personal Branding
+AI Context Bridge for HubSpot
+Zernio
+Higgs Hub
+resend
+Sales Skills by Arrows
+Cargo
+DunSocial
+RingCentral
+Postiz
+claude-mac-chrome
+One
+Banger
+Lead Magnets
+post bridge
+Anson
+me — write like me
+Airship Agent Tools
+Customer.io
+Email Triage
+Social Post Flow
+BOLD Studios
+Lark/Feishu Integration
+Remote.com
+Sent
+xpost
+ViewsMax
+Economico
+kopi-email-marketing
+SocialRobot
+Landbot
+Sales Follow-Up
+Postify
+Referent
+Client Briefs
+Newsletter Creator Tools
+Reader Radius
+PostSyncer
+Civic
+PostEverywhere
+Dash Social
+claude-telegram-voice
+lark
+signal-hunter
+GetEmployed
+Answering Agent
+Telepath
+PostZen
+Quickchat AI
+Ultralayer
+Postproxy
+Revenue Analytics for HubSpot
+PostFast
+BridgeApp
+Hive
+Voice Messages
+Ripe Leads Cold Email Writer
+Loops
+ChatDaddy
+Slack
+SmartReply
+circleback
+Splashify Pro
+Bigmind
+Ownhand
+Tuteliq
+Post2All
+Follow-Up Writer
+Email Spam Tester
+SocialClaw
+Weekly Client Report
+SendIt Social
+GIA Prospecting Engine
+dailybot
+Brilliant Directories
+Featurebase
+iHatePosting
+SupaBird
+Meeting Memory by Grain
+SalesEQ
+Clearskies
+tlgr
+KlickTipp
+Retenot
+DataFlows SMS
+ClearBounce Email Verification
+Shipstar
+Slashy
+Mailtea
+Dilaya
+Пост-завод
+Newsletter Review
+CallRemind
+Emailr
+WarmySender
+wechat-audio-toolkit
+meetstream-ai-meeting-bot-api
+Multi Mail
+Cherami
+Rav Messer
+SuperMailOS
+JuzPost
+SenderKit
+PumpGTM
+Chiho.ai Telegram CRM
+DialogBrain
+Unofficial Telegram MCP
+Supovia helpdesk chat
+Vobiz
+Topo
+luma-mcp
+Shipmail
+Liftory
+Robotomail
+paging-mcp
+BuzzBit X
+Healthcheckemail
+Cyberpigeon
+KiteGTM
+mqtt
+Kudosity SMS
+Mailercloud
+Markaestro
+Deposit Requester
+Scribe Mail
+Nitrosend
+Orbitwrite
+Loopsii
+InboxAlly Placement Test
+Privy BFCM Planner
+Seguno
+Tinylawn
+BriefGate
+mail-muncher
+Famulor Assistants & History
+Postel
+overloop
+SimplePost
+Swoop - X.com listening
+Notifly
+PostDashPro
+Benaiah
+Trupeo
+slio
+Pay Nudger
+Сторож рекламы
+bluebubbles-gateway
+Trackly SMS
+PrefMark
+Sendly
+RiverScript
+SamDesk Support
+pntr
+Warmerly
+Stalwart Mail
+Princi
+enrichley
+DobroDesk Support
+Slack Dad Joke
+Migma
+Ando

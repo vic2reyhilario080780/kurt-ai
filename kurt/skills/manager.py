@@ -7,7 +7,8 @@ Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
 290 Notes & Memory skills, 346 APIs skills, 324 Reference Docs skills,
 311 AI Models & Agents skills, 285 Websites skills, 251 Servers & Cloud skills,
 246 Contacts & Leads skills, 246 Databases skills, 230 Finance skills,
-and 221 Marketing skills from Claude's marketplace.
+221 Marketing skills, 200 Logs & Errors skills, 187 Email & Messages skills,
+and 162 Pull Requests skills from Claude's marketplace.
 """
 
 import os
@@ -176,6 +177,36 @@ from kurt.skills.marketing import (
     get_domain_prompt as get_marketing_domain_prompt,
     get_stats as get_marketing_stats,
     MARKETING_DOMAINS,
+)
+
+# Logs & Errors skills catalog
+from kurt.skills.logs_errors import (
+    load_all_skills as load_logs_errors_skills,
+    search_skills as search_logs_errors_skills,
+    get_skill_context as get_logs_errors_skill_context,
+    get_domain_prompt as get_logs_errors_domain_prompt,
+    get_stats as get_logs_errors_stats,
+    LOGS_ERRORS_DOMAINS,
+)
+
+# Email & Messages skills catalog
+from kurt.skills.email_messages import (
+    load_all_skills as load_email_messages_skills,
+    search_skills as search_email_messages_skills,
+    get_skill_context as get_email_messages_skill_context,
+    get_domain_prompt as get_email_messages_domain_prompt,
+    get_stats as get_email_messages_stats,
+    EMAIL_MESSAGES_DOMAINS,
+)
+
+# Pull Requests skills catalog
+from kurt.skills.pull_requests import (
+    load_all_skills as load_pull_requests_skills,
+    search_skills as search_pull_requests_skills,
+    get_skill_context as get_pull_requests_skill_context,
+    get_domain_prompt as get_pull_requests_domain_prompt,
+    get_stats as get_pull_requests_stats,
+    PULL_REQUESTS_DOMAINS,
 )
 
 console = Console()
@@ -1239,6 +1270,147 @@ def list_marketing_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill marketing --search <query>  or  kurt skill marketing --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_logs_errors_skills(domain: str = None, search: str = None):
+    """List or search Logs & Errors skills from Claude's marketplace"""
+    if search:
+        results = search_logs_errors_skills(search)
+        console.print(f"\n[cyan]🔍 Logs & Errors skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = LOGS_ERRORS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📋  Logs & Errors domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_logs_errors_stats()
+    console.print(f"\n[bold cyan]📋  KURT Logs & Errors Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "observability_monitoring": "Datadog, New Relic, Grafana Assistant, posthog",
+        "incident_management": "incident.io, PagerDuty Pre-Commit Risk Score, Rootly",
+        "security_compliance": "sentry, Above Security, crowdstrike-falcon-fusion",
+        "debugging_testing": "Agent Debugging, DeepEval, Quality Supervisor, Cypress",
+        "infrastructure_devops": "Kubernetes Mastery, railway, Render, Prefect",
+        "ai_agent_tools": "AI Skills, Agent Design, AgentKeeper, RAGOps",
+        "niche_specialized": "Qdrant, zilliz, postman, elmah.io, Altertable",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill logs --search <query>  or  kurt skill logs --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_email_messages_skills(domain: str = None, search: str = None):
+    """List or search Email & Messages skills from Claude's marketplace"""
+    if search:
+        results = search_email_messages_skills(search)
+        console.print(f"\n[cyan]🔍 Email & Messages skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = EMAIL_MESSAGES_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]📧  Email & Messages domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_email_messages_stats()
+    console.print(f"\n[bold cyan]📧  KURT Email & Messages Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "email_marketing": "ActiveCampaign, Loops, Mailercloud, Seguno, KlickTipp",
+        "social_messaging": "instagram, telegram, discord, Posty, Ayrshare",
+        "crm_sales_outreach": "HubSpot Sales, Revenue Grid, Follow-Up Writer",
+        "messaging_platforms": "RingCentral, DataFlows SMS, lark, paging-mcp",
+        "productivity_automation": "AgentMail, SmartReply, circleback, dailybot",
+        "business_communication": "Customer.io, ChatDaddy, Featurebase, Landbot",
+        "niche_specialized": "resend, Cargo, Banger, Airship Agent Tools",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill email --search <query>  or  kurt skill email --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_pull_requests_skills(domain: str = None, search: str = None):
+    """List or search Pull Requests skills from Claude's marketplace"""
+    if search:
+        results = search_pull_requests_skills(search)
+        console.print(f"\n[cyan]🔍 Pull Requests skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = PULL_REQUESTS_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🔀  Pull Requests domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    stats = get_pull_requests_stats()
+    console.print(f"\n[bold cyan]🔀  KURT Pull Requests Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=28)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=42)
+
+    sample_map = {
+        "code_review": "code-review, CodeRabbit, Qodo, finecomb, Deep Refactor",
+        "security_audit": "Security Guidance, securitymaxxing, Pi Security, heyGRC",
+        "git_github": "github, gitlab, mergify, Multi-repo Diff, githubclip",
+        "agile_workflow": "Agile Merge Review, sdlc-kit, Atlassian Teamwork Graph CLI",
+        "developer_tools": "senior-developer, askrubberduck, Dev Loop, Synapse MCP",
+        "ai_agent_tools": "AI Skills, Claude Review Loop, Factory, Miro, amplitude",
+        "niche_specialized": "bee, Verdict, Meticulous, PRFlow, shipwright",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill pr --search <query>  or  kurt skill pr --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

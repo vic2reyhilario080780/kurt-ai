@@ -1,0 +1,200 @@
+Noibu
+Render
+Hostinger Connector
+incident.io
+Headroom: Large File and Log Reader
+AI Skills
+Backend Design
+Oncall
+posthog
+Agentforce ADLC
+aws-core
+Agent Debugging
+github-cli-health-check
+Agent Design
+AgentKeeper
+Meta VR
+adb-mcp
+agent-trace-triage
+SEO GSC Wizard
+GeoAI Skills
+Grafana Assistant
+aws-data-analytics
+Android Emulator QA Plugin
+AgentOne Token Compression
+sentry
+backend-performance-review
+AI Search Visibility & Brand Mentions (GEO/AEO)
+amplitude
+postman
+Agent Evaluation
+Java Backend Skills
+railway
+zilliz
+Grafana MCP
+Testing
+Agent Guardrails
+New Relic
+CI Optimizer: Faster GitHub Actions and GitLab CI
+aws-agents-for-devsecops
+Above Security
+claude-code-audit-stack
+Agent Recovery
+claude-performance
+OpenSearch Agent Skills
+Claude Code Cost
+Vinktar
+Dynatrace
+Elastic
+Better Stack
+AI-Advisors
+D365FO X++ Development
+platform-skills
+arn-infra
+cto-toolkit
+Security Audit Loop by ATeam
+cowork-session-fixer
+DeepEval
+Rig
+elmah.io
+claude-forge
+Datadog
+Context.dev
+Flow Studio Power Automate
+Cerebrium Skills
+MLflow Skills
+Altertable
+Langfuse Observability
+Oracle AI Data Platform Workbench Engineer Agent
+dominodatalab
+HarnessKit
+Anomity
+alloydb-omni
+BigID
+quick-gate-python
+Kubernetes Mastery
+sentry-cli
+bash-guardrails
+Prefect
+ARMO Ctrl
+Quality Supervisor
+SEOcrawl AI Reports
+amg-toolkit
+Zscaler MCP Server
+arrfleet-toolkit
+AWS Cost Guard: Cloud Cost and Kubernetes Debugging
+crowdstrike-falcon-fusion
+Heimdall
+CloudBees Unify AI plugin
+claude-lens
+Qdrant
+Oh My Android
+Inngest
+AppHaven
+CrowdSec Skill
+Codacy
+guile-skills
+Botify
+Pipelinemd
+Bugsee
+Serverless Audit
+Watchgoose Monitoring
+idmp-plugin
+Cairn Signals — are your AI product's numbers real?
+Jam
+wai-suite
+logfire
+Go Backend Skills
+MCP Debugging
+Sola Security
+Observability Skills
+Test Coverage Intelligence: Risk-Ranked Coverage Gaps
+Styx
+brizz
+join-the-team
+Skiffly
+Fullstory
+Tuteliq
+1kmてんき
+localstack
+sumologic-mcp
+Latitude
+Cypress
+drata-grc-skills
+search-visibility-kit
+VPNDetection
+pushnotifime - human in the loop
+craft-statusline
+RAG Evaluation
+ThinWindow
+echosy
+N|Solid Skills
+devrunway
+RAM Sleeper
+sosa-governor
+ergo
+SigNoz
+Monta
+n360-app-release
+claude-vitals
+drewcrawford-skills
+Launchworthy
+groundcover
+Steadwing
+Homelab Docker Ops
+coffee-paladin
+Product Support Investigator
+First Pass
+teamcity-cli
+dash0
+logrocket
+SIEM Lab Coach
+Tool Schemas
+shipwright
+Verdict
+PagerDuty Pre-Commit Risk Score
+Re8ch Tenant
+RAGOps
+wawesome
+Vaara
+Phished
+Statusline for Claude Code
+Eon
+Open Voice Shield
+Firetiger
+terminal-notifier
+Rootly
+Attri
+Kenwea Notary
+ManageLM
+prism
+Titan Receipts
+Lightrun
+Relvato
+Healthcheckemail
+pyvar-operational-risk
+gh-guard
+LOCI
+TinMan - Heartbeat for Claude Code
+Voitta YOLT
+Normlotse
+veritas-gate
+Cataam Compliance
+simple-workflow
+Revelara
+nlsmdn
+freshprobe
+Eyedbg
+Shipbook
+Subtext
+undercover
+Uptimely
+Search o'Clock
+loki
+vm-disk-cleanup
+loopify
+SuperBot
+datadops
+skillkeel-starter
+elastic-sense
+perstat

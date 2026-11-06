@@ -1,0 +1,162 @@
+github
+Security Guidance
+Qodo
+code-review
+claude-security
+AI Skills
+Skills For Real Engineers
+gitlab
+Shepherd
+Agent Engineering
+GitHub Portfolio Builder
+WordPress Dev Skills
+claude-code-review-council
+Agentic user research at scale
+SuperMatt
+coding-agent-skills
+pr-review-toolkit
+githubclip
+Miro
+Factory
+CodeRabbit
+commit-commands
+finecomb: exhaustive code review and security audit
+Claude Review Loop
+amplitude
+securitymaxxing
+Arcade
+Atlassian Teamwork Graph CLI
+Aevral
+megapowers
+aws-agents-for-devsecops
+Claude Code Feedback
+Agile Merge Review
+Agile Sprint Close
+senior-developer
+Aictrl.dev
+arn-code
+ZSL Superpowers
+claud-coach
+seo-check
+Agile Sprint Drain
+Enpitech AI Tools
+datahub-skills
+me — write like me
+Decibel Superpowers
+Deep Refactor
+control-room
+strategy-pack
+hyperflow
+OpenPlanr
+bee
+vstack
+Cairn Verify — did the AI really fix it?
+Octopus
+workflow-toolkit
+claude-release
+askrubberduck
+scrimba-explain
+babysit-pr
+Quality Supervisor
+Pi Security
+greptile
+dev-squad
+IDD: Issue-Driven Development
+claude-damn
+governance skill
+sdlc-kit-extended
+JointJS Code Playground
+StatsClaw
+Codacy
+Catchup
+delivery-skills
+Three Pillars
+shipwright
+lens
+LeadLens for Laravel
+LVAI Pro
+shazam
+Awesome Maintainer Defense
+Dev Loop: Fix, Commit and Ship
+wai-suite
+prism
+Usero
+mana
+GraphQL Guardian: Breaking Changes and N+1 Check
+Make It Work
+Orbi
+Sixth Sense
+Baz
+Ownhand
+Multi-repo Diff
+join-the-team
+coderocket
+Synapse MCP
+sdlc-kit
+frontier-simplify
+devrunway
+Temper
+LazyTools
+Ringmaster
+argot
+LaunchNotes
+mermaidiff
+dishonest-code-audit
+goodfellow
+drewcrawford-skills
+Stunt Double
+Hive
+First Pass
+forgeproof
+Keelokit
+Loc Split
+Verdict
+QAMap
+virtual-team
+Rankability
+ddw
+claude-todo-gtd
+decipher
+Sextant
+Meticulous
+RailsCTO
+Sideboard
+throughline
+squad
+dialecta
+Ddna
+Titan Receipts
+Lightrun
+OSS
+SnapVisor
+Takshak
+heyGRC
+mergify
+simple-workflow
+nlsmdn
+Tailor.ia Lean
+ship
+Loomaly
+diffctx
+TesterArmy
+genshijin
+Pragmatic Dev Toolkit
+prepare-delivery
+evanflow
+lite-bb
+Motir
+Optibot
+mister-anderson
+fe-rail
+skillkeel-starter
+PR Story Aligner: Pull Request vs Ticket Check
+PRFlow
+sol-simplify
+Princi
+Ripplo
+Ship Post
+gobreaker
+Pragma
+Varis Plan Tracker
+tk
+VStok Agent Execution
