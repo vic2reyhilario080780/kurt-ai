@@ -648,6 +648,206 @@ def chat(
 
 
 # ══════════════════════════════════════
+# VOICE COMMAND — "Hey Kurt"
+# ══════════════════════════════════════
+
+@app.command()
+def voice(
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    speak: bool = typer.Option(True, "--speak/--no-speak", help="Text-to-speech responses"),
+    hotkey_only: bool = typer.Option(False, "--hotkey", help="Hotkey only (no mic listening)"),
+):
+    """🎤 Voice mode — say 'Hey Kurt' to activate (Ctrl+Shift+K as fallback)"""
+    load_env()
+    init_db()
+
+    _persona = load_persona()
+    _kurt_name = _persona.get("kurt_name", "KURT")
+    session_id = str(uuid.uuid4())
+
+    console.print(Panel(
+        f"[bold cyan]🎤 {_kurt_name} — Voice Mode[/bold cyan]\n"
+        "[dim]Say 'Hey Kurt' or press [bold]Ctrl+Shift+K[/bold] to activate\n"
+        "Press Ctrl+C to exit[/dim]",
+        box=box.ROUNDED, border_style="cyan"
+    ))
+
+    # Check voice dependencies
+    try:
+        from kurt.core.wake_word import check_dependencies, start_listening, speak as kurt_speak
+        deps = check_dependencies()
+
+        if not deps.get("can_record"):
+            console.print("[yellow]⚠ Microphone not available. Install: pip install sounddevice soundfile[/yellow]")
+            console.print("[dim]Running in hotkey-only mode (Ctrl+Shift+K)[/dim]")
+            hotkey_only = True
+
+        if not deps.get("can_transcribe"):
+            console.print("[yellow]⚠ STT not available. Install: pip install faster-whisper[/yellow]")
+            if not hotkey_only:
+                console.print("[red]Cannot run voice mode without STT.[/red]")
+                return
+
+    except ImportError:
+        console.print("[red]❌ Voice module not available.[/red]")
+        return
+
+    def handle_voice_command(event):
+        """Process a voice command through Kurt's AI"""
+        text = event.text.strip()
+        if not text:
+            return
+
+        console.print(f"\n[bold cyan]You[/bold cyan] [dim](voice)[/dim]: {text}")
+
+        # Detect if it's a computer action (open app, etc.)
+        try:
+            from kurt.core.intent import detect_intent, route_intent, INTENT_TASK
+            intent = detect_intent(text, use_llm=True)
+
+            if intent.type == INTENT_TASK and intent.confidence >= 0.75:
+                routed = route_intent(intent)
+                handler = routed.get("handler", "")
+                kwargs = routed.get("kwargs", {})
+
+                from kurt.core.agent_loop import execute_tool
+                tool_map = {
+                    "computer.open_app": ("open_app", {"app_name": kwargs.get("app_name", intent.target)}),
+                    "browser.navigate": ("open_url", {"url": kwargs.get("url", "")}),
+                    "computer.screenshot": ("screenshot", {}),
+                }
+
+                if handler in tool_map:
+                    tool_name, tool_params = tool_map[handler]
+                    result = execute_tool(tool_name, tool_params)
+                    reply = result.replace("✓ ", "").replace("❌ ", "")
+                    console.print(f"[bold green]🤖 {_kurt_name}[/bold green]: {reply}")
+                    if speak:
+                        kurt_speak(reply, blocking=False)
+                    return
+        except Exception:
+            pass
+
+        # Send to AI for natural response
+        analysis = analyze_task(text)
+        if model:
+            analysis.model = model
+
+        messages = [
+            {"role": "system", "content": (
+                f"You are {_kurt_name}, a voice assistant. "
+                "Give SHORT responses (1-2 sentences max) suitable for text-to-speech. "
+                "Speak naturally in Taglish."
+            )},
+            {"role": "user", "content": text},
+        ]
+
+        # Get AI response synchronously
+        import asyncio as _asyncio
+        full_response = ""
+
+        async def _get_response():
+            nonlocal full_response
+            router = ModelRouter()
+            async for chunk in router.route(
+                provider=analysis.provider,
+                model=analysis.model,
+                messages=messages,
+            ):
+                full_response += chunk
+
+        try:
+            _asyncio.run(_get_response())
+        except Exception as e:
+            full_response = f"Sorry, may error: {e}"
+
+        console.print(f"\n[bold green]🤖 {_kurt_name}[/bold green]: {full_response}")
+
+        if speak and full_response:
+            kurt_speak(full_response, blocking=False)
+
+        save_message(session_id, "user", text)
+        save_message(session_id, "assistant", full_response)
+
+    # Start the voice listener
+    console.print("[dim]Starting voice listener...[/dim]")
+    try:
+        from kurt.core.wake_word import start_listening, speak as kurt_speak
+        listener = start_listening(callback=handle_voice_command)
+        kurt_speak(f"Hey! {_kurt_name} voice mode activated. Say hey Kurt anytime!", blocking=False)
+        console.print(f"[green]✓ Voice mode active![/green] [dim]Listening for 'Hey Kurt'...[/dim]")
+
+        # Keep running
+        import time
+        while True:
+            time.sleep(0.5)
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Voice mode stopped.[/dim]")
+    except Exception as e:
+        console.print(f"[red]❌ Voice mode error: {e}[/red]")
+
+
+# ══════════════════════════════════════
+# DO COMMAND — Agent + Computer Use
+# ══════════════════════════════════════
+
+@app.command()
+def do(
+    task: str = typer.Argument(..., help="Task for Kurt to execute with computer control"),
+    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    max_steps: int = typer.Option(15, "--max-steps", help="Max steps"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """🖱️ Do a computer task — Kurt will click, type, open apps as needed"""
+    load_env()
+    init_db()
+
+    console.print(Panel(
+        f"[bold cyan]🖱️ Computer Task[/bold cyan]\n"
+        f"[dim]{task}[/dim]",
+        box=box.ROUNDED, border_style="cyan"
+    ))
+
+    from kurt.core.agent_loop import run_agent
+    router = ModelRouter()
+
+    # For computer tasks, use Ollama local model (libre) or best available
+    analysis = analyze_task(task)
+    if not model:
+        # Try local Ollama first (libre, no cost)
+        try:
+            import requests
+            r = requests.get("http://localhost:11434/api/tags", timeout=2)
+            if r.ok:
+                models_list = [m["name"] for m in r.json().get("models", [])]
+                # Prefer llama3.2 or similar for tasks
+                for preferred in ["llama3.2", "llama3.1", "llama3", "mistral", "gemma"]:
+                    if any(preferred in m for m in models_list):
+                        analysis.model = next(m for m in models_list if preferred in m)
+                        analysis.provider = "ollama"
+                        break
+        except Exception:
+            pass
+    else:
+        analysis.model = model
+
+    result = asyncio.run(run_agent(
+        task=task,
+        analysis=analysis,
+        router=router,
+        cwd=".",
+        max_steps=max_steps,
+        verbose=verbose,
+    ))
+
+    if result.success:
+        console.print(f"\n[bold green]✅ Done![/bold green] {result.final_summary}")
+    else:
+        console.print(f"\n[yellow]⚠ Task incomplete after {len(result.steps)} steps[/yellow]")
+
+
+# ══════════════════════════════════════
 # PHASE 2 — FILE COMMANDS
 # ══════════════════════════════════════
 

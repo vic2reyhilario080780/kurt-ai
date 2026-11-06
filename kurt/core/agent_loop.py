@@ -108,6 +108,78 @@ TOOLS = [
             "params": "object — tool parameters as JSON object",
         },
     },
+    # ── Computer Use Tools ───────────────────────────────────
+    {
+        "name": "screenshot",
+        "description": "Take a screenshot of the current screen. Use to see what's on screen before clicking.",
+        "parameters": {},
+    },
+    {
+        "name": "click",
+        "description": "Click at screen coordinates (x, y). Use screenshot first to find coordinates.",
+        "parameters": {
+            "x": "int — x coordinate",
+            "y": "int — y coordinate",
+            "button": "optional string — 'left' (default), 'right', 'double'",
+        },
+    },
+    {
+        "name": "type_text",
+        "description": "Type text at current cursor position. Use after clicking an input field.",
+        "parameters": {
+            "text": "string — text to type",
+        },
+    },
+    {
+        "name": "hotkey",
+        "description": "Press a keyboard shortcut. E.g. 'cmd+t' for new tab, 'cmd+l' to focus address bar.",
+        "parameters": {
+            "keys": "string — keys like 'cmd+t', 'ctrl+c', 'enter', 'tab'",
+        },
+    },
+    {
+        "name": "open_app",
+        "description": "Open an application by name. Kurt will find it even if the name isn't exact.",
+        "parameters": {
+            "app_name": "string — application name e.g. 'Safari', 'Spotify', 'Terminal'",
+        },
+    },
+    {
+        "name": "open_url",
+        "description": "Open a URL in the default browser.",
+        "parameters": {
+            "url": "string — full URL to open",
+        },
+    },
+    {
+        "name": "focus_window",
+        "description": "Bring an app's window to the foreground.",
+        "parameters": {
+            "app_name": "string — application name",
+        },
+    },
+    {
+        "name": "search_web",
+        "description": "Search the web and return results. No browser needed.",
+        "parameters": {
+            "query": "string — search query",
+            "max_results": "optional int — number of results (default 5)",
+        },
+    },
+    {
+        "name": "read_webpage",
+        "description": "Read the text content of a web page.",
+        "parameters": {
+            "url": "string — URL to read",
+        },
+    },
+    {
+        "name": "run_applescript",
+        "description": "Run an AppleScript command for Mac automation.",
+        "parameters": {
+            "script": "string — AppleScript to execute",
+        },
+    },
 ]
 
 
@@ -254,6 +326,96 @@ def execute_tool(tool_name: str, params: dict) -> str:
             loop = _asyncio.get_event_loop()
             return loop.run_until_complete(execute_mcp_tool(tool_ref, mcp_params))
 
+        # ── Computer Use Tools ───────────────────────────────────
+
+        elif tool_name == "screenshot":
+            from kurt.core.computer_use import screenshot
+            result = screenshot()
+            if result.success:
+                # Return description + path
+                path = result.data.get("path", "") if result.data else ""
+                return f"✓ Screenshot taken: {path}\n{result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "click":
+            from kurt.core.computer_use import click
+            x = int(params.get("x", 0))
+            y = int(params.get("y", 0))
+            button = params.get("button", "left")
+            result = click(x, y, button)
+            if result.success:
+                return f"✓ {result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "type_text":
+            from kurt.core.computer_use import type_text
+            text = params.get("text", "")
+            result = type_text(text)
+            if result.success:
+                return f"✓ {result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "hotkey":
+            from kurt.core.computer_use import hotkey
+            keys = params.get("keys", "")
+            result = hotkey(keys)
+            if result.success:
+                return f"✓ {result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "open_app":
+            from kurt.core.behavior import smart_open_app
+            app_name = params.get("app_name", "")
+            result = smart_open_app(app_name)
+            if result.success:
+                return f"✓ {result.message} [{result.method_used}]"
+            return f"❌ {result.message}"
+
+        elif tool_name == "open_url":
+            from kurt.core.computer_use import open_url
+            url = params.get("url", "")
+            result = open_url(url)
+            if result.success:
+                return f"✓ {result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "focus_window":
+            from kurt.core.computer_use import focus_window
+            app_name = params.get("app_name", "")
+            result = focus_window(app_name)
+            if result.success:
+                return f"✓ {result.message}"
+            return f"❌ {result.message}"
+
+        elif tool_name == "search_web":
+            from kurt.core.web_browse import search_web
+            query = params.get("query", "")
+            max_r = int(params.get("max_results", 5))
+            result = search_web(query, max_r)
+            if result.success:
+                return result.summary()
+            return f"❌ {result.error}"
+
+        elif tool_name == "read_webpage":
+            from kurt.core.web_browse import read_page
+            url = params.get("url", "")
+            result = read_page(url)
+            if result.success:
+                return f"Title: {result.title}\n\n{result.content[:3000]}"
+            return f"❌ {result.error}"
+
+        elif tool_name == "run_applescript":
+            script = params.get("script", "")
+            if not script:
+                return "❌ No script given"
+            r = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=15
+            )
+            if r.returncode == 0:
+                return r.stdout.strip() or "✓ Script ran successfully"
+            return f"❌ AppleScript error: {r.stderr.strip()}"
+
         elif tool_name == "done":
             return f"DONE: {params.get('summary', 'Task complete.')}"
 
@@ -317,16 +479,26 @@ async def run_agent(
     mcp_section = await _build_mcp_tools_prompt()
 
     system_prompt = (
-        f"You are KURT, an AI coding assistant. You are working in directory: {cwd}\n\n"
+        f"You are KURT, an AI assistant for Daddy Tito's iMac. Working dir: {cwd}\n\n"
         f"{TOOLS_PROMPT}"
         f"{mcp_section}\n\n"
-        "Rules:\n"
-        "1. Always read a file before editing it.\n"
-        "2. After making changes, run the file to verify it works.\n"
-        "3. When done, call the 'done' tool with a summary.\n"
-        "4. Be concise. One tool call per response.\n"
-        "5. If you encounter an error, fix it and try again.\n"
-        "6. For MCP tools, use: mcp_tool with tool_ref='server/toolname' and params={...}\n"
+        "RULES:\n"
+        "1. For app/browser tasks: open_app first → screenshot → click → type_text\n"
+        "2. Always screenshot before clicking to see current screen state\n"
+        "3. After making file changes, run the file to verify it works\n"
+        "4. When done, call 'done' with a summary\n"
+        "5. One tool call per response — be efficient\n"
+        "6. If a tool fails, try an alternative approach\n"
+        "7. For web tasks: use search_web or open_url instead of manual typing when possible\n"
+        "8. Use run_applescript for complex Mac automation tasks\n"
+        "\nEXAMPLE MULTI-STEP TASK (open spotify in safari):\n"
+        "Step 1: open_app('Safari')\n"
+        "Step 2: screenshot() — verify Safari opened\n"
+        "Step 3: hotkey('cmd+l') — focus address bar\n"
+        "Step 4: type_text('spotify.com')\n"
+        "Step 5: hotkey('enter')\n"
+        "Step 6: screenshot() — verify page loaded\n"
+        "Step 7: done('Opened spotify.com in Safari')\n"
     )
 
     messages = [
