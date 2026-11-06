@@ -1,0 +1,1203 @@
+Plugin Management
+Unity
+Superpowers
+github
+Security Guidance
+Qodo
+claude-code-setup
+playwright
+Synthflow
+Qodo Standards
+Render
+Hostinger Connector
+incident.io
+code-review
+roblox-dev
+Omniout: LLM Retries and Model Fallback
+claude-security
+AI Skills
+Skills For Real Engineers
+supabase
+context7
+Task Observer: Learn Your Preferences
+gitlab
+Cloudflare
+Setup Audit
+10x-Team
+skill-creator
+agent-memory
+Unreal Engine Skills
+Chrome Extension Builder
+agentic-council
+Backend Design
+Eddyter
+claude-md-management
+Agent Protocols
+code-simplifier
+AI Mentor
+1Password Developer Tools
+shopify-ai-toolkit
+Upstash Redis
+Stripe
+Agent Army
+firebase
+audit-suite
+3DOptix optical design and simulations
+huggingface-skills
+AI-Integration-Architect
+Oncall
+Codex Dispatch
+feature-dev
+microsoft-docs
+Shepherd
+videodb
+Intuit Developer
+video-to-code-skill
+revit-bim
+Diagrams
+Cowork Memory
+agentic-harness
+code-modernization
+codex-review
+ag2-agent-reviewer
+slack
+Agentforce ADLC
+ag2-workflow-patterns
+Agentics Beyond Code
+aws-core
+agent-recall
+agent-handoff
+expo
+mcp-server-dev
+lovable
+design-is-code
+writing-quality
+Senior Engineering Partner
+KMJ CodeBridge
+ag2-agent-guide
+agent-context-kit
+42crunch-api-security-testing
+unity-perf
+Agent Engineering
+coding-skills
+GitHub Portfolio Builder
+ag2-agent-scaffold
+CADBuildr
+WordPress Dev Skills
+Agent Archive
+claude-code-review-council
+ag2-tool-builder
+cartographer
+Agent Debugging
+token-saver
+github-cli-health-check
+Agent Design
+Dart and Flutter
+Skills For Real React/React Native Engineers
+Claude MD Optimizer
+liquid-skills
+AgentKeeper
+Agentic SDLC Kit
+Meta VR
+Agent Smith
+Code Review
+SuperMatt
+coding-agent-skills
+appwrite
+ABP Sensei
+Awesome Repositories
+pr-review-toolkit
+adb-mcp
+githubclip
+Miro
+Factory
+adversarial-review
+Greenstack Umbraco
+docker-skills
+agent-trace-triage
+AWS Startup Advisor
+Deep Review
+Agentic SDLC
+A11y Enforcer: WCAG Accessibility Checker
+Autoresearch
+NVIDIA Skills
+learn
+Voicenter Bot Builder
+Cairn Memory — CLAUDE.md & agent memory that stays true
+typescript-native-lsp
+beads-superpowers
+CodeRabbit
+Claude Code Survival Kit
+Prompt Brain
+commit-commands
+Autoresearch AI Plugin
+atomic-agents
+Shopify DevKit
+claude-context-optimizer
+accelbyte-ai-plugins
+Grafana Assistant
+Jira Attachment Plugin
+linear
+Prompt Design
+Agent Verifier
+Agent Formal Verify
+Android Emulator QA Plugin
+Advise Project Approach
+appstore-screenshots
+mcp-tunnels
+liquid-glass-skills
+finecomb: exhaustive code review and security audit
+AgentOne Token Compression
+ai-coding-ok
+Token Shield
+Design with Blocks
+Agentic Beta Testers
+sentry
+Netlify
+token-usage
+plugin-dev
+Claude Code Bootstrapper
+backend-performance-review
+Shopify App Builder
+anchor-memory
+audit-project
+LaunchDarkly
+Claude Review Loop
+Study with claude
+API Contract Forge
+Apollo Skills
+Claude skills updater
+AWS Startups Solution Architecture
+mcp-apps
+code-map
+securitymaxxing
+ultrapowers-dev
+API Doc Generator: OpenAPI from Your Code
+Modern Web Guidance
+imager-x
+Atlassian Teamwork Graph CLI
+iceberg
+postman
+skill-doctor
+codex-hud
+Agent Evaluation
+claude-opus-4-5-migration
+supabase-expert
+google-cloud-storage
+letmewatch
+n8n Knowledge Base
+ESP32-AI-Agent-Skill
+Alexandria
+Axe Accessibility
+notion-memory
+Vibe Wise
+GitBook
+Interactive Docs
+code-graph
+Java Backend Skills
+azure-sql-developer
+doc-authoring-skills
+Token Inspector
+Aevral
+OWASP Security Audit
+Runpod
+code-review-harness
+Duende Agent Skills
+neon
+building-with-typesafe-jev
+Flutter Skills
+railway
+token-efficiency-audit
+zilliz
+grill
+Clean-Backend
+cloud-coder
+claude-jira-skill
+megapowers
+DevExpress Office & PDF File API
+system-design-skills
+clean-architecture
+Grafana MCP
+Aikido
+together-ai-skills
+Testing
+dataverse
+Agent Guardrails
+New Relic
+CI Optimizer: Faster GitHub Actions and GitLab CI
+serena
+Mercado Pago
+Scientific-Coding-Skill
+archgram
+Ionden Skills
+aws-serverless
+aws-agents-for-devsecops
+aws-amplify
+deploy-on-aws
+Claude Code Feedback
+flutter-skills
+betterposter
+Atlassian Forge Skills
+Claude-Trinity
+LLM Project Docs
+claude-code-audit-stack
+Cortex
+Cognee Memory
+Token Weather Usage
+align
+Arxitect
+BoardRepo
+Agile Merge Review
+Make Documentation
+archlens
+Agile Sprint Close
+react-native-best-practices
+opencode subagents
+senior-developer
+Azure DevKit
+Agent Recovery
+opencode
+Contentstack Agent Skills
+claude-performance
+Project Memory: Long-Term Memory for Claude Code
+QA Bug Hunter
+claude-cursor-orchestration
+API Drift Detector: TypeScript Contract Checker
+Web Vitals Auditor
+Claude Code Cost
+ado-testcraft
+ClaudeTokenSAP
+Aictrl.dev
+Vinktar
+Dynatrace
+claude-handoff
+laravel-boost
+software-framework
+FlashModel
+Elastic
+scriptify
+parallax-threejs
+Better Stack
+candy-plugin
+explanatory-output-style
+arn-code
+Conductor
+claude-code-tokenbudget
+Tackle
+Token Status Line
+WordPress DevKit
+Docker Image Scan
+One-Shot — Agentic Feature Generation
+shopify-polaris
+MCP Workflow Audit
+skillers
+akc-cycle
+D365FO X++ Development
+Catalyst by Zoho
+ZSL Superpowers
+claud-coach
+platform-skills
+Very Good AI Flutter Plugin
+amazon-location-service
+sdd-superpowers
+codeman
+liquid-dev
+seo-check
+arn-infra
+code-parser
+SonarQube
+Agile Sprint Drain
+cto-toolkit
+Security Audit Loop by ATeam
+Ansight
+Samautomation Workflows
+please-optimize-my-claude
+fiftyone
+qrp
+SwiftUI guidance for macOS
+CodeDNA
+Enpitech AI Tools
+aio watermill-kit
+cowork-session-fixer
+Semgrep Guardian
+DeepEval
+airwallex-dev
+Code Metrics: Complexity and Duplication Report
+braindrain
+claude-perfectionist
+Rig
+FAF Skills
+Snagly
+Uniform
+elmah.io
+terraform
+LovableSEO
+SweetClaude
+harness-architect
+assurance
+appfoyer
+Desktop Statusline
+Coding Standards (Interview)
+fable-baton
+swift-lsp
+guide
+Shield
+Chat Auto exporter
+vaadin-skills
+ANcpLua Lean Proof
+databases-on-aws
+claude-forge
+Datadog
+Flow Studio Power Automate
+php-lsp — Claude Code Plugin
+Cache Guard
+NetSuite SuiteCloud
+aws-transform
+Glean
+jevmem
+claude-war-room
+Adaption
+Cerebrium Skills
+project-setup
+Clawness
+Critique
+Decibel Superpowers
+MLflow Skills
+Deep Refactor
+athena-tools
+Billing Plane
+boomi-agentstudio
+Mentor Mode for Claude Code
+Celigo
+ccaf
+Stark
+project-pilot
+php harmony
+circle-skills
+Claude Pulse
+PayPal
+aomi-build
+control-room
+Claude Stats
+meta-dev
+Langfuse Observability
+py-pit
+Vault Anything
+redis-development
+hyperflow
+pm
+harness-bootstrap
+cloud-sql-postgresql
+HarnessKit
+tailwind-design-system
+alloydb-omni
+Context Handoff
+boomi-integration
+quick-gate-python
+Claudify
+burn
+streaming-skills-plugin
+bee
+llm-secure-patterns
+laravel-best-practices
+plugin-pilot
+BugBug
+memory-toolkit
+clickhouse-best-practices
+Delegate: Agents Sized to the Job
+vstack
+crowdstrike-falcon-foundry
+PromptGuard
+bake-claude-md-files
+claude-code-notify
+The Courtroom
+learned-behavior
+Checkly
+magicweave
+Kubernetes Mastery
+E2E Test Generator: Playwright and Cypress Tests
+cc
+heavy-usage
+Cairn Verify — did the AI really fix it?
+Ambition Lenses
+cortex
+Codelux
+PWP-Project Workflow Protocol
+claude-meta-skills
+apcd
+MongoDB Atlas (Managed MCP)
+Octopus
+Project Review
+workflow-toolkit
+claude-release
+askrubberduck
+sentry-cli
+NoVibe
+pinecone
+GCP DevKit
+Angular To React
+sap-fiori-mcp-server
+Codebase Mentor
+DevExpress Blazor Components
+Perf Profiler: Lighthouse and Core Web Vitals
+QA My App
+Arcgram
+context-vault
+Frugal
+DB Schema Spy: Database Schema Explorer and ERD
+superdevflow
+Goal Composer
+KotlinSense
+PUML - PlantUML
+Simple Progress Bars
+scrimba-explain
+glyph
+Azure Cosmos DB
+Applixir
+Blaxel
+Chuck
+Mobile Release Check: Play and App Store Readiness
+Beer and code Harness
+TypeScript Patterns Enforcer
+bash-guardrails
+Aiven
+Prefect
+Swift FocusEngine Pro
+Plans
+biocharpro
+Claw Maven plugin
+dev-forge
+IcePanel
+Rust CLI Skills
+healthit-copilot
+API Load Tester: Latency and Throughput Tests
+Dependency Sentinel: Vulnerability and License Scanner
+Assetlib Audit
+clover
+pydantic-ai
+Confident AI Client
+beegait
+EVOLVE: Self-Evolution Readiness
+Copilot Instructions
+boomi-marketplace
+claude-notify
+babysit-pr
+Repo Pruefer
+ArcKit Repository Tooling
+Ship A Cloudflare Worker
+Quality Supervisor
+Skills Transfer Hub
+Civic
+network-footprint
+kotlin-lsp
+harness
+sagemaker-ai
+Casely
+InsForge
+Pi Security
+Project Scaffolder — Synaptic Edition
+greptile
+n360-engineering
+context-bench
+Fellowship
+hdldiagZero
+story
+Ship
+cloud-sql-mysql
+claude-tab-fix
+cloud-sql-sqlserver
+dev-squad
+Krites
+lark
+graph-indexer
+swagger-contract-testing
+cds-mcp
+Plan First
+Workday Developer Agent for Claude
+AWS Cost Guard: Cloud Cost and Kubernetes Debugging
+codealive-context-engine
+Codeflash
+Plane
+Contentstack Vibe Docs
+soundcheck
+save-your-work
+skillquiver
+zaha
+contextstellar
+Blue Collar Governance
+ToolJet
+Zyte Web Data
+IDD: Issue-Driven Development
+Heimdall
+claude-damn
+CloudBees Unify AI plugin
+deepspace
+Laravel AI Starter
+CogmemAi
+governance skill
+Domain Driven Design
+EnergyFlowX
+CompanyForge
+Fastly
+Beeceptor
+Coodle
+sdlc-kit-extended
+claude-lens
+Qdrant
+ReadIt
+Oh My Android
+Descope
+JointJS Code Playground
+claude-activity
+Cyberine ReleaseGuard
+Spring Tools Language Server — Claude Code Plugin
+Backbone To React
+Ifc Skills
+Inngest
+Qlik Agents
+Pith
+AppHaven
+StatsClaw
+Wave Planning
+CoCart API
+Codacy
+guile-skills
+Pipelinemd
+markgrab
+solofounder
+Senior Engineer Guardrails
+Stable Baseline
+backlog
+Webhook Contract
+Bugsee
+gangsta
+hiway-kit
+git-weekly-changelog
+Catchup
+Dev Environment Doctor
+lookout
+Serverless Audit
+Harness Scope
+Belay
+LeakStop
+WhatBreaks
+Turbocharge
+delivery-skills
+Work Unit Roadmap
+migration-to-aws
+Three Pillars
+itential-builder
+shipwright
+CloudPloy/Claude-plugin
+mosaic
+Watchgoose Monitoring
+bibtidy
+lens
+oracledb
+LeadLens for Laravel
+workos
+shazam
+interview-sim
+session-handoff
+cmux-ultimate
+Jam
+RLS Schema Explorer for Supabase
+spec-driven-dev
+Where Was I
+fhir-format
+hats
+BridgeApp
+Bundle Size Sentinel: JavaScript Bundle Analyzer
+Awesome Maintainer Defense
+Dev Loop: Fix, Commit and Ship
+wai-suite
+XYO & XYO Layer 1 (XL1) Integration
+skill-reviewer
+prism
+logfire
+Bench Claude
+mypowers
+codehog
+Go Backend Skills
+MCP Debugging
+Harness Designing Plugin
+Workflows Conductor
+Samebase
+skill-validator
+ionoscloud-mcp
+outputai
+Pwa2play
+SkillCheck Free
+Headlessmc
+hubcap
+cc-notify
+Temporal
+Liquid LSP
+open-source-launch
+mana
+Observability Skills
+prove
+Magento 2 / Mage-OS Skills
+recall
+doc-authoring-skills-ja
+nova-thesis
+trapic
+Vibee
+conotate
+GraphQL Guardian: Breaking Changes and N+1 Check
+major
+VillageSQL Skills
+Cyberine DevGuard
+Cast
+db-migration-guard
+Test Coverage Intelligence: Risk-Ranked Coverage Gaps
+Vertical Bar Agent
+Session Orchestration
+Styx
+Instruction Eval
+Make It Work
+Compact Ready
+Extenshi
+LORM — Layered Operational Responsibility Model
+dispatch-board
+drillspark-workflow-toolkit
+mcp2cli
+two-gates
+Olostep
+Orbi
+alloydb
+holomime
+Sixth Sense
+NiceTryGPT
+delphi-dev
+Baz
+Preset CLI Skills
+arvancloud-api
+sync-my-skills
+Parrot
+drupal-boost
+brizz
+diataxis
+Magekwik Magento Toolkit
+Multi-repo Diff
+cwc-makers
+Docbrain
+ecoctx
+join-the-team
+Scaffold
+Seldon
+Cut Weight
+Skiffly
+CheckSite
+handoff-doc
+Env Protector: Secret Scanner
+Verified Security Sweep
+impact-analysis
+StoreConnect Agent Skills
+localstack
+masa
+mirrord Agent Skills
+glean-dev-docs
+NPMScan
+eaa-audit
+sumologic-mcp
+The Safety Net
+coderocket
+impulse
+Latitude
+Synapse MCP
+Yes2SDK
+jar-explorer
+SweetPrompt
+char-index-skill
+Cypress
+Driftproof
+estimator
+harness-init
+cockroachdb
+powmcp
+Elastishot
+clawback
+Fingerprint
+Mission
+reef
+skipper
+JFrog
+Kolosys Devkit
+OneSignal
+pushnotifime - human in the loop
+deploycheck
+CC Limit Pacer
+receipts-check
+Sitelemetry
+SpliceCraft
+wake-storefront
+Xsolla AI Toolkit
+Drydock
+Oracle AI Data Platform Workbench Databricks Migrator
+Promptbrake Free Tools
+sumup
+craft-statusline
+gjalla
+RootCX
+Trendyol Marketplace Integration
+fsd-architect-skill
+loop-and-gate-build-kit
+promptize
+groundwork-specflow
+Session Vitals
+Instructions Cleanup
+Nauro
+kumi
+Governer
+RAG Evaluation
+ThinWindow
+clover-security
+easy-tiger
+OpenDocs
+sap-mdk-server
+spring-standards
+echosy
+ng
+Mcpbackend
+Review Ready
+Worktale Claude Code Plugin
+qa-quest
+sdlc-kit
+Review with Blocks
+terse
+N|Solid Skills
+frontier-simplify
+LCA and DEALA agent skills
+project-boundary
+Ory Agent Plugin
+TrustPin
+devrunway
+formal-agent-contracts
+RAM Sleeper
+mastercard-developers
+Temper
+Glance
+LazyTools
+stackql-skills
+dependency-evaluator
+vibeguard
+zero-trust-feature-team
+RepoAccess
+Daytona
+Ringmaster
+ergo
+SlideOps
+Toru Claude Agents
+argot
+mcp-client-kit
+forge
+Stackpilot
+Installed Api
+Laravel API Tool Kit
+Shipwright
+envrelay
+mermaidiff
+Plugin Packaging
+SigNoz
+dishonest-code-audit
+OBTO
+Contezza AI for Merchants
+Trustabl
+goodfellow
+n360-app-release
+Cyberine TaskBoard
+claude-vitals
+Plumeria
+snap-browser
+greenfield-delivery
+Directory Preflight
+drewcrawford-skills
+karellen-lsp-mcp
+versori-skills
+Wave Planner Skill
+Faultkit
+sync-docs
+cflio
+Paymob Integration
+i18n Sync: Missing Translations Finder
+Query Inspector
+vvuq4ai
+Zero Trust Audit Team
+Source Of Truth
+Destreamed
+Launchworthy
+SignatureAPI
+Sprites
+doDomain
+groundcover
+Tana
+Smart Commits: Git Commit Message Generator
+show-me-the-work
+darce
+Lightbringer
+Steadwing
+ctx
+Opinionated Prisma Skills
+roadmapsmith
+Testers.ai CARBON Test Harness
+coffee-paladin
+Dragoman
+Fortune Cookie
+Env Setup Wizard: Project Setup and Onboarding
+GoF Patterns
+Mcdx Toolbox
+claude-eta
+First Pass
+Legacy Refactor Pilot: Safe Code Modernization
+first-principles-review
+teamcity-cli
+dash0
+forgeproof
+Keelokit
+stream-deck
+clojure-lsp
+logrocket
+transitrix
+Wazatator
+Edit Doctor
+Tailproxy
+Keel
+Pitch'd Rails
+SDD Kit
+statusline
+Tool Schemas
+Loc Split
+Verdict
+Delimit
+Shieldcode
+Superwall
+dvera
+nightvision
+no-cape
+Opsera DevSecOps
+ship
+Claude Piggy Bank
+fakechat
+pdd-skill
+QAMap
+session-sweep
+dod-guard
+Eval Conductor
+jambonz-skills
+virtual-team
+radar-suite
+Riskified Beacon Integration
+monl — backend compiler
+Repo Hygiene
+PagerDuty Pre-Commit Risk Score
+skinflint
+spec-first
+Frank Grimes
+Latio Secure Supply Chain Skills
+mkanat skills
+Re8ch Tenant
+ddw
+tbh
+decipher
+IaC Reviewer: Terraform Security and Cost Check
+Sextant
+Sourcegraph
+ThoughtSpot Spottercode
+crystools-statusline
+Unleash Feature Flags
+Fastify Backend Skills
+RAGOps
+cclimit
+Monaiq
+Orbit by Postman API and MCP Server
+Ember To React
+firestore-native
+Meticulous
+SenderKit
+TestAtlas
+wawesome
+liste
+RailsCTO
+Repo Standard Toolkit
+Spec Drift Detector
+keelson
+Waterfall
+grits
+scan-modules
+worktree-workspace
+Croft
+functionize-mcp
+seedkit
+Vaara
+Kleap
+TemplateCentral
+dx-guard
+md-linker
+rent-check
+Dev Wrapped
+NeoSQL MCP
+Statusline for Claude Code
+skill-provenance
+Kazap Adversarial Review
+SpecDD
+rule-audit
+dry
+SpecsGraph
+tasktrace-mcp-plugin
+dopeboy0608-skills
+koin-migration
+Sideboard
+unipaas
+throughline
+Velixar
+Write Guard
+File Tools First
+repo-docs-system
+Firetiger
+Mock Data Hydrator: Seed and Test Data Generator
+SDD Planner
+terminal-notifier
+Difficat
+Ireview
+Rootly
+Scopewright
+squad
+dialecta
+Impreza Host
+Kenwea Notary
+px
+Ddna
+ManageLM
+Kodwai
+Couchbase
+followrabbit
+lazyline
+Just Keep Swimming
+workshop-mode
+RepoAtlas
+rich-statusline
+sdd
+tidycoder
+claude-win-notify
+gortex
+Titan Receipts
+Lightrun
+OSS
+Mneme
+repoviewer
+lattice
+CodeRook
+keep-awake
+Relvato
+SnapVisor
+Takshak
+genesis-governance-claude
+heyGRC
+terraform-lsp
+ilo
+Plumb
+gh-guard
+LOCI
+turn-navigator
+Wassup
+Jamdesk
+llm-dark-patterns
+TinMan - Heartbeat for Claude Code
+mergify
+X/D Loom
+elixir-expert-lsp
+Temporal Semantics Guardian
+WezTerm Agent Cards - Multipanel-Sidebar with notifications inspired by CMUX
+Voitta YOLT
+cync
+hlx-admin-api-executor-guarded
+veritas-gate
+Farol
+Total CMS
+typemux-cc
+public-repo-readiness
+Sarathi
+protogrid
+RugProof
+simple-workflow
+duplication-guard
+hordev
+Sdlc Assist
+Vantage
+tldiagram-create-diagram
+Zephyr Cloud
+Lightning TV Expert Plugin
+Revelara
+RedirHub
+Session Analyzer
+GrapeRoot
+nlsmdn
+Tailor.ia Lean
+Mirror
+Newlogic Online
+Elixir/Phoenix: LiveView
+Eyedbg
+Shipbook
+Tap2line
+vaper
+Installflow
+Issue Dial
+Plans Lifecycle
+superstack
+Tally
+Elixir/Phoenix: Ecto
+Loomaly
+undercover
+modelence
+diffctx
+duck-duck-duck
+Grace Guardian
+TesterArmy
+GodPrompt MCP Server
+TDCv2 — Fake & Test Data Generator
+Treblle
+genshijin
+review-times
+VibeRevert
+Flash Veille
+Pragmatic Dev Toolkit
+prepare-delivery
+Slint AI Plugins
+turbocharge
+Xata
+Uptimely
+Wassup (español)
+ElixirLS LSP
+evanflow
+ihmtools
+Julia LSP
+Paramify
+pilots
+Sadakio Developer Docs
+Search o'Clock
+mise-plugin
+optikit
+Ory Lumen
+pyvar-arch-api-gateway
+Stemma
+sabotage
+lite-bb
+loki
+JProfiler
+Overwrite Guard
+Shipvela
+smdd-toolkit
+Service Boundary Tests: Containers, Contracts and Mocks
+SysML v2 Co-Pilot
+NotchKit
+vm-disk-cleanup
+Hawkscan Ci
+Mollie
+Motir
+Resonant Quantum Mechanics
+Stackhawk Data Seed
+Optibot
+Controlled Czech
+Legacy JRXML Toolkit
+sonatype-guide
+vda5050
+neocode
+relay
+Release Notes Index
+Tigris
+mister-anderson
+datadops
+scaffold-slack-app
+Showly
+fe-rail
+skillkeel-starter
+elastic-sense
+jgs-goal-spec
+ORC8R
+Groundtruth
+perstat
+rustunnel
+UAE Healthcare Compliance by ATeam
+kong-konnect
+PR Story Aligner: Pull Request vs Ticket Check
+standup-logger
+slio
+solidity-lsp
+tula
+upbound
+karellen-jdb-mcp
+off-by-none
+Milepost
+ohmyho.st
+slash-commands-jp
+green-claude
+Relay
+SLOBAC - The Suite Life of Bobs and Code
+karellen-rr-mcp
+pyvar-arch-compute
+decimal-scaled
+MTM Contract
+Namespace Guard
+pyvar-arch-observability
+Interfere
+Saudi Healthcare Compliance by ATeam
+Seenode
+Vanillajs To React
+pntr
+Stackhawk Optimize
+RubixKube
+TestDino
+Timeout
+vibestretch
+Roll Call
+PRFlow
+sethu: command bridge
+spera
+kiss
+smoower-minified
+mokata
+Shipnote
+sol-simplify
+Worktree Guard
+whydone
+tmux-status
+Princi
+TypedbEx — TypeDB for Elixir
+papi
+Ripplo
+Semaphore Hooks
+jgs-magic-sysmlv1-read-skills
+repo-recap
+pyvar-arch-data-ingestion
+intent-verify
+sailfishos-dev
+Journify Mcp Plugin
+pyvar-arch-storage
+Terraphim Skills Introduction
+Linus Level
+SpiceGrinder
+Stayux Clear Answer
+SWIRL
+gobreaker
+haira
+prodscope
+NerdyGeek
+orient
+LocalLore
+Pragma
+Varis Plan Tracker
+Recap Studio
+Helprism sync
+MantisBT Integration
+Servo
+tk
+Nimbus Land
+Snip
+Invokary Platform Requirements
+steering-log
+resharper-cli-mcp
+VStok Agent Execution
+jfrdoc
+Binder gauntlet
+Mintlify

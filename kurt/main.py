@@ -39,7 +39,7 @@ from kurt.core.persona import (
     BUILTIN_THEMES, SUPPORTED_LANGUAGES,
 )
 from kurt.skills.manager import list_skills, install_skill, remove_skill, \
-    create_skill_template, get_skill_prompt
+    create_skill_template, get_skill_prompt, list_engineering_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -489,6 +489,15 @@ def skill_remove(skill_id: str = typer.Argument(..., help="Skill ID to remove"))
 def skill_create(skill_id: str = typer.Argument(..., help="New skill ID")):
     """Create a new skill template"""
     create_skill_template(skill_id)
+
+
+@skill_app.command("eng")
+def skill_engineering(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (agentic, security, frontend, backend, cloud_devops, testing, ai_ml, mobile, data, observability, enterprise, workflow_automation, documentation)"),
+):
+    """Browse 1,203 Engineering skills from Claude's marketplace"""
+    list_engineering_skills(domain=domain, search=search)
 
 
 # ══════════════════════════════════════
