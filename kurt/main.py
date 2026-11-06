@@ -40,7 +40,7 @@ from kurt.core.persona import (
 )
 from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     create_skill_template, get_skill_prompt, list_engineering_skills, list_code_skills, \
-    list_files_docs_skills
+    list_files_docs_skills, list_designs_media_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
@@ -517,6 +517,15 @@ def skill_files(
 ):
     """Browse 850 Files & Documents skills from Claude's marketplace"""
     list_files_docs_skills(domain=domain, search=search)
+
+
+@skill_app.command("designs")
+def skill_designs(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search for a skill by name"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain (ui_ux_design, video_creation, image_generation, social_media, music_audio, presentation_slides, web_design, diagramming_visualization, brand_marketing, tools_utilities, game_creative, analytics_insights)"),
+):
+    """Browse 433 Designs & Media skills from Claude's marketplace"""
+    list_designs_media_skills(domain=domain, search=search)
 
 
 # ══════════════════════════════════════

@@ -2,8 +2,8 @@
 KURT Skills Manager - Install, list, remove skills
 Skills = domain knowledge na nag-ggguide sa AI behavior
 
-Includes 1,203 Engineering skills, 1,104 Code skills, and 850 Files & Documents
-skills from Claude's marketplace.
+Includes 1,203 Engineering skills, 1,104 Code skills, 850 Files & Documents,
+and 433 Designs & Media skills from Claude's marketplace.
 """
 
 import os
@@ -42,6 +42,16 @@ from kurt.skills.files_docs import (
     get_domain_prompt as get_files_docs_domain_prompt,
     get_stats as get_files_docs_stats,
     FILES_DOCS_DOMAINS,
+)
+
+# Designs & Media skills catalog
+from kurt.skills.designs_media import (
+    load_all_skills as load_designs_media_skills,
+    search_skills as search_designs_media_skills,
+    get_skill_context as get_designs_media_skill_context,
+    get_domain_prompt as get_designs_media_domain_prompt,
+    get_stats as get_designs_media_stats,
+    DESIGNS_MEDIA_DOMAINS,
 )
 
 console = Console()
@@ -424,6 +434,59 @@ def list_files_docs_skills(domain: str = None, search: str = None):
 
     console.print(table)
     console.print(f"\n[dim]Use: kurt skill files --search <query>  or  kurt skill files --domain <name>[/dim]")
+    console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
+
+
+def list_designs_media_skills(domain: str = None, search: str = None):
+    """List or search designs & media skills from Claude's marketplace"""
+    if search:
+        results = search_designs_media_skills(search)
+        console.print(f"\n[cyan]🔍 Designs & Media skills matching '{search}':[/cyan]")
+        for s in results[:20]:
+            console.print(f"  [white]• {s}[/white]")
+        if len(results) > 20:
+            console.print(f"  [dim]... and {len(results) - 20} more[/dim]")
+        console.print(f"\n[dim]Total matches: {len(results)}[/dim]")
+        return
+
+    if domain:
+        skills = DESIGNS_MEDIA_DOMAINS.get(domain, [])
+        console.print(f"\n[cyan]🎨 Designs & Media domain: {domain}[/cyan]")
+        for s in skills:
+            console.print(f"  [white]• {s}[/white]")
+        console.print(f"\n[dim]Total in domain: {len(skills)}[/dim]")
+        return
+
+    # Show overview
+    stats = get_designs_media_stats()
+    console.print(f"\n[bold cyan]🎨 KURT Designs & Media Skills Catalog[/bold cyan]")
+    console.print(f"[dim]Sourced from Claude's marketplace — {stats['total_skills']:,} unique skills[/dim]\n")
+
+    table = Table(box=box.ROUNDED, border_style="cyan")
+    table.add_column("Domain", style="cyan", width=22)
+    table.add_column("Skills Count", style="white", justify="right", width=15)
+    table.add_column("Sample Skills", style="dim", width=48)
+
+    sample_map = {
+        "ui_ux_design": "Figma, Superdesign, Mobbin, Stark, design-skills",
+        "video_creation": "Remotion, BlitzReels, Riverside, CutPro, CineFlo",
+        "image_generation": "image-generation, Krea, Kling AI, Meshy, SVG.new",
+        "social_media": "Posty, Postiz, Ayrshare, OmniSocials, Banger",
+        "music_audio": "SoundWeaver, AudioPod, MuAPI, Electra One, Vocuno",
+        "presentation_slides": "pptx-deck-plugin, Presenton, Slidely, ArcDeck",
+        "web_design": "AnimatedWebs, liquid-glass, Shopify DevKit, PlayCanvas",
+        "diagramming_visualization": "Diagrams, Whimsical, Miro, excalidraw, IcePanel",
+        "brand_marketing": "brand-studio, AdMakeAI, Arcads AI, Bauhaus Digital",
+        "tools_utilities": "YouTube Transcriber, FontHound, DeSlop, conversiontools",
+        "game_creative": "Unity, Meta VR, novel-studio, SpriteCook, Dreambase",
+        "analytics_insights": "vidIQ, Spytrend MCP Skills, Socialstats, Extract Alpha",
+    }
+
+    for domain_name, count in sorted(stats["domain_breakdown"].items(), key=lambda x: -x[1]):
+        table.add_row(domain_name, str(count), sample_map.get(domain_name, ""))
+
+    console.print(table)
+    console.print(f"\n[dim]Use: kurt skill designs --search <query>  or  kurt skill designs --domain <name>[/dim]")
     console.print(f"[dim]Remaining {stats['total_skills'] - stats['domain_coverage']} skills are cross-domain/specialized[/dim]")
 
 

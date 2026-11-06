@@ -1,0 +1,433 @@
+Unity
+frontend-design
+Remotion
+Social Media Skills
+design-skills
+Superdesign
+21st
+AI Skills
+image-generation
+AnimatedWebs
+Pendo Guides
+Figma
+design-superpowers
+Abracadabrax AI Image & Video Generator
+3D CAD Converter
+YouTube Transcriber
+VectorLab UI/UX Skills
+AI Logo Maker & Brand Designer
+video-shotcraft
+AI Video Editor & Timeline by ManyMotions
+Chrome Extension Builder
+animation-studio
+watch-video
+Abracadabrax AI Video Generator
+AI Video & Image Generator by Clipwave
+/workflow-audit
+agentic-council
+Motion Reel
+pptx-deck-plugin
+Codesign
+Creative Claw
+Kling AI
+Abracadabrax AI Product Photo Generator
+Windsor.ai Ads and Marketing Data
+vidIQ
+Meshy
+Abracadabrax AI Background Music Generator
+ffmpeg-llm
+AI UGC Video Ads Maker
+Agency MCP
+3DOptix optical design and simulations
+Website Design
+Abracadabrax Social Media Image & Post Maker
+Video Cleanup
+IT Reelsmaker
+AI Video Enhancer Studio
+Power BI Accessibility (PBIP/PBIR)
+AI Ready Design System
+databricks
+Abracadabrax AI Song & Music Maker
+Asset Generator
+8digit Planner
+UX Agent Skills
+videodb
+video-to-code-skill
+designs-drift
+AdMakeAI
+Claude2Figma
+revit-bim
+Diagrams
+A1 Gallery
+Online Writing
+Image Deep Research
+AI Avatar Presenter & Explainer Video Maker
+Anime Story Video Maker: AI Cartoon & Animated Shorts
+Abracadabrax YouTube Thumbnail Maker
+design-is-code
+Cinematic AI Video Maker with Camera Moves
+Presenton
+Abracadabrax Poster & Flyer Maker
+Adology — Content Intelligence
+Posty: Social Media Scheduler
+Design Steward
+Achriom
+figma-suite
+AmpUp MCP Plugin
+SpriteCook
+CADBuildr
+design-dev-bridge
+Krea
+AdaptlyPost
+Adapty
+Figma to Code: Design to React, Vue and HTML
+transcribe-so
+brand-studio
+Mobbin
+Crypto Spot Futures Analyzer
+paper-to-course
+Arcads AI
+liquid-skills
+Awesome Ecom Skills
+Meta VR
+consistent-ui
+AITOPIA
+ui-consistency
+Design Council
+liquid-glass
+Miro
+Abracadabrax Coloring Page Maker
+AssistantLabs — Personal Assistant for Business
+ArcDeck
+CellCog
+HTML/CSS to Image API
+playground
+Hyper Marketing
+Abracadabrax Album Cover Art Maker
+Autorender
+inhabited design
+dataink
+render-visual-skill
+brand-md
+Shopify DevKit
+perception-first-design
+Fairmind Design
+AudioPod
+Android Emulator QA Plugin
+novel-studio
+appstore-screenshots
+liquid-glass-skills
+Ayrshare - Unified Social Media API for AI Agents
+anidoodle
+Mobile Design System
+Design with Blocks
+CutPro
+beckett
+Alt Text
+ACA Native MCP Skills
+Mobile App Design (iOS)
+kling-ai-prompt-generator
+Car Image API
+Abracadabrax Greeting Card & Invitation Maker
+Marketing for Life Sciences
+BlitzReels
+Icon Creator
+Mysocial Intelligence
+ConvertAPI
+Abracadabrax Podcast Intro & Jingle Maker
+jp-web-design-guardrails
+UXKIN
+imager-x
+Abracadabrax Birthday Song Maker
+Generative Art
+Montage
+Editorial OS
+letmewatch
+Game Trend Skills
+AgileHero
+Interactive Docs
+TwelveLabs
+Upload-Post
+Slidely
+Rayden UI Design Skill
+excalidraw-plugin
+OpenClips
+biorender
+OpenClip
+SVG.new
+Icons8
+Short Film Maker: AI Short Films with Story & Dialogue
+Annotate
+storefront-theme-kit
+together-ai-skills
+CineFlo
+apiai.me
+Extract Alpha
+design-system-by-blue
+conversiontools
+VideoRecompress Studio
+Zernio
+cv-skills
+Poppify
+Ploxs Presentations
+archgram
+deploy-on-aws
+betterposter
+MakeBox for Etsy
+ViralHunt
+claude-train-prep
+Wiser
+Eversince
+BoardRepo
+Buzzfy
+Riverside
+archlens
+Supericons
+Bauhaus Digital
+MagicPath
+UnifAPI
+Mosaic
+arn-spark
+Agência Pessoal ONE
+penpot-atomic-design
+Web Vitals Auditor
+tesserai
+Portfolio Interview
+Refero
+Aictrl.dev
+batocera
+Pencil Dev Skill
+aspiration-self-monitoring
+parallax-threejs
+slide-revive
+BulkPublish
+carusela
+Make Poster
+Postbarrel scripts
+Critic Layer
+Audiorective
+Streamline Icons
+app-preview-craft
+StyleRef
+Canon Check
+DunSocial
+ScreenshotOne
+liquid-dev
+MyChatBot
+Intent
+spaitial-ai
+Marky
+Virlo
+save-to-spotify
+Postiz
+Claistore
+SuperCool Sites & Decks
+fiftyone
+Comedy Skit Video Maker: AI Funny Shorts & Parodies
+flowy
+Mojulo
+Enpitech AI Tools
+Appllama
+plan-review-skill
+Aitho
+DemoDay
+Social media studio
+naksha-studio
+Snagly
+Flint
+HasData
+Whimsical
+Kombai
+Atria
+Banger
+Birthday Video Maker: AI Birthday Tribute & Wishes Video
+vaadin-skills
+post bridge
+InsightPins for Pinterest
+Oak National Academy
+x-content-intelligence
+Replo
+compress-gif
+Tailwind App
+Intuitive Software Design
+euxlab-skills
+SoundWeaver
+Fitness Video Maker: AI Workout & Training Shorts
+mcp-image-viewer
+Sticklore
+htmldeck
+Stark
+Bloom
+planning-skills-for-agents-and-humans
+Tweenkit
+BOLD Studios
+vellum
+Imagelato Image Optimization
+Templafy
+Crayon
+Responsive Check: Mobile Layout Tester
+doom-design-system
+PlayCanvas
+OpenPlanr
+Travel Video & Documentary Maker
+trip-json
+Morphed
+Church & Faith Event Video Maker: Event Invitations
+Horror Story Video Maker: AI Scary Shorts
+DeSlop
+FontHound
+Klin — Visual Idea Creator
+Screen Browser
+owkin
+xpost
+Ignite UI MCP Tools
+Filestack Claude Plugin
+HIG Compliance Auditor
+Shorty
+open-document-skills
+DevExpress Blazor Components
+Merch
+ScreenSpec
+PUML - PlantUML
+OmniSocials
+Nickture Skills for interface polish, Russian copy and AI deslop
+RV and OpenRV Media Review
+BAMF.ai
+hive
+Socialstats
+Vocuno
+MuAPI
+Waldo fyi
+preset-toolkit
+Sync Socials
+Postify
+IcePanel
+ClientGen Reach
+Assetlib Audit
+Reader Radius
+Brendly
+Maeve Social
+StarZero
+Avontus Viewer
+Templify by Irvito
+PostSyncer
+TouchDesigner MCP
+PostEverywhere
+PostDaily
+Iminify
+LurkAPI
+Spytrend MCP Skills
+hdldiagZero
+Keep Highlights
+hone
+Playbook
+QkConvert
+Contenta Converter
+Recharm
+Simple Drawing Pad
+Telepath
+PostZen
+sdlc-kit-extended
+Fluenticons
+Oh My Android
+PlayDrop
+SpeakCAD Slicer
+Stable Baseline
+Publica Now
+Slop Patterns
+Fountain
+idmp-plugin
+lux
+Simplio3D
+Jam
+PostFast
+Hive
+Charmshots
+ThemeReviewKit
+FluidDocs Deck Builder
+changethisfile
+Klaket
+Magento 2 / Mage-OS Skills
+My Video Gift
+Dreambase
+Lenadweb Image Preview
+Demovela
+Extenshi
+Genfeed
+IRCODE
+Sonar ASO
+keynot
+Rapier
+VerseDB: Comic Book Tracker
+Dualkit
+PostOnce
+Tuteliq
+iPhone Backup for Linux
+SocialClaw
+Genviral
+Elastishot
+Stateful
+Kolosys Devkit
+SendIt Social
+Vulca
+Foliade
+Rill
+Pics.io
+SupaBird
+keyboards-mcp
+SlideOps
+snap-browser
+Octen
+Lumr Studio
+LogiCommerce Backoffice
+Mailtea
+Panscia
+Screeny
+socialync
+Playcut Brush
+Syndic8
+FilmEase
+SocialFaktory
+Orcool
+Snap Closet
+Electra One
+Rolino
+Streamingo Anonymize
+Sustain Skills
+Share Artifacts
+Nemi
+wallpaper-cheatsheet
+Mora
+peepshow
+Cuelume
+StarryKit
+Phase Runner
+Unboxing Editor
+Kazap Adversarial Review
+Pepys
+pixinsight-connector-skills
+Falatu.ai
+eonik
+Karrito
+Postraid
+Soggyhotdog
+Gathmo
+Tareno
+TrueHue
+viewprinter
+Cmssy
+SnapVisor
+Oktio.app
+Pixelesq
+Skyelight
+Thai Memes CC
+X/D Loom
+static.md
+tldiagram-create-diagram
+Scribe Mail
+Ollie: Celebrity Lookalike & Stylist
+Tell Index
+PostDashPro
+Titlize
+Runway Dev
+Tableau
