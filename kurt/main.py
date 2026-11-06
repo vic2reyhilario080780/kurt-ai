@@ -58,6 +58,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_sports_skills, list_faith_skills, list_home_skills, list_travel_hospitality_skills, \
     list_books_skills, list_nonprofit_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
+from kurt.core.cli_orchestrator import handle_slash, SLASH_COMMANDS
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
     get_active_project_contexts,
@@ -410,66 +411,114 @@ def models_stats_cmd():
 def chat(
     skill: Optional[str] = typer.Option(None, "--skill", "-s"),
     model: Optional[str] = typer.Option(None, "--model", "-m"),
+    session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
 ):
     """💬 Interactive chat mode — mag-usap sa KURT"""
     load_env()
     init_db()
 
-    session_id = str(uuid.uuid4())
+    _persona = load_persona()
+    _kurt_name = _persona.get("kurt_name", "KURT")
+    _icon = get_icon()
+    _theme = get_theme()
+
+    session_id = session if session else str(uuid.uuid4())
+    current_model = model or "auto"
+    current_skill = skill
+    last_response = ""
+
+    # ── Welcome banner ──────────────────────────────────────────────
     console.print(Panel(
-        "[bold cyan]KURT — Interactive Chat Mode[/bold cyan]\n"
-        "[dim]Type 'exit' or 'quit' to stop\n"
-        "Type 'clear' to start new session\n"
-        f"Session: {session_id[:8]}[/dim]",
+        f"[bold cyan]{_icon} {_kurt_name} — Interactive Chat Mode[/bold cyan]\n"
+        "[dim]Type [bold]/help[/bold] for slash commands  ·  [bold]/exit[/bold] to quit[/dim]\n"
+        f"[dim]Session: {session_id[:8]}  ·  Model: {current_model}  ·  Skill: {current_skill or 'none'}[/dim]",
         box=box.ROUNDED,
         border_style="cyan",
     ))
+    console.print("[dim]💡 Slash commands: /claude  /gemini  /gh  /run  /model  /skill  /save  /help[/dim]\n")
 
     while True:
+        # ── Input ────────────────────────────────────────────────────
         try:
-            prompt = console.input("\n[bold cyan]You:[/bold cyan] ").strip()
+            prompt = console.input(f"[bold cyan]You[/bold cyan] [dim]›[/dim] ").strip()
         except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Bye! 👋[/dim]")
+            console.print("\n[dim]👋 Bye![/dim]")
             break
 
         if not prompt:
             continue
 
+        # Legacy text shortcuts
         if prompt.lower() in ["exit", "quit", "bye"]:
-            console.print("[dim]Bye! 👋[/dim]")
+            console.print("[dim]👋 Bye! K.U.R.T. signing off.[/dim]")
             break
 
         if prompt.lower() == "clear":
             session_id = str(uuid.uuid4())
-            console.print(f"[dim]New session: {session_id[:8]}[/dim]")
+            console.print(f"[dim]🆕 New session: {session_id[:8]}[/dim]")
             continue
 
+        # ── Slash command handler ────────────────────────────────────
+        slash_result = handle_slash(
+            prompt=prompt,
+            session_id=session_id,
+            current_model=current_model,
+            current_skill=current_skill,
+            last_response=last_response,
+        )
+
+        if slash_result.handled:
+            if slash_result.output:
+                console.print(slash_result.output)
+            if slash_result.model_override:
+                current_model = slash_result.model_override
+                console.print(f"[dim]Model set to: {current_model}[/dim]")
+            if not slash_result.continue_chat:
+                break
+            continue
+
+        # ── AI Chat ──────────────────────────────────────────────────
         analysis = analyze_task(prompt)
-        if model:
-            analysis.model = model
+        if current_model != "auto":
+            analysis.model = current_model
 
         messages = []
+
+        # System prompt: KURT persona
+        kurt_system = (
+            f"You are {_kurt_name}, a smart, friendly AI assistant built by Daddy Tito. "
+            "You communicate in Taglish (Tagalog-English mix) unless asked otherwise. "
+            "You are helpful, honest, and efficient. "
+            "You are running as a CLI tool called KURT — Kinetic Unified Response Terminal. "
+            "Keep responses concise and practical."
+        )
+        messages.append({"role": "system", "content": kurt_system})
 
         # Language prompt
         lang_prompt = get_language_system_prompt()
         if lang_prompt:
             messages.append({"role": "system", "content": lang_prompt})
 
-        if skill:
-            skill_prompt = get_skill_prompt(skill)
+        # Skill prompt
+        active_skill = current_skill
+        if prompt.startswith("/skill "):
+            # Inline skill override
+            active_skill = prompt.split(None, 1)[1].strip()
+        if active_skill:
+            skill_prompt = get_skill_prompt(active_skill)
             if skill_prompt:
                 messages.append({"role": "system", "content": skill_prompt})
 
-        history = get_history(session_id)
+        history = get_history(session_id, limit=20)
         messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
         save_message(session_id, "user", prompt)
-        _theme = get_theme()
-        _persona = load_persona()
-        _kurt_name = _persona.get("kurt_name", "KURT")
-        _icon = get_icon()
-        console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}] [{_theme['dim']}]({analysis.model}):[/{_theme['dim']}]")
+
+        console.print(
+            f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}] "
+            f"[dim]({analysis.model} · {analysis.task_type.value})[/dim]"
+        )
 
         asyncio.run(stream_response(
             analysis=analysis,
@@ -477,7 +526,14 @@ def chat(
             session_id=session_id,
             no_memory=False,
             verbose=False,
+            prompt=prompt,
         ))
+
+        # Store last response for /save
+        from kurt.core.memory import get_history as _gh
+        _hist = _gh(session_id, limit=1)
+        if _hist and _hist[-1]["role"] == "assistant":
+            last_response = _hist[-1]["content"]
 
 
 # ══════════════════════════════════════
