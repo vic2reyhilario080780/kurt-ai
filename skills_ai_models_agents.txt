@@ -1,0 +1,311 @@
+Superpowers
+Synthflow
+Maven Bio
+roblox-dev
+Omniout: LLM Retries and Model Fallback
+Pendo Analytics
+image-generation
+Adaptive Agent
+skill-creator
+Writing Skills
+agent-memory
+Unreal Engine Skills
+agentic-council
+Agent Protocols
+ai-governance-legal
+AI Mentor
+Auto Research
+Agent Army
+huggingface-skills
+AI-Integration-Architect
+agent-discussion
+databricks
+AEO Brand Scan
+posthog
+ag2-agent-reviewer
+Agentforce ADLC
+ag2-workflow-patterns
+Agentics Beyond Code
+aws-core
+agent-recall
+ag2-agent-guide
+ag2-agent-scaffold
+agent-architecture-designer
+AI YouTube OS
+Agent Archive
+Agent Debugging
+AgentMail
+consensus
+adisinsight
+Agent Design
+ABP Sensei
+Agent Ingest, Audit & Optimize
+githubclip
+docker-skills
+agent-trace-triage
+AWS Startup Advisor
+CellCog
+NVIDIA Skills
+Voicenter Bot Builder
+GeoAI Skills
+Claude Code Survival Kit
+Prompt Brain
+Autoresearch AI Plugin
+atomic-agents
+Prompt Design
+aws-data-analytics
+Agent Verifier
+Claude Skills Exporter
+Jinkō
+Prompt Optimizer
+AI-Native OS
+Jev
+AI Passport
+LaunchDarkly
+Claude Review Loop
+bigquery-data-analytics
+Ai Playbook
+amplitude
+AWS Startups Solution Architecture
+Ruflo Ai Team
+skill-doctor
+codex-hud
+Agent Evaluation
+AI Adoption Playbook
+TwelveLabs
+neon
+Skill Discovery
+building-with-typesafe-jev
+OpenJev for Claude Code
+megapowers
+together-ai-skills
+Extract Alpha
+Agent Guardrails
+Ionden Skills
+Claude-Trinity
+Asyntai – AI Support Agent for Websites
+Wiser
+Cortex
+Eversince
+Agentic Atlas
+opencode subagents
+security-watchdog
+Agent Recovery
+Configurable Council
+OpenSearch Agent Skills
+claude-cursor-orchestration
+Dynatrace
+Elastic
+scriptify
+Cargo
+Probabl Skills
+Conductor
+carusela
+Tackle
+boltz
+venture-capital-intelligence
+Controller AI
+MCP Workflow Audit
+skillers
+XMemo
+akc-cycle
+POC Architect by ATeam
+Build Harness
+AskAiRank
+Prompt Tightener: Clearer, Shorter LLM Prompts
+ops
+codeman
+MyChatBot
+cto-toolkit
+fiftyone
+CodeDNA
+Semgrep Guardian
+DeepEval
+chembl
+Uniform
+harness-architect
+SiteGPT
+loop-and-gate-foundation
+fable-baton
+Mixpanel
+ai-pm-skills
+YourGPT
+Boardroom
+skill-campfire
+Adaption
+Cerebrium Skills
+emem
+MLflow Skills
+boomi-agentstudio
+Celigo
+chembricks
+control-room
+meta-dev
+Langfuse Observability
+DocsBot
+Oracle AI Data Platform Workbench Engineer Agent
+redis-development
+dominodatalab
+HarnessKit
+Anomity
+BigID
+llm-secure-patterns
+fleet
+Delegate: Agents Sized to the Job
+CloudTalk VoiceAgent Builder
+PromptGuard
+knowledge-catalog
+Forge
+magicweave
+spiceai/skills
+Kontext
+owkin
+ml-pipeline
+zentropi
+smarts.bio
+pinecone
+TheBoardroom
+Arcgram
+Frugal
+holistics-development
+PhaseFolio
+open-targets
+Cloud FinOps by OptimNow
+Blaxel
+EvalDossier
+Landbot
+biocharpro
+Claw Maven plugin
+Fine Structure
+clover
+pydantic-ai
+EVOLVE: Self-Evolution Readiness
+Repo Pruefer
+Skills Transfer Hub
+Skilldb
+harness
+Brainbase MCP
+sagemaker-ai
+InsForge
+Fellowship
+validate
+war-room
+MCP Conduct Register
+skillquiver
+Incubator
+compounded
+gen-sage
+CompanyForge
+Soulz — AI Expert Agents
+Qdrant
+Inngest
+valet
+StatsClaw
+Wave Planning
+Goodnight Alchemist
+INAM Protocol
+solofounder
+hiway-kit
+Arroway
+toughtongue
+Turbocharge
+migration-to-aws
+itential-builder
+Quickchat AI
+mosaic
+Cairn Signals — are your AI product's numbers real?
+hats
+XYO & XYO Layer 1 (XL1) Integration
+Proofable
+Kowalah
+logfire
+maddog
+Cladeon
+BlindOracle
+Coconut Context
+SiteSpeak Chatbot Manager
+Greenflash
+Lexbeam EU AI Governance
+prove
+Waggle
+giskard-skills
+goalify
+nova-thesis
+trapic
+major
+SmartReply
+Melxis
+Styx
+LORM — Layered Operational Responsibility Model
+two-gates
+Splashify Pro
+holomime
+Commslayer
+Parrot
+verify-ai-output
+brizz
+cascade
+Decibel Peers
+join-the-team
+Seldon
+fortytwo-mcp
+Engram
+masa
+Powabase
+mumo
+impulse
+Latitude
+Driftproof
+oracle-ai-data-platform-workbench-aws-migrator
+JFrog
+Kolosys Devkit
+pushnotifime - human in the loop
+Promptbrake Free Tools
+gjalla
+RootCX
+promptize
+Nauro
+RAG Evaluation
+echosy
+oxagen
+Prompeteer
+Clearskies
+formal-agent-contracts
+Moveo.AI
+sosa-governor
+Toru Claude Agents
+Stackpilot
+envrelay
+OBTO
+Trustabl
+Zeeg
+Stunt Double
+Faultkit
+vvuq4ai
+Upfunnels
+Lightbringer
+thunderphone
+coffee-paladin
+SmartLinks App Growth
+plori
+Wazatator
+PagerDuty Pre-Commit Risk Score
+Latio Secure Supply Chain Skills
+RAGOps
+Mnemoverse Memory
+rule-audit
+Scopewright
+dialecta
+Robotomail
+OpenOrange
+veritas-gate
+hordev
+Revuity Systems
+VibeRevert
+Stemma
+Innerloop
+Semilattice
+Ando
+Binder gauntlet
+Dataiku Headless
+Runway Dev
