@@ -21,8 +21,17 @@ def load_env():
                 key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip()
-                # Only set if not already in environment
-                if key not in os.environ:
+                # .env file takes priority UNLESS the env var looks like a real key
+                # (i.e., don't overwrite a key the user explicitly exported in their shell)
+                existing = os.environ.get(key, "")
+                placeholder_prefixes = (
+                    "sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your",
+                    "sk-ant-your", "your-key", "r8_your", "",
+                )
+                existing_is_placeholder = not existing or any(
+                    existing.startswith(p) for p in placeholder_prefixes
+                )
+                if existing_is_placeholder:
                     os.environ[key] = value
 
     return True
