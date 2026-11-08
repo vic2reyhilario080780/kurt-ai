@@ -307,8 +307,9 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     # Show model info (compact)
     if not verbose:
         ai_badge = "⚡ hybrid" if get_ai_mode() == "hybrid" else get_ai_mode()
+        provider_tag = f" via {analysis.provider}" if analysis.provider not in ("openrouter",) else ""
         console.print(
-            f"[dim]🤖 {analysis.model} · {analysis.task_type.value} · {ai_badge}[/dim]"
+            f"[dim]🤖 {analysis.model}{provider_tag} · {analysis.task_type.value}[/dim]"
         )
 
     console.print()
@@ -346,7 +347,28 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 console.print()
             except Exception as e2:
                 console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
-                return
+                # Last resort: Groq LLaMA (free, 14,400 req/day)
+                groq_key = os.getenv("GROQ_API_KEY", "")
+                if groq_key and analysis.fallback_provider != "groq":
+                    console.print("[yellow]↩ Emergency fallback: Groq LLaMA 3.3 (libre!)[/yellow]")
+                    try:
+                        full_response = ""
+                        with Live(Text(""), refresh_per_second=10, console=console) as live:
+                            async for chunk in router.route(
+                                provider="groq",
+                                model="llama-3.3-70b-versatile",
+                                messages=messages,
+                            ):
+                                full_response += chunk
+                                live.update(Text(full_response))
+                        console.print()
+                    except Exception as e3:
+                        console.print(f"[red]❌ Groq fallback failed: {e3}[/red]")
+                        console.print("[dim]💡 Tip: i-check ang GROQ_API_KEY sa ~/.kurt/.env[/dim]")
+                        return
+                else:
+                    console.print("[dim]💡 Tip: maglagay ng GROQ_API_KEY sa ~/.kurt/.env para sa libre na fallback![/dim]")
+                    return
 
     # Auto-save code artifacts for CODE/DESIGN/ARTIFACT tasks
     if full_response and analysis.task_type in {TaskType.CODE, TaskType.DESIGN, TaskType.ARTIFACT, TaskType.GAME}:
@@ -638,6 +660,14 @@ def chat(
         analysis = analyze_task(prompt)
         if current_model != "auto":
             analysis.model = current_model
+            # Auto-detect provider from model name
+            if "/" not in current_model:
+                # No slash = likely a Groq model (e.g. llama-3.3-70b-versatile)
+                analysis.provider = "groq"
+            elif current_model.startswith("anthropic/") or current_model.startswith("claude-"):
+                analysis.provider = "anthropic"
+            else:
+                analysis.provider = "openrouter"
 
         messages = []
 

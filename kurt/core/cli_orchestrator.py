@@ -129,7 +129,14 @@ def handle_slash(
         if not args:
             return SlashResult(
                 handled=True,
-                output=f"Current model: {current_model}\nUsage: /model <name>  e.g. /model gemini-flash",
+                output=(
+                    f"Current model: {current_model}\n"
+                    "Usage: /model <name>\n"
+                    "  Groq (libre, mabilis): /model llama-3.3-70b-versatile\n"
+                    "  Groq (pinakamabilis):  /model llama-3.1-8b-instant\n"
+                    "  OpenRouter free:      /model google/gemma-3-27b-it:free\n"
+                    "  Auto-route:           /model auto"
+                ),
                 continue_chat=True,
             )
         return SlashResult(
@@ -188,17 +195,21 @@ def handle_slash(
             "",
             "🤖  Quick Model Reference",
             "─" * 42,
-            "  FREE (via OpenRouter)",
-            "    meta-llama/llama-3.3-70b-instruct:free",
-            "    google/gemini-flash-1.5",
-            "    deepseek/deepseek-coder",
-            "    deepseek/deepseek-r1",
+            "  FREE via Groq (sobrang bilis, 14,400 req/day)",
+            "    llama-3.3-70b-versatile    ← default",
+            "    llama-3.1-8b-instant       ← fastest",
+            "    gemma2-9b-it",
+            "  FREE via OpenRouter (:free models)",
+            "    google/gemma-3-27b-it:free",
+            "    deepseek/deepseek-chat-v3-0324:free",
             "  PAID",
             "    anthropic/claude-3.5-sonnet",
             "    openai/gpt-4o",
             "    anthropic/claude-3-5-haiku",
             "",
             "Switch: /model <model-name>",
+            "  e.g. /model llama-3.1-8b-instant",
+            "  e.g. /model anthropic/claude-3.5-sonnet",
         ]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
