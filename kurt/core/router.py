@@ -21,6 +21,11 @@ class ModelRouter:
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
 
     def _has_key(self, provider: str) -> bool:
+        """Check if a real API key exists (not empty, not a placeholder)"""
+        PLACEHOLDER_PREFIXES = (
+            "sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your",
+            "sk-ant-your", "your-key", "r8_your", "placeholder",
+        )
         keys = {
             "openrouter": self.openrouter_key,
             "groq": self.groq_key,
@@ -29,7 +34,13 @@ class ModelRouter:
             "openai": self.openai_key,
             "anthropic": self.anthropic_key,
         }
-        return bool(keys.get(provider, ""))
+        key = keys.get(provider, "")
+        if not key:
+            return False
+        # Reject placeholder values from .env.example
+        if any(key.startswith(p) for p in PLACEHOLDER_PREFIXES):
+            return False
+        return True
 
     async def call_openrouter(
         self,

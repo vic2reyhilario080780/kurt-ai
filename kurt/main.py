@@ -13,6 +13,7 @@ Usage:
 """
 
 import asyncio
+import os
 import sys
 import uuid
 from typing import Optional
@@ -300,6 +301,29 @@ def ask(
     ))
 
 
+def _show_no_key_help():
+    """Show clear setup instructions when no API key works"""
+    from rich.panel import Panel as _Panel
+    console.print(_Panel(
+        "[bold yellow]⚠️  Walang gumaganang API key![/bold yellow]\n\n"
+        "I-edit ang [bold]~/.kurt/.env[/bold] at lagyan ng KAHIT ISA sa mga ito:\n\n"
+        "[bold green]Option 1 — Groq (PINAKA-LIBRE, 14,400 req/day):[/bold green]\n"
+        "  1. Pumunta sa: [link]https://console.groq.com/keys[/link]\n"
+        "  2. Mag-sign up / log in\n"
+        "  3. Gumawa ng API key\n"
+        "  4. I-paste sa ~/.kurt/.env:\n"
+        "     [bold]GROQ_API_KEY=gsk_xxxx...[/bold]\n\n"
+        "[bold green]Option 2 — OpenRouter (libre din ang ilang models):[/bold green]\n"
+        "  1. Pumunta sa: [link]https://openrouter.ai/keys[/link]\n"
+        "  2. Gumawa ng API key\n"
+        "  3. I-paste sa ~/.kurt/.env:\n"
+        "     [bold]OPENROUTER_API_KEY=sk-or-v1-xxxx...[/bold]\n\n"
+        "Pagkatapos: [bold]kurt setup[/bold] o i-restart ang kurt chat",
+        title="Setup Required",
+        border_style="yellow",
+    ))
+
+
 async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt=""):
     """Stream AI response with real-time display"""
     router = ModelRouter()
@@ -329,10 +353,15 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         console.print()
 
     except Exception as e:
+        err_str = str(e)
+        # Detect auth errors (bad/missing key) vs model errors (404)
+        is_auth_error = "401" in err_str or "Unauthorized" in err_str
         console.print(f"\n[red]❌ Error: {e}[/red]")
 
-        # Try fallback
-        if analysis.fallback_model != analysis.model:
+        # Skip fallback if primary already failed due to auth — same key won't help
+        skip_same_provider_fallback = is_auth_error and analysis.provider == analysis.fallback_provider
+
+        if analysis.fallback_model != analysis.model and not skip_same_provider_fallback:
             console.print(f"[yellow]↩ Trying fallback: {analysis.fallback_model}[/yellow]")
             try:
                 full_response = ""
@@ -347,28 +376,11 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 console.print()
             except Exception as e2:
                 console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
-                # Last resort: Groq LLaMA (free, 14,400 req/day)
-                groq_key = os.getenv("GROQ_API_KEY", "")
-                if groq_key and analysis.fallback_provider != "groq":
-                    console.print("[yellow]↩ Emergency fallback: Groq LLaMA 3.3 (libre!)[/yellow]")
-                    try:
-                        full_response = ""
-                        with Live(Text(""), refresh_per_second=10, console=console) as live:
-                            async for chunk in router.route(
-                                provider="groq",
-                                model="llama-3.3-70b-versatile",
-                                messages=messages,
-                            ):
-                                full_response += chunk
-                                live.update(Text(full_response))
-                        console.print()
-                    except Exception as e3:
-                        console.print(f"[red]❌ Groq fallback failed: {e3}[/red]")
-                        console.print("[dim]💡 Tip: i-check ang GROQ_API_KEY sa ~/.kurt/.env[/dim]")
-                        return
-                else:
-                    console.print("[dim]💡 Tip: maglagay ng GROQ_API_KEY sa ~/.kurt/.env para sa libre na fallback![/dim]")
-                    return
+                _show_no_key_help()
+                return
+        else:
+            _show_no_key_help()
+            return
 
     # Auto-save code artifacts for CODE/DESIGN/ARTIFACT tasks
     if full_response and analysis.task_type in {TaskType.CODE, TaskType.DESIGN, TaskType.ARTIFACT, TaskType.GAME}:
