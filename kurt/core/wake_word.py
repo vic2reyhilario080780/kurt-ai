@@ -406,13 +406,56 @@ class WakeWordListener:
     def _setup_hotkey(self):
         """Set up keyboard hotkey as wake word fallback"""
         hotkey = HOTKEY_TRIGGER.get(OS, "ctrl+shift+k")
+
+        # Try pynput first — works on Mac without admin/root
+        try:
+            from pynput import keyboard as pynput_kb
+
+            # Parse hotkey string into pynput keys
+            _key_map = {
+                "ctrl":  pynput_kb.Key.ctrl,
+                "shift": pynput_kb.Key.shift,
+                "alt":   pynput_kb.Key.alt,
+                "cmd":   pynput_kb.Key.cmd,
+            }
+            parts = hotkey.lower().split("+")
+            trigger_keys = set()
+            for p in parts:
+                if p in _key_map:
+                    trigger_keys.add(_key_map[p])
+                elif len(p) == 1:
+                    trigger_keys.add(pynput_kb.KeyCode.from_char(p))
+
+            current_keys: set = set()
+            callback = self._on_hotkey_pressed
+
+            def on_press(key):
+                current_keys.add(key)
+                if trigger_keys and trigger_keys.issubset(current_keys):
+                    callback()
+
+            def on_release(key):
+                current_keys.discard(key)
+
+            listener = pynput_kb.Listener(on_press=on_press, on_release=on_release)
+            listener.daemon = True
+            listener.start()
+            logger.info(f"Hotkey registered (pynput): {hotkey}")
+            self._hotkey_active = True
+            return
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"pynput hotkey failed: {e}")
+
+        # Fallback: try keyboard library (needs admin on Mac)
         try:
             import keyboard
             keyboard.add_hotkey(hotkey, self._on_hotkey_pressed)
-            logger.info(f"Hotkey registered: {hotkey}")
+            logger.info(f"Hotkey registered (keyboard lib): {hotkey}")
             self._hotkey_active = True
         except ImportError:
-            logger.info("keyboard library not installed — hotkey disabled. Install: pip install keyboard")
+            logger.info("keyboard library not installed — hotkey disabled")
         except Exception as e:
             logger.warning(f"Hotkey setup failed: {e}")
 
