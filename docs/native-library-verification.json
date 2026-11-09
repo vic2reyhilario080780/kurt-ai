@@ -1,0 +1,12 @@
+{
+  "counts": {
+    "skill": 10000,
+    "agent": 10000,
+    "plugin": 10000
+  },
+  "total_executed": 30000,
+  "errors": [],
+  "manifest_sha256": "56154cfa6db34ed741c3696ece04b0eee5c47b6ba52bd2579a86c2c9f557121e",
+  "coverage": "All entries: local fixture execution, references, prompt length, output facts and serialization. No model/API calls.",
+  "scope": "Local numeric CSV/JSON data workflows. Domain specializations share ten algorithms."
+}

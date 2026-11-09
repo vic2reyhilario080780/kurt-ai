@@ -693,13 +693,16 @@ def init_skills():
                 json.dump({**skill_data, "id": skill_id, "builtin": True}, f, indent=2)
 
 
-def get_all_skills() -> list[dict]:
+def get_all_skills(include_native=True) -> list[dict]:
     """Return raw data for every installed skill (built-in + custom)."""
     init_skills()
     skills = []
     for skill_file in sorted(SKILLS_DIR.glob("*.json")):
         with open(skill_file) as f:
             skills.append(json.load(f))
+    if include_native:
+        from kurt.capabilities.runtime import search
+        skills.extend({**s, "builtin": True} for s in search(kind="skill", limit=10000))
     return skills
 
 
@@ -718,7 +721,7 @@ def list_skills():
     table.add_column("Description", style="dim", width=40)
     table.add_column("Type", style="yellow", width=10)
 
-    for skill in skills:
+    for skill in skills[:40]:
         skill_type = "[green]Built-in[/green]" if skill.get("builtin") else "[blue]Custom[/blue]"
         table.add_row(
             skill["id"],
@@ -728,12 +731,19 @@ def list_skills():
         )
 
     console.print(table)
+    console.print(f"[dim]Showing {min(40, len(skills))} of {len(skills):,} skills. Native search: kurt library search <words> --kind skill[/dim]")
     console.print(f"\n[dim]Skills dir: {SKILLS_DIR}[/dim]")
     console.print("[dim]Install custom skill: kurt skill install <path>[/dim]")
 
 
 def get_skill(skill_id: str) -> dict | None:
     """Get a skill's data"""
+    if skill_id.startswith("kurt-skill--"):
+        from kurt.capabilities.runtime import get_capability
+        try:
+            return get_capability(skill_id)
+        except ValueError:
+            return None
     init_skills()
     skill_file = SKILLS_DIR / f"{skill_id}.json"
     if skill_file.exists():

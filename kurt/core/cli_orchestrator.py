@@ -45,26 +45,38 @@ class SlashResult:
 # ─────────────────────────────────────────
 
 SLASH_COMMANDS = {
-    "/help":      "Show all slash commands",
-    "/clear":     "Start a new session",
-    "/exit":      "Exit chat",
-    "/quit":      "Exit chat",
-    "/model":     "Switch AI model  e.g. /model gemini-flash",
-    "/skill":     "Apply a skill   e.g. /skill tiktok",
-    "/claude":    "Run Claude Code CLI  e.g. /claude 'review this file'",
-    "/gemini":    "Run Gemini CLI   e.g. /gemini 'what is in this repo?'",
-    "/gh":        "Run GitHub CLI   e.g. /gh pr list",
-    "/run":       "Run a shell cmd  e.g. /run ls -la",
-    "/models":    "Show available AI models",
-    "/skills":    "Show skill categories",
-    "/history":   "Show session history",
-    "/save":      "Save last response as a file",
-    "/info":      "Show KURT session info",
-    "/mcp":       "MCP tools: /mcp list | /mcp tools | /mcp call server/tool",
-    "/computer":  "Desktop control: /computer screenshot | type <text> | click <x> <y>",
-    "/web":       "Fetch a page or search: /web <url> | /web search <query>",
-    "/browser":   "Playwright browser: /browser open <url> | screenshot | click <sel> | fill <sel> <val> | close",
+    # ── Navigation — managing the chat session itself ──────────────
+    "/help":      "Show this list of commands",
+    "/clear":     "Start a fresh session  e.g. /clear",
+    "/exit":      "Exit chat  e.g. /exit",
+    "/quit":      "Exit chat (same as /exit)  e.g. /quit",
+    "/history":   "Show recent messages in this session  e.g. /history",
+    "/info":      "Show session ID, active model, and active skill  e.g. /info",
+    "/save":      "Save Kurt's last reply to a file  e.g. /save answer.md",
+    # ── AI Tools — models, skills, and native workflows ─────────────
+    "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
+    "/models":    "Show the live model routing table  e.g. /models",
+    "/skill":     "Apply a skill to the next message  e.g. /skill tiktok",
+    "/skills":    "List or search Kurt's loaded skills  e.g. /skills trading",
+    "/library":   "Run a native data workflow (local, no AI call)  e.g. /library stats",
+    # ── System — shell out to other dev tools ───────────────────────
+    "/run":       "Run a shell command  e.g. /run ls -la",
+    "/gh":        "Run GitHub CLI  e.g. /gh pr list",
+    "/claude":    "Delegate to Claude Code CLI  e.g. /claude \"review main.py for bugs\"",
+    "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
+    "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
+    # ── Web & Computer — browsing and desktop control ────────────────
+    "/web":       "Fetch a page or search the web  e.g. /web https://example.com",
+    "/browser":   "Control a real (Playwright) browser  e.g. /browser open https://example.com",
+    "/computer":  "Control the Mac desktop  e.g. /computer screenshot",
 }
+
+SLASH_GROUPS = [
+    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save"]),
+    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/library"]),
+    ("⚙️  System", ["/run", "/gh", "/claude", "/gemini", "/mcp"]),
+    ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
+]
 
 
 # ─────────────────────────────────────────
@@ -147,9 +159,13 @@ def handle_slash(
 
     # ── /help ───────────────────────────────────────────────────────
     if cmd == "/help":
-        lines = ["", "📖  KURT Slash Commands", "─" * 40]
-        for slash, desc in SLASH_COMMANDS.items():
-            lines.append(f"  {slash:<12}  {desc}")
+        lines = ["", "📖  KURT Slash Commands", "═" * 50]
+        for group_name, slash_names in SLASH_GROUPS:
+            lines.append(f"\n{group_name}")
+            lines.append("─" * 40)
+            for slash in slash_names:
+                desc = SLASH_COMMANDS.get(slash, "")
+                lines.append(f"  {slash:<12}  {desc}")
         lines += ["", "Tip: /claude, /gemini, /gh pipe directly to their CLIs"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
@@ -251,15 +267,25 @@ def handle_slash(
         lines += ["", "Switch: /model <model-name>", "  e.g. /model openai/gpt-oss-120b"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
+    if cmd == "/library":
+        from kurt.capabilities.commands import chat_command
+        try:
+            output = chat_command(args)
+        except (ValueError, OSError) as exc:
+            output = f"Native workflow: {exc}"
+        return SlashResult(handled=True, output=output, continue_chat=True)
+
     # ── /skills ─────────────────────────────────────────────────────
     if cmd == "/skills":
         from kurt.skills.manager import get_all_skills
         skills = get_all_skills()
         lines = ["", f"🧠  Installed Skills ({len(skills)})", "─" * 40]
-        for s in skills:
+        if args:
+            skills = [s for s in skills if args.casefold() in (s['id'] + ' ' + s['description']).casefold()]
+        for s in skills[:40]:
             kind = "built-in" if s.get("builtin") else "custom"
             lines.append(f"  {s['id']:<15} {s['description']} [{kind}]")
-        lines += ["", "Browse the marketplace catalog: `kurt skill --help`", "Apply skill: /skill <name>"]
+        lines += ["", f"Showing {min(40, len(skills))} matches. Native workflows: /library search <words>", "Apply skill: /skill <name>"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
     # ── /save ───────────────────────────────────────────────────────
@@ -354,6 +380,14 @@ def handle_slash(
         sub_cmd = sub[0].lower() if sub else "list"
         sub_args = sub[1].strip() if len(sub) > 1 else ""
 
+        if sub_cmd in ("catalog", "search", "config", "connect", "import"):
+            from kurt.core.mcp_commands import chat_command
+            try:
+                output = chat_command(sub_cmd, sub_args)
+            except (ValueError, OSError) as exc:
+                output = f"MCP: {exc}"
+            return SlashResult(handled=True, output=output, continue_chat=True)
+
         if sub_cmd == "list":
             from kurt.core.mcp_client import load_registry
             registry = load_registry()
@@ -413,7 +447,7 @@ def handle_slash(
 
         return SlashResult(
             handled=True,
-            output="Usage: /mcp list | /mcp tools | /mcp call server/tool {params}",
+            output="Usage: /mcp catalog | search <app> | config <id> | connect <JSON or URL> | list | tools | call server/tool {params}",
             continue_chat=True,
         )
 

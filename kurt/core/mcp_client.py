@@ -5,13 +5,11 @@ Works with: local servers, remote HTTP servers, Composio, Zapier MCP, etc.
 """
 
 import os
-import re
 import json
 import asyncio
-import subprocess
 import httpx
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 from dataclasses import dataclass, field
 from rich.console import Console
 from rich.table import Table
@@ -67,12 +65,14 @@ def load_registry() -> dict[str, MCPConnection]:
         return {}
     try:
         raw = json.loads(MCP_REGISTRY_PATH.read_text())
+        if not isinstance(raw, dict) or not all(isinstance(v, dict) for v in raw.values()):
+            raise ValueError("Expected a server configuration map.")
         result = {}
         for name, data in raw.items():
-            result[name] = MCPConnection(**data)
+            result[name] = MCPConnection(**{**data, "name": name})
         return result
-    except Exception:
-        return {}
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Invalid MCP connections file; fix it before adding connections.") from exc
 
 
 def save_registry(connections: dict[str, MCPConnection]):
@@ -91,7 +91,16 @@ def save_registry(connections: dict[str, MCPConnection]):
             "enabled": conn.enabled,
             "description": conn.description,
         }
-    MCP_REGISTRY_PATH.write_text(json.dumps(raw, indent=2))
+    import tempfile
+    # Connection configs can hold tokens; preserve the old file until replacement.
+    fd, temp_path = tempfile.mkstemp(prefix=".mcp-", dir=KURT_DIR)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(raw, stream, indent=2)
+        os.replace(temp_path, MCP_REGISTRY_PATH)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 def add_connection(conn: MCPConnection) -> str:
@@ -113,181 +122,106 @@ def remove_connection(name: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
-# HTTP/SSE MCP Client
+# Protocol sessions (official SDK: initialization, SSE, HTTP, stdio)
 # ─────────────────────────────────────────────────────────────
 
-async def _http_list_tools(url: str, headers: dict) -> list[MCPTool]:
-    """List tools from an HTTP MCP server"""
-    base = url.rstrip("/")
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            f"{base}",
-            headers={"Content-Type": "application/json", **headers},
-            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        tools_raw = data.get("result", {}).get("tools", [])
-        return [
-            MCPTool(
-                name=t["name"],
-                description=t.get("description", ""),
-                input_schema=t.get("inputSchema", {}),
-            )
-            for t in tools_raw
-        ]
+from contextlib import asynccontextmanager
+from datetime import timedelta
 
 
-async def _http_call_tool(url: str, headers: dict, tool_name: str, params: dict) -> str:
-    """Call a tool on an HTTP MCP server"""
-    base = url.rstrip("/")
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{base}",
-            headers={"Content-Type": "application/json", **headers},
-            json={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {"name": tool_name, "arguments": params},
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        result = data.get("result", {})
-        content = result.get("content", [])
-        if isinstance(content, list):
-            parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    parts.append(item.get("text", str(item)))
-                else:
-                    parts.append(str(item))
-            return "\n".join(parts)
-        return str(result)
+@asynccontextmanager
+async def mcp_session(conn: MCPConnection):
+    """Own transport and session in one task; always clean up on failure."""
+    from contextlib import AsyncExitStack
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from mcp.client.sse import sse_client
+    from mcp.client.streamable_http import streamable_http_client
+
+    if not conn.enabled:
+        raise ValueError("Connection is disabled.")
+    async with AsyncExitStack() as stack:
+        if conn.transport == "stdio":
+            import tempfile
+            # Drain subprocess diagnostics without exposing secrets to the chat.
+            errors = stack.enter_context(tempfile.TemporaryFile(mode="w+"))
+            streams = await stack.enter_async_context(stdio_client(
+                StdioServerParameters(command=conn.command, args=conn.args,
+                                      env={**os.environ, **conn.env}), errlog=errors))
+        elif conn.transport == "sse":
+            streams = await stack.enter_async_context(sse_client(
+                conn.url, headers=conn.headers, timeout=15, sse_read_timeout=30))
+        elif conn.transport == "http":
+            client = await stack.enter_async_context(httpx.AsyncClient(
+                headers=conn.headers, timeout=httpx.Timeout(30, connect=15), follow_redirects=True))
+            streams = await stack.enter_async_context(streamable_http_client(
+                conn.url, http_client=client))
+        else:
+            raise ValueError("Unsupported MCP transport.")
+        session = await stack.enter_async_context(ClientSession(
+            streams[0], streams[1], read_timeout_seconds=timedelta(seconds=30)))
+        await session.initialize()
+        yield session
 
 
-# ─────────────────────────────────────────────────────────────
-# Stdio MCP Client (spawn subprocess, speak JSON-RPC over stdin/stdout)
-# ─────────────────────────────────────────────────────────────
-
-class StdioMCPClient:
-    """Manages a stdio MCP server subprocess"""
-
-    def __init__(self, conn: MCPConnection):
-        self.conn = conn
-        self._proc: Optional[asyncio.subprocess.Process] = None
-        self._id = 0
-
-    async def start(self):
-        env = {**os.environ, **self.conn.env}
-        cmd = [self.conn.command] + self.conn.args
-        self._proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        # Initialize
-        await self._send({"jsonrpc": "2.0", "id": self._next_id(), "method": "initialize",
-                          "params": {"protocolVersion": "2024-11-05",
-                                     "capabilities": {},
-                                     "clientInfo": {"name": "kurt", "version": "0.1"}}})
-
-    async def stop(self):
-        if self._proc:
-            self._proc.terminate()
-            await self._proc.wait()
-
-    def _next_id(self):
-        self._id += 1
-        return self._id
-
-    async def _send(self, msg: dict) -> dict:
-        if not self._proc:
-            raise RuntimeError("Process not started")
-        line = json.dumps(msg) + "\n"
-        self._proc.stdin.write(line.encode())
-        await self._proc.stdin.drain()
-        # Read response (may have multiple lines before the response)
-        for _ in range(50):  # max 50 lines
-            raw = await asyncio.wait_for(self._proc.stdout.readline(), timeout=10)
-            if not raw:
-                break
-            try:
-                resp = json.loads(raw.decode().strip())
-                if resp.get("id") == msg.get("id"):
-                    return resp
-            except json.JSONDecodeError:
-                continue
-        return {}
-
-    async def list_tools(self) -> list[MCPTool]:
-        resp = await self._send({"jsonrpc": "2.0", "id": self._next_id(),
-                                  "method": "tools/list", "params": {}})
-        tools_raw = resp.get("result", {}).get("tools", [])
-        return [
-            MCPTool(
-                name=t["name"],
-                description=t.get("description", ""),
-                input_schema=t.get("inputSchema", {}),
-            )
-            for t in tools_raw
-        ]
-
-    async def call_tool(self, name: str, params: dict) -> str:
-        resp = await self._send({
-            "jsonrpc": "2.0",
-            "id": self._next_id(),
-            "method": "tools/call",
-            "params": {"name": name, "arguments": params},
-        })
-        result = resp.get("result", {})
-        content = result.get("content", [])
-        if isinstance(content, list):
-            parts = [item.get("text", str(item)) if isinstance(item, dict) else str(item)
-                     for item in content]
-            return "\n".join(parts)
-        return str(result)
-
-
-# ─────────────────────────────────────────────────────────────
-# Public API: list_tools + call_tool for any connection
-# ─────────────────────────────────────────────────────────────
-
-async def list_tools(conn: MCPConnection) -> list[MCPTool]:
-    """List tools from any MCP connection"""
+async def probe_connection(conn: MCPConnection) -> list[MCPTool]:
+    """Initialize and list every page of tools, raising on real failures."""
     tools = []
-    try:
-        if conn.transport == "http" or conn.transport == "sse":
-            tools = await _http_list_tools(conn.url, conn.headers)
-        elif conn.transport == "stdio":
-            client = StdioMCPClient(conn)
-            await client.start()
-            tools = await client.list_tools()
-            await client.stop()
-    except Exception as e:
-        console.print(f"[red]❌ {conn.name}: {e}[/red]")
-    for t in tools:
-        t.server_name = conn.name
+    async with mcp_session(conn) as session:
+        cursor = None
+        seen = set()
+        while True:
+            result = await session.list_tools(cursor=cursor)
+            tools.extend(MCPTool(name=t.name, description=t.description or "",
+                                 input_schema=t.inputSchema, server_name=conn.name)
+                         for t in result.tools)
+            cursor = result.nextCursor
+            if not cursor:
+                break
+            if cursor in seen:
+                raise ValueError("Server repeated its tool pagination cursor.")
+            seen.add(cursor)
     return tools
 
 
-async def call_tool(conn: MCPConnection, tool_name: str, params: dict) -> str:
-    """Call a tool on any MCP connection"""
+def connection_error(exc: Exception) -> str:
+    """Return useful diagnostics without printing credential-bearing URLs."""
+    children = getattr(exc, "exceptions", None)
+    if children:
+        return "; ".join(dict.fromkeys(connection_error(e) for e in children))
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        if code in (401, 403):
+            return f"HTTP {code}: access denied; provide the app's API key/access token. Browser OAuth sign-in is not implemented."
+        return f"HTTP {code}: server rejected the MCP request."
+    if isinstance(exc, FileNotFoundError):
+        return "Required executable is missing; install the configured command (such as npx or uvx)."
+    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+        return "Connection timed out."
+    # Error messages from packages and endpoints can contain secrets.
+    return f"{type(exc).__name__}: connection failed; check transport, endpoint and credentials."
+
+
+async def list_tools(conn: MCPConnection) -> list[MCPTool]:
     try:
-        if conn.transport == "http" or conn.transport == "sse":
-            return await _http_call_tool(conn.url, conn.headers, tool_name, params)
-        elif conn.transport == "stdio":
-            client = StdioMCPClient(conn)
-            await client.start()
-            result = await client.call_tool(tool_name, params)
-            await client.stop()
-            return result
-    except Exception as e:
-        return f"❌ MCP error ({conn.name}/{tool_name}): {e}"
-    return "❌ Unknown transport"
+        return await probe_connection(conn)
+    except Exception as exc:
+        console.print(f"❌ {conn.name}: {connection_error(exc)}", markup=False)
+        return []
+
+
+async def call_tool(conn: MCPConnection, tool_name: str, params: dict) -> str:
+    try:
+        async with mcp_session(conn) as session:
+            result = await session.call_tool(tool_name, arguments=params)
+            parts = [item.text if hasattr(item, "text") else item.model_dump_json()
+                     for item in result.content]
+            text = "\n".join(parts)
+            if result.structuredContent:
+                text += "\n" + json.dumps(result.structuredContent, ensure_ascii=False)
+            return ("❌ Tool error: " if result.isError else "") + text
+    except Exception as exc:
+        return f"❌ MCP error ({conn.name}/{tool_name}): {connection_error(exc)}"
 
 
 async def list_all_tools() -> dict[str, list[MCPTool]]:

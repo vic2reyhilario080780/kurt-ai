@@ -125,12 +125,19 @@ def list_plugins():
         )
 
     console.print(table)
+    from kurt.capabilities.runtime import manifest
+    console.print(f"[dim]Also available: {manifest()['counts']['plugin']:,} executable native plugins. Browse: kurt library search <words> --kind plugin[/dim]")
     console.print("[dim]Enable: kurt plugin enable <id>[/dim]")
     console.print("[dim]Disable: kurt plugin disable <id>[/dim]")
 
 
 def enable_plugin(plugin_id: str):
     """Enable a plugin"""
+    if plugin_id.startswith("kurt-plugin--"):
+        from kurt.capabilities.runtime import set_enabled
+        set_enabled(plugin_id, True)
+        console.print(f"Enabled native plugin: {plugin_id}", markup=False)
+        return
     init_plugins()
     plugin_file = PLUGINS_DIR / f"{plugin_id}.json"
 
@@ -158,6 +165,11 @@ def enable_plugin(plugin_id: str):
 
 def disable_plugin(plugin_id: str):
     """Disable a plugin"""
+    if plugin_id.startswith("kurt-plugin--"):
+        from kurt.capabilities.runtime import set_enabled
+        set_enabled(plugin_id, False)
+        console.print(f"Disabled native plugin: {plugin_id}", markup=False)
+        return
     init_plugins()
     plugin_file = PLUGINS_DIR / f"{plugin_id}.json"
 

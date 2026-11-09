@@ -38,6 +38,16 @@ MAX_STEPS = 15  # Safety limit — prevent infinite loops
 
 TOOLS = [
     {
+        "name": "search_native",
+        "description": "Find executable Kurt-native CSV/JSON data workflows. Returns IDs and names; search by domain, metric or operation.",
+        "parameters": {"query": "string", "kind": "optional: skill, agent or plugin", "limit": "optional integer, default 10"},
+    },
+    {
+        "name": "run_native",
+        "description": "Execute a native data workflow ID on a user-supplied CSV/JSON file. Requires no API key and never modifies the input. Returns a descriptive report, not external app actions.",
+        "parameters": {"capability_id": "string from search_native", "input_path": "string: user's CSV/JSON path"},
+    },
+    {
         "name": "read_file",
         "description": "Read a file's contents. Use for understanding code before editing.",
         "parameters": {
@@ -314,7 +324,17 @@ def execute_tool(tool_name: str, params: dict) -> str:
     import subprocess
 
     try:
-        if tool_name == "read_file":
+        if tool_name == "search_native":
+            from kurt.capabilities.runtime import search
+            return json.dumps(search(params.get("query", ""), params.get("kind"), int(params.get("limit", 10))), ensure_ascii=False)
+
+        elif tool_name == "run_native":
+            from kurt.capabilities.runtime import run_capability
+            result = run_capability(params.get("capability_id", ""), input_path=params.get("input_path"))
+            text = json.dumps(result, ensure_ascii=False, allow_nan=False)
+            return text[:16000] + " [truncated; use kurt library run --output for the complete result]" if len(text) > 16000 else text
+
+        elif tool_name == "read_file":
             return read_file(params.get("path", ""), params.get("lines"))
 
         elif tool_name == "list_dir":
@@ -387,9 +407,7 @@ def execute_tool(tool_name: str, params: dict) -> str:
             mcp_params = params.get("params", {})
             if not tool_ref:
                 return "❌ mcp_tool requires 'tool_ref'"
-            import asyncio as _asyncio
-            loop = _asyncio.get_event_loop()
-            return loop.run_until_complete(execute_mcp_tool(tool_ref, mcp_params))
+            return _run_coro_blocking(execute_mcp_tool(tool_ref, mcp_params))
 
         # ── Orchestration Tools ───────────────────────────────────
 

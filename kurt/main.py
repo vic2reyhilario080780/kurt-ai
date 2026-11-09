@@ -80,16 +80,85 @@ from kurt.core.codebase import (
 
 app = typer.Typer(
     name="kurt",
-    help="🤖 KURT — Kinetic Unified Response Terminal",
+    help="🤖 KURT — Kinetic Unified Response Terminal, Daddy Tito's personal AI assistant",
     no_args_is_help=False,
     add_completion=True,
     invoke_without_command=True,
+    epilog=(
+        "Examples:\n\n"
+        "  kurt hello                          First time? Start here\n"
+        "  kurt ask \"what is the capital of PH?\"   One-off question, no chat session\n"
+        "  kurt chat                           Open an interactive conversation\n"
+        "  kurt do \"open Spotify and play lofi\"    Let Kurt control the computer\n"
+        "  kurt skill list                     See what skills Kurt has loaded\n"
+        "  kurt mcp list                       See connected MCP tool servers\n"
+        "  kurt setup                          First-time setup — add your API keys\n\n"
+        "Tagalog tip: hindi mo kailangan gamitin lahat ng commands — \"kurt chat\" lang, sapat na iyon."
+    ),
 )
 
 console = Console()
-skill_app = typer.Typer(help="Manage KURT skills")
+
+
+@app.command(rich_help_panel="⚙️  Setup")
+def version():
+    """ℹ️  Show Kurt's version number.
+
+    Halimbawa (example): kurt version
+    """
+    from kurt import __version__ as kurt_version
+    console.print(f"KURT v{kurt_version}")
+
+
+@app.command(rich_help_panel="💬 Talk to Kurt")
+def hello():
+    """👋 New here? Start with this — a quick look at what Kurt can do right now.
+
+    Halimbawa (example): kurt hello
+    """
+    load_env()
+
+    from kurt.skills.manager import get_all_skills
+    from kurt.core.orchestrator import ROUTING_TABLE
+    from kurt.core.mcp_client import load_registry
+
+    _persona = load_persona()
+    _kurt_name = _persona.get("kurt_name", "KURT")
+
+    try:
+        skill_count = len(get_all_skills())
+    except Exception:
+        skill_count = 0
+
+    model_names = sorted({route["model"] for route in ROUTING_TABLE.values()})
+
+    try:
+        mcp_servers = load_registry()
+        mcp_count = len(mcp_servers)
+        mcp_names = ", ".join(mcp_servers.keys()) if mcp_servers else "wala pa (none yet)"
+    except Exception:
+        mcp_count = 0
+        mcp_names = "wala pa (none yet)"
+
+    console.print(Panel(
+        f"[bold cyan]👋 Hey, ako si {_kurt_name}![/bold cyan]\n\n"
+        "Ako ang personal AI assistant mo dito sa terminal. Here's what I can do:\n\n"
+        "  💬 [bold]kurt chat[/bold] — mag-usap tayo, ongoing conversation\n"
+        "  🤖 [bold]kurt ask \"...\"[/bold] — quick one-off question\n"
+        "  🖱️  [bold]kurt do \"...\"[/bold] — I'll click/type/open apps for you\n"
+        "  📂 [bold]kurt read / edit / run[/bold] — file work with AI help\n\n"
+        f"🧠 [bold]{skill_count}[/bold] skills loaded (`kurt skill list` to browse)\n"
+        f"🤖 [bold]{len(model_names)}[/bold] models wired up: {', '.join(model_names)}\n"
+        f"🔌 [bold]{mcp_count}[/bold] MCP server(s) connected: {mcp_names}\n\n"
+        "[dim]First time? Run `kurt setup` para ilagay ang API keys mo. "
+        "Tapos, `kurt chat` na lang![/dim]",
+        title=f"🤖 {_kurt_name}",
+        box=box.ROUNDED,
+        border_style="cyan",
+    ))
+skill_app = typer.Typer(help="🧠 Skills give Kurt expert knowledge for a topic — list, add, remove, or search them")
 plugin_app = typer.Typer(help="Manage KURT plugins")
-mcp_app = typer.Typer(help="Manage MCP connections")
+mcp_app = typer.Typer(help="🔌 MCP connects Kurt to outside tools (files, GitHub, etc.) — list, add, remove, test, call")
 hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n8n, Zapier")
 connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
 models_app = typer.Typer(help="🤖 OpenRouter — 200+ live AI models")
@@ -99,16 +168,20 @@ project_app = typer.Typer(help="📁 Manage projects with AI context")
 artifact_app = typer.Typer(help="📦 Manage AI-generated code artifacts")
 schedule_app = typer.Typer(help="⏰ Schedule recurring KURT tasks")
 
-app.add_typer(skill_app, name="skill")
-app.add_typer(plugin_app, name="plugin")
-app.add_typer(mcp_app, name="mcp")
-app.add_typer(hub_app, name="hub")
-app.add_typer(connect_app, name="connect")
-app.add_typer(models_app, name="models")
-app.add_typer(config_app, name="config")
-app.add_typer(project_app, name="project")
-app.add_typer(artifact_app, name="artifact")
-app.add_typer(schedule_app, name="schedule")
+app.add_typer(skill_app, name="skill", rich_help_panel="🧩 Extend Kurt")
+app.add_typer(plugin_app, name="plugin", rich_help_panel="🧩 Extend Kurt")
+app.add_typer(mcp_app, name="mcp", rich_help_panel="🧩 Extend Kurt")
+from kurt.core.mcp_commands import register_commands as register_mcp_commands
+register_mcp_commands(mcp_app, console)
+from kurt.capabilities.commands import register_commands as register_native_commands
+register_native_commands(app, skill_app, plugin_app, console)
+app.add_typer(hub_app, name="hub", rich_help_panel="🧩 Extend Kurt")
+app.add_typer(connect_app, name="connect", rich_help_panel="🧩 Extend Kurt")
+app.add_typer(models_app, name="models", rich_help_panel="🧩 Extend Kurt")
+app.add_typer(config_app, name="config", rich_help_panel="🎨 Personalize")
+app.add_typer(project_app, name="project", rich_help_panel="🎨 Personalize")
+app.add_typer(artifact_app, name="artifact", rich_help_panel="🎨 Personalize")
+app.add_typer(schedule_app, name="schedule", rich_help_panel="🎨 Personalize")
 
 KURT_ASCII = """
  ██╗  ██╗██╗   ██╗██████╗ ████████╗
@@ -180,16 +253,23 @@ def main(
         console.print('Run [cyan]kurt --help[/cyan] to see all commands')
 
 
-@app.command()
+@app.command(rich_help_panel="💬 Talk to Kurt")
 def ask(
     prompt: str = typer.Argument(..., help="Your task or question"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific model"),
-    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Use a specific skill"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
+    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Use a specific skill, e.g. tiktok, seo, trading"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue a session by ID"),
-    no_memory: bool = typer.Option(False, "--no-memory", help="Huwag i-save ang conversation"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show routing details"),
+    no_memory: bool = typer.Option(False, "--no-memory", help="Huwag i-save ang conversation (don't save to history)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show which model/provider Kurt picked and why"),
 ):
-    """🤖 Ask KURT — auto-routes to best AI model"""
+    """🤖 Ask KURT one question, get one answer — no chat session, no back-and-forth.
+
+    Use 'ask' when you just want a quick answer and you're going back to your terminal
+    work right after. Use 'chat' instead if you want an ongoing conversation where Kurt
+    remembers what you said earlier in the same session.
+
+    Halimbawa (example): kurt ask "ano ang 15% ng 2400?"
+    """
 
     # Load env
     load_env()
@@ -390,9 +470,13 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
 # SETUP COMMAND
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="⚙️  Setup")
 def setup():
-    """⚙️  Configure KURT — API keys at settings"""
+    """⚙️  First-time setup — add your API keys (Groq, OpenRouter, etc.) and preferences.
+
+    Run this once before using Kurt. Walang key? Libre ang Groq — makakakuha ka ng
+    isa sa console.groq.com sa ilang segundo lang.
+    """
     from kurt.utils.setup import run_setup
     run_setup()
 
@@ -439,13 +523,19 @@ def models_stats_cmd():
 # CHAT COMMAND (Interactive Mode)
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="💬 Talk to Kurt")
 def chat(
-    skill: Optional[str] = typer.Option(None, "--skill", "-s"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Start with a skill active, e.g. tiktok, seo, trading"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
 ):
-    """💬 Interactive chat mode — mag-usap sa KURT"""
+    """💬 Open an ongoing conversation with Kurt — mag-usap kayo, aalala siya sa sinabi mo.
+
+    This is the main way to use Kurt day-to-day. Type /help once inside chat to see
+    all slash commands (switch models, run shell commands, browse the web, etc.).
+
+    Halimbawa (example): kurt chat
+    """
     load_env()
     init_db()
 
@@ -766,13 +856,13 @@ def chat(
 # VOICE COMMAND — "Hey Kurt"
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="💬 Talk to Kurt")
 def voice(
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     speak: bool = typer.Option(True, "--speak/--no-speak", help="Text-to-speech responses"),
     hotkey_only: bool = typer.Option(False, "--hotkey", help="Hotkey only (no mic listening)"),
 ):
-    """🎤 Voice mode — say 'Hey Kurt' to activate (Ctrl+Shift+K as fallback)"""
+    """🎤 Talk to Kurt out loud — say 'Hey Kurt' or press Ctrl+Shift+K to activate."""
     load_env()
     init_db()
 
@@ -907,14 +997,22 @@ def voice(
 # DO COMMAND — Agent + Computer Use
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="🖱️  Automate")
 def do(
     task: str = typer.Argument(..., help="Task for Kurt to execute with computer control"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
-    max_steps: int = typer.Option(15, "--max-steps", help="Max steps"),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
+    max_steps: int = typer.Option(15, "--max-steps", help="Max number of steps before Kurt gives up (safety limit)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show each step Kurt takes in detail"),
 ):
-    """🖱️ Do a computer task — Kurt will click, type, open apps as needed"""
+    """🖱️ Give Kurt a computer task and let it work on its own, step by step.
+
+    This is an "agent task" — instead of just answering a question, Kurt actually
+    DOES things: clicking, typing, opening apps, taking screenshots, even calling
+    other AI models or CLI tools, one step at a time, until the task is done or it
+    hits the step limit. Use this for multi-step things you'd normally do by hand.
+
+    Halimbawa (example): kurt do "open Safari and search for weather in Manila"
+    """
     load_env()
     init_db()
 
@@ -966,14 +1064,17 @@ def do(
 # PHASE 2 — FILE COMMANDS
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="📂 Files & Code")
 def read(
     path: str = typer.Argument(..., help="File path to read"),
     lines: Optional[str] = typer.Option(None, "--lines", "-l", help="Line range e.g. '10-25' or '10'"),
     ask: Optional[str] = typer.Option(None, "--ask", "-a", help="Ask AI a question about this file"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
 ):
-    """📖 Read a file — with optional AI analysis"""
+    """📖 Print a file's contents, with an optional AI question about it.
+
+    Halimbawa (example): kurt read main.py --ask "what does this file do?"
+    """
     load_env()
     content = read_file(path, lines)
     console.print(content)
@@ -1001,15 +1102,18 @@ def read(
         ))
 
 
-@app.command()
+@app.command(rich_help_panel="📂 Files & Code")
 def edit(
     path: str = typer.Argument(..., help="File to edit"),
     instruction: str = typer.Argument(..., help="What to change, in plain English"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview only — don't write"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt"),
 ):
-    """✏️  AI-powered file editing — describe what to change"""
+    """✏️  Edit a file by describing the change in plain English — Kurt writes the diff.
+
+    Halimbawa (example): kurt edit app.py "add error handling to the login function"
+    """
     load_env()
     init_db()
 
@@ -1100,14 +1204,17 @@ def edit(
     console.print(f"[{color}]{result}[/{color}]")
 
 
-@app.command("run")
+@app.command("run", rich_help_panel="📂 Files & Code")
 def run_cmd(
     path: str = typer.Argument(..., help="File to execute (.py .sh .js)"),
     args: str = typer.Option("", "--args", "-a", help="Arguments to pass"),
     explain: bool = typer.Option(False, "--explain", "-e", help="Ask AI to explain the output"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
 ):
-    """▶️  Execute a file and optionally explain the output"""
+    """▶️  Run a .py/.sh/.js file and optionally have Kurt explain the output.
+
+    Halimbawa (example): kurt run scrape.py --explain
+    """
     load_env()
 
     console.print(f"[cyan]▶ Running {path}[/cyan] [dim]{args}[/dim]\n")
@@ -1153,12 +1260,15 @@ def run_cmd(
         ))
 
 
-@app.command()
+@app.command(rich_help_panel="📂 Files & Code")
 def ls(
     path: str = typer.Argument(".", help="Directory to list"),
     depth: int = typer.Option(2, "--depth", "-d", help="Tree depth 1-3"),
 ):
-    """📁 List directory as tree"""
+    """📁 List a directory as a tree.
+
+    Halimbawa (example): kurt ls . --depth 2
+    """
     console.print(list_dir(path, depth))
 
 
@@ -1166,14 +1276,36 @@ def ls(
 # PHASE 3 — AGENT + CODEBASE + DIFF
 # ══════════════════════════════════════
 
-@app.command()
+@app.command(rich_help_panel="🖱️  Automate")
 def agent(
     task: str = typer.Argument(..., help="Task for the agent to complete autonomously"),
     path: str = typer.Option(".", "--path", "-p", help="Working directory"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     max_steps: int = typer.Option(15, "--max-steps", help="Max agent steps (safety limit)"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Native workflow-agent ID"),
+    data: Optional[str] = typer.Option(None, "--data", help="CSV/JSON input for a native workflow agent"),
+    output: Optional[str] = typer.Option(None, "--output", help="New JSON report path for a native workflow"),
 ):
-    """🤖 Agentic mode — multi-step AI task execution (like Claude Code!)"""
+    """🤖 Like 'kurt do', but for coding tasks — Kurt reads/edits files and runs
+    commands on its own until the task is done (similar to Claude Code's agent mode).
+
+    Halimbawa (example): kurt agent "fix the failing test in test_api.py"
+    """
+    if profile:
+        from kurt.capabilities.commands import run_and_write
+        if not data:
+            raise typer.BadParameter("--profile requires --data with a CSV or JSON file.")
+        try:
+            report = run_and_write(profile, data, output, "agent")
+        except (ValueError, OSError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        import json
+        print(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False))
+        if report["status"] != "completed":
+            raise typer.Exit(1)
+        return
+    if data or output:
+        raise typer.BadParameter("--data and --output require a native --profile.")
     load_env()
     init_db()
 
@@ -1202,14 +1334,17 @@ def agent(
         console.print(f"\n[dim]📝 Files changed: {', '.join(result.files_changed)}[/dim]")
 
 
-@app.command()
+@app.command(rich_help_panel="📂 Files & Code")
 def index(
     path: str = typer.Argument(".", help="Project directory to index"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-index"),
     ask: Optional[str] = typer.Option(None, "--ask", "-a", help="Ask AI about the codebase"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
 ):
-    """🔍 Index codebase — understand project structure"""
+    """🔍 Scan a project so Kurt understands its structure before you ask questions about it.
+
+    Halimbawa (example): kurt index . --ask "where is the login logic?"
+    """
     load_env()
 
     idx = index_codebase(path, force=force)
@@ -1238,15 +1373,18 @@ def index(
         ))
 
 
-@app.command()
+@app.command(rich_help_panel="📂 Files & Code")
 def diff(
     path: str = typer.Argument(".", help="Git repo path"),
     staged: bool = typer.Option(False, "--staged", "-s", help="Review staged changes only"),
     commits: Optional[str] = typer.Option(None, "--commits", "-c", help="Commit range e.g. 'HEAD~3..HEAD'"),
     focus: Optional[str] = typer.Option(None, "--focus", "-f", help="Focus area e.g. 'security' or 'performance'"),
-    model: Optional[str] = typer.Option(None, "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
 ):
-    """🔎 AI-powered git diff review"""
+    """🔎 Have Kurt review your git diff before you commit or open a PR.
+
+    Halimbawa (example): kurt diff --staged --focus security
+    """
     load_env()
     init_db()
 
@@ -1298,27 +1436,58 @@ def diff(
 # SKILL SUBCOMMANDS
 # ══════════════════════════════════════
 
-@skill_app.command("list")
+@skill_app.command("list", rich_help_panel="🧠 Core")
 def skill_list():
-    """List all available skills"""
+    """List every skill Kurt has loaded right now.
+
+    Halimbawa (example): kurt skill list
+    """
     list_skills()
 
 
-@skill_app.command("install")
+@skill_app.command("search", rich_help_panel="🧠 Core")
+def skill_search(query: str = typer.Argument(..., help="Word to search for in skill names/descriptions")):
+    """Search Kurt's loaded skills by name or description (not the marketplace browse lists below).
+
+    Halimbawa (example): kurt skill search trading
+    """
+    from kurt.skills.manager import get_all_skills
+    q = query.lower()
+    matches = [s for s in get_all_skills() if q in s.get("id", "").lower()
+               or q in s.get("name", "").lower() or q in s.get("description", "").lower()]
+    if not matches:
+        console.print(f"[yellow]No loaded skill matches \"{query}\".[/yellow] Run `kurt skill list` to see all of them.")
+        return
+    for s in matches:
+        kind = "built-in" if s.get("builtin") else "custom"
+        console.print(f"  [cyan]{s['id']}[/cyan]  {s.get('description', '')}  [dim]({kind})[/dim]")
+
+
+@skill_app.command("add", rich_help_panel="🧠 Core")
+@skill_app.command("install", rich_help_panel="🧠 Core", hidden=True)
 def skill_install(path: str = typer.Argument(..., help="Path to skill JSON file")):
-    """Install a skill from JSON file"""
+    """Add a skill from a JSON file (previously 'install' — still works too).
+
+    Halimbawa (example): kurt skill add my_new_skill.json
+    """
     install_skill(path)
 
 
-@skill_app.command("remove")
+@skill_app.command("remove", rich_help_panel="🧠 Core")
 def skill_remove(skill_id: str = typer.Argument(..., help="Skill ID to remove")):
-    """Remove a custom skill"""
+    """Remove a custom skill.
+
+    Halimbawa (example): kurt skill remove my-old-skill
+    """
     remove_skill(skill_id)
 
 
-@skill_app.command("create")
+@skill_app.command("create", rich_help_panel="🧠 Core")
 def skill_create(skill_id: str = typer.Argument(..., help="New skill ID")):
-    """Create a new skill template"""
+    """Create a blank skill template to fill in and customize.
+
+    Halimbawa (example): kurt skill create my-new-skill
+    """
     create_skill_template(skill_id)
 
 
@@ -1843,23 +2012,29 @@ def plugin_disable(plugin_id: str = typer.Argument(...)):
 # MCP SUBCOMMANDS (Phase 4 — full MCP tool-call loop)
 # ══════════════════════════════════════
 
-@mcp_app.command("list")
+@mcp_app.command("list", rich_help_panel="🔌 Core")
 def mcp_list():
-    """📋 List all saved MCP connections"""
+    """📋 List all saved MCP connections.
+
+    Halimbawa (example): kurt mcp list
+    """
     from kurt.core.mcp_client import show_connections
     show_connections()
 
 
-@mcp_app.command("tools")
+@mcp_app.command("tools", rich_help_panel="🔌 Core")
 def mcp_tools(
     server: Optional[str] = typer.Argument(None, help="Server name (or all if omitted)"),
 ):
-    """🔧 List available tools from connected MCP servers"""
+    """🔧 List the tools a connected MCP server actually offers.
+
+    Halimbawa (example): kurt mcp tools filesystem
+    """
     from kurt.core.mcp_client import show_tools
     asyncio.run(show_tools(server))
 
 
-@mcp_app.command("add")
+@mcp_app.command("add", rich_help_panel="🔌 Core")
 def mcp_add(
     name: str = typer.Argument(..., help="Unique name for this connection"),
     url: Optional[str] = typer.Option(None, "--url", "-u", help="HTTP/SSE server URL"),
@@ -1870,7 +2045,10 @@ def mcp_add(
     description: str = typer.Option("", "--desc", "-d", help="Description"),
     preset: Optional[str] = typer.Option(None, "--preset", "-p", help="Use a preset (filesystem/github/postgres/brave-search/sqlite/puppeteer)"),
 ):
-    """➕ Add an MCP server connection"""
+    """➕ Connect Kurt to an MCP server (a tool server Kurt can call, like 'read files' or 'search GitHub').
+
+    Halimbawa (example): kurt mcp add myfiles --preset filesystem
+    """
     from kurt.core.mcp_client import MCPConnection, add_connection, get_preset, list_presets
 
     if preset:
@@ -1934,18 +2112,24 @@ def mcp_add(
     console.print(f"[dim]Test it: kurt mcp test {name}[/dim]")
 
 
-@mcp_app.command("remove")
+@mcp_app.command("remove", rich_help_panel="🔌 Core")
 def mcp_remove(name: str = typer.Argument(..., help="Connection name to remove")):
-    """🗑️  Remove an MCP connection"""
+    """🗑️  Remove a saved MCP connection.
+
+    Halimbawa (example): kurt mcp remove myfiles
+    """
     from kurt.core.mcp_client import remove_connection
     result = remove_connection(name)
     color = "green" if result.startswith("✅") else "red"
     console.print(f"[{color}]{result}[/{color}]")
 
 
-@mcp_app.command("test")
+@mcp_app.command("test", rich_help_panel="🔌 Core")
 def mcp_test(name: str = typer.Argument(..., help="Connection name to test")):
-    """🧪 Test an MCP connection — list its tools"""
+    """🧪 Check that a saved MCP connection actually works, and list its tools.
+
+    Halimbawa (example): kurt mcp test myfiles
+    """
     from kurt.core.mcp_client import load_registry, show_tools
     registry = load_registry()
     if name not in registry:
@@ -1953,15 +2137,22 @@ def mcp_test(name: str = typer.Argument(..., help="Connection name to test")):
         console.print("[dim]Run: kurt mcp list[/dim]")
         return
     console.print(f"[cyan]🧪 Testing {name}…[/cyan]")
-    asyncio.run(show_tools(name))
+    from kurt.core.mcp_commands import test_names
+    text, failed = asyncio.run(test_names([name]))
+    console.print(text, markup=False)
+    if failed:
+        raise typer.Exit(1)
 
 
-@mcp_app.command("call")
+@mcp_app.command("call", rich_help_panel="🔌 Core")
 def mcp_call(
     tool_ref: str = typer.Argument(..., help="Tool to call: 'server/tool' or 'tool'"),
     params_json: str = typer.Option("{}", "--params", "-p", help="JSON params"),
 ):
-    """⚡ Call an MCP tool directly"""
+    """⚡ Call one specific MCP tool directly, without going through chat.
+
+    Halimbawa (example): kurt mcp call filesystem/list_directory --params '{"path": "."}'
+    """
     from kurt.core.mcp_client import execute_mcp_tool
     import json as _json
     try:
@@ -1974,16 +2165,22 @@ def mcp_call(
     console.print(result)
 
 
-@mcp_app.command("presets")
+@mcp_app.command("presets", rich_help_panel="⚙️  Manage")
 def mcp_presets():
-    """⚡ Show quick-add presets for popular MCP servers"""
+    """⚡ Show one-line presets for popular servers (faster than 'kurt mcp add' with all the flags).
+
+    Halimbawa (example): kurt mcp presets
+    """
     from kurt.core.mcp_client import list_presets
     list_presets()
 
 
-@mcp_app.command("enable")
+@mcp_app.command("enable", rich_help_panel="⚙️  Manage")
 def mcp_enable(name: str = typer.Argument(...)):
-    """✅ Enable an MCP connection"""
+    """✅ Re-enable a connection you previously disabled.
+
+    Halimbawa (example): kurt mcp enable filesystem
+    """
     from kurt.core.mcp_client import load_registry, save_registry
     registry = load_registry()
     if name not in registry:
@@ -1994,9 +2191,12 @@ def mcp_enable(name: str = typer.Argument(...)):
     console.print(f"[green]✅ Enabled: {name}[/green]")
 
 
-@mcp_app.command("disable")
+@mcp_app.command("disable", rich_help_panel="⚙️  Manage")
 def mcp_disable(name: str = typer.Argument(...)):
-    """🚫 Disable an MCP connection (keep saved, don't use)"""
+    """🚫 Turn off a connection without deleting it (kept saved, just not used).
+
+    Halimbawa (example): kurt mcp disable filesystem
+    """
     from kurt.core.mcp_client import load_registry, save_registry
     registry = load_registry()
     if name not in registry:

@@ -1,0 +1,136 @@
+"""Authored dataset contracts. Metrics are explicit input fields, never guessed.
+
+Each row is a real workflow context with its own entity, grouping, time column
+and ten measurements. Recipes specialize an operation to exactly one metric.
+"""
+
+PROFILE_SOURCE = """
+shopee-orders|Shopee order operations|order_id|shop|ordered_at|gross_sales,discounts,shipping_fee,platform_fee,item_count,refund_amount,net_sales,fulfillment_hours,return_count,order_cost
+lazada-orders|Lazada order operations|order_id|store|ordered_at|gross_sales,voucher_cost,commission,shipping_fee,items,refund_amount,net_sales,packing_hours,cancelled_items,fulfillment_cost
+tiktok-shop|TikTok Shop sales|order_id|creator|ordered_at|revenue,affiliate_fee,ad_spend,units,refunds,shipping_fee,discounts,net_revenue,views,clicks
+amazon-sales|Amazon marketplace sales|order_id|marketplace|ordered_at|revenue,units,referral_fee,fba_fee,storage_fee,refund_amount,ad_spend,net_proceeds,sessions,inventory_units
+shopify-sales|Shopify storefront orders|order_id|channel|ordered_at|subtotal,discount,tax,shipping,revenue,refund_amount,units,payment_fee,delivery_days,customer_lifetime_orders
+sari-sari-sales|Sari-sari store daily sales|transaction_id|product_category|sold_at|sales,cost,quantity,credit_sales,cash_received,discount,spoilage_cost,stock_on_hand,reorder_quantity,margin
+wholesale-orders|Wholesale purchase orders|purchase_order_id|buyer|ordered_at|order_value,units,discount,deposit,balance,freight_cost,lead_days,returned_units,fulfilled_units,margin
+dropshipping|Dropshipping fulfillment|order_id|supplier|ordered_at|sale_price,supplier_cost,shipping_cost,ad_cost,units,refund_amount,delivery_days,processing_days,chargeback_amount,profit
+subscription-boxes|Subscription box fulfillment|shipment_id|plan|shipped_at|revenue,product_cost,packaging_cost,shipping_cost,items,refund_amount,subscriber_tenure_months,delivery_days,discount,margin
+retail-pos|Retail POS transactions|receipt_id|branch|sold_at|sales,units,tax,discount,tendered,change,cost,margin,returned_units,loyalty_points
+warehouse-stock|Warehouse stock control|sku|warehouse|recorded_at|on_hand,reserved,available,reorder_point,inbound_units,outbound_units,damaged_units,unit_cost,storage_days,stock_value
+supplier-performance|Supplier delivery performance|delivery_id|supplier|received_at|ordered_units,received_units,defective_units,lead_days,late_days,unit_cost,freight_cost,invoice_amount,inspection_hours,rejected_units
+purchase-planning|Procurement demand planning|request_id|department|requested_at|requested_units,approved_units,unit_price,budget,quoted_price,lead_days,minimum_order,delivery_cost,discount,committed_spend
+stock-transfers|Interbranch stock transfers|transfer_id|destination|transferred_at|requested_units,sent_units,received_units,lost_units,damaged_units,transport_cost,transit_hours,handling_hours,unit_value,total_value
+returns-processing|Customer return operations|return_id|reason|returned_at|refund_amount,returned_units,resalable_units,damaged_units,return_shipping,restocking_cost,processing_hours,original_value,recovery_value,claim_days
+last-mile-delivery|Last-mile delivery operations|delivery_id|courier|delivered_at|distance_km,delivery_hours,shipping_fee,attempts,parcel_weight,damage_cost,cod_amount,cod_remitted,delay_hours,delivery_cost
+fleet-operations|Fleet operations|trip_id|vehicle|started_at|distance_km,fuel_liters,fuel_cost,driving_hours,idle_hours,maintenance_cost,toll_cost,load_kg,deliveries,delay_minutes
+freight-shipments|Freight shipment performance|shipment_id|route|departed_at|weight_kg,volume_cbm,freight_cost,insurance_cost,customs_fee,transit_days,delay_days,damaged_units,declared_value,handling_cost
+manufacturing-batches|Manufacturing batch quality|batch_id|line|produced_at|input_units,output_units,rejected_units,rework_units,cycle_minutes,material_cost,labor_cost,downtime_minutes,energy_kwh,yield_percent
+production-maintenance|Equipment maintenance operations|work_order_id|equipment|completed_at|labor_hours,parts_cost,downtime_hours,repair_cost,operating_hours,failure_count,inspection_score,response_hours,backlog_days,maintenance_interval_days
+facebook-ads|Facebook campaign metrics|ad_id|campaign|reported_at|spend,impressions,clicks,conversions,revenue,reach,video_views,leads,frequency,cost_per_lead
+google-ads|Google Ads campaign metrics|ad_id|campaign|reported_at|spend,impressions,clicks,conversions,conversion_value,search_impression_share,quality_score,leads,cost_per_click,cost_per_conversion
+tiktok-ads|TikTok advertising metrics|ad_id|campaign|reported_at|spend,impressions,clicks,conversions,revenue,video_starts,video_completions,shares,comments,leads
+email-campaigns|Email campaign performance|campaign_id|segment|sent_at|sent,delivered,opens,clicks,unsubscribes,bounces,spam_reports,conversions,revenue,campaign_cost
+seo-pages|Organic search page performance|page_id|section|reported_at|impressions,clicks,position,sessions,engaged_sessions,conversions,revenue,backlinks,word_count,load_seconds
+content-calendar|Content production operations|content_id|channel|published_at|planned_hours,actual_hours,production_cost,views,engagements,clicks,leads,revenue,revision_count,days_to_publish
+influencer-campaigns|Influencer partnership results|post_id|creator|published_at|fee,impressions,views,likes,comments,shares,clicks,orders,revenue,discount_cost
+affiliate-sales|Affiliate program performance|referral_id|affiliate|converted_at|clicks,orders,revenue,commission,refund_amount,leads,qualified_leads,conversion_days,payout_amount,discount_cost
+landing-pages|Landing page experiments|variant_id|experiment|reported_at|visitors,sessions,conversions,revenue,bounce_rate,engagement_seconds,form_starts,form_completions,ad_cost,errors
+newsletter-growth|Newsletter audience growth|edition_id|audience_segment|sent_at|subscribers,new_subscribers,unsubscribes,opens,clicks,replies,referrals,revenue,sponsor_revenue,production_hours
+youtube-content|YouTube content analytics|video_id|series|published_at|views,watch_hours,impressions,click_through_rate,subscribers_gained,likes,comments,shares,revenue,production_cost
+tiktok-content|TikTok organic content analytics|video_id|series|published_at|views,watch_seconds,completion_rate,likes,comments,shares,saves,followers_gained,profile_visits,link_clicks
+instagram-content|Instagram content analytics|post_id|format|published_at|reach,impressions,likes,comments,saves,shares,profile_visits,follows,link_clicks,production_cost
+facebook-pages|Facebook page performance|post_id|page|published_at|reach,impressions,reactions,comments,shares,clicks,video_views,followers_gained,message_leads,revenue
+linkedin-content|LinkedIn content analytics|post_id|topic|published_at|impressions,clicks,reactions,comments,reposts,followers_gained,profile_views,leads,engagement_rate,production_hours
+podcast-episodes|Podcast production and audience|episode_id|series|published_at|downloads,listeners,completion_rate,subscribers_gained,sponsor_revenue,production_cost,editing_hours,guest_cost,website_clicks,reviews
+blog-production|Blog publishing performance|article_id|topic|published_at|word_count,editing_hours,production_cost,pageviews,organic_clicks,backlinks,conversions,revenue,engagement_seconds,revisions
+community-growth|Online community operations|period_id|community|recorded_at|members,new_members,departures,active_members,posts,replies,moderation_actions,reports,events,revenue
+livestream-performance|Livestream selling performance|session_id|host|started_at|viewers,peak_viewers,watch_minutes,comments,shares,product_clicks,orders,revenue,discount_cost,production_cost
+creative-production|Creative asset production|asset_id|project|completed_at|planned_hours,actual_hours,cost,revisions,approval_days,delivered_assets,rejected_assets,usage_count,views,clicks
+crm-pipeline|CRM opportunity tracking|opportunity_id|stage|updated_at|deal_value,probability,weighted_value,days_in_stage,activity_count,contact_count,proposal_count,discount,expected_margin,age_days
+outbound-sales|Outbound prospecting operations|batch_id|representative|sent_at|prospects,emails_sent,replies,positive_replies,meetings,opportunities,deals,revenue,tool_cost,hours_spent
+sales-calls|Sales call performance|call_id|representative|called_at|duration_minutes,talk_ratio,questions_asked,followups,meetings_booked,deal_value,objections,participants,prep_minutes,followup_hours
+customer-onboarding|Customer onboarding operations|account_id|plan|started_at|days_to_activate,sessions,completed_steps,total_steps,support_tickets,training_hours,implementation_cost,seats,initial_revenue,satisfaction_score
+customer-support|Customer support service levels|ticket_id|team|created_at|first_response_hours,resolution_hours,replies,reopens,escalations,satisfaction_score,handle_minutes,queue_hours,refund_amount,customer_tenure_days
+help-center|Help center article effectiveness|article_id|category|reported_at|views,search_impressions,helpful_votes,unhelpful_votes,contact_clicks,editing_hours,word_count,age_days,feedback_count,resolved_sessions
+customer-feedback|Customer feedback operations|response_id|product|submitted_at|rating,nps_score,effort_score,satisfaction_score,customer_tenure_days,monthly_spend,ticket_count,feature_requests,response_minutes,issue_count
+renewals|Subscription renewal operations|contract_id|plan|renewed_at|contract_value,renewal_value,discount,seats,usage_hours,support_tickets,tenure_months,days_to_expiry,expansion_value,downgrade_value
+loyalty-programs|Loyalty program operations|member_id|tier|recorded_at|points_earned,points_redeemed,points_balance,purchases,revenue,reward_cost,visits,tenure_days,referrals,discount_amount
+appointments|Appointment scheduling operations|booking_id|service|scheduled_at|duration_minutes,fee,deposit,wait_minutes,lead_days,reschedule_count,cancellation_fee,staff_hours,materials_cost,satisfaction_score
+saas-subscriptions|SaaS subscription metrics|account_id|plan|recorded_at|mrr,arr,seats,active_users,usage_events,support_tickets,monthly_cost,discount,tenure_months,expansion_mrr
+product-analytics|Product feature usage|feature_id|cohort|reported_at|users,sessions,events,engaged_users,conversion_count,error_count,latency_ms,revenue,retention_rate,adoption_rate
+user-funnels|Product funnel measurements|step_id|cohort|reported_at|entrants,completions,dropoffs,median_seconds,errors,retries,revenue,sessions,unique_users,cost
+ab-experiments|Experiment observation tracking|observation_id|variant|recorded_at|visitors,conversions,revenue,sessions,clicks,errors,latency_ms,engagement_seconds,retained_users,cost
+feature-requests|Feature request prioritization data|request_id|product_area|created_at|votes,customer_count,estimated_hours,estimated_cost,reported_revenue,age_days,duplicate_count,priority_score,comment_count,implementation_days
+software-issues|Software issue triage metrics|issue_id|component|created_at|age_days,priority_score,comments,reproductions,estimated_hours,actual_hours,reopens,affected_users,linked_prs,resolution_hours
+pull-requests|Pull request delivery metrics|pr_id|repository|opened_at|lines_added,lines_removed,files_changed,review_comments,review_hours,merge_hours,commit_count,test_count,failed_checks,revision_rounds
+ci-pipelines|CI pipeline reliability|run_id|pipeline|started_at|duration_seconds,queue_seconds,test_count,failed_tests,retry_count,compute_cost,cache_hits,cache_misses,artifact_mb,coverage_percent
+deployments|Software deployment operations|deployment_id|service|deployed_at|duration_seconds,rollback_count,error_count,request_count,latency_ms,cpu_percent,memory_mb,changed_files,build_minutes,downtime_seconds
+release-planning|Release planning and delivery|release_id|product|released_at|planned_items,shipped_items,deferred_items,bug_count,planned_hours,actual_hours,release_delay_days,adoption_users,support_tickets,release_cost
+api-performance|API request performance|request_id|endpoint|requested_at|latency_ms,status_code,response_bytes,request_bytes,retries,cpu_ms,db_queries,cache_hits,cost,error_count
+cloud-costs|Cloud resource spending|resource_id|service|recorded_at|compute_cost,storage_cost,network_cost,request_cost,total_cost,cpu_hours,storage_gb,transfer_gb,requests,credits
+database-queries|Database query performance|query_id|database|executed_at|duration_ms,rows_scanned,rows_returned,bytes_read,cache_hits,lock_wait_ms,cpu_ms,execution_count,error_count,cost
+server-capacity|Server capacity measurements|sample_id|server|recorded_at|cpu_percent,memory_percent,disk_percent,network_mbps,load_average,process_count,connections,requests,latency_ms,error_rate
+incident-response|Incident response operations|incident_id|service|started_at|duration_minutes,detection_minutes,response_minutes,recovery_minutes,affected_users,failed_requests,revenue_impact,responders,followup_tasks,repeat_count
+security-findings|Security finding remediation metrics|finding_id|severity|discovered_at|risk_score,age_days,affected_assets,patch_hours,remediation_cost,exploit_attempts,duplicate_count,owner_count,verification_hours,exceptions
+access-reviews|Access review operations|review_id|department|reviewed_at|accounts,privileged_accounts,inactive_accounts,revoked_accounts,exceptions,review_hours,overdue_days,applications,reviewers,findings
+backup-jobs|Backup reliability measurements|job_id|system|started_at|duration_minutes,source_gb,backup_gb,compressed_gb,error_count,retry_count,restore_minutes,retention_days,storage_cost,verification_errors
+automation-runs|Workflow automation executions|run_id|workflow|started_at|duration_seconds,steps,failed_steps,retries,records_processed,api_calls,execution_cost,saved_minutes,queue_seconds,output_records
+n8n-executions|n8n workflow execution exports|execution_id|workflow|started_at|duration_ms,node_count,failed_nodes,retry_count,input_items,output_items,api_calls,execution_cost,queue_ms,saved_minutes
+zapier-tasks|Zapier task usage exports|run_id|zap|started_at|task_count,successful_steps,failed_steps,retries,duration_seconds,records_processed,monthly_cost,saved_minutes,trigger_delay_seconds,output_records
+make-scenarios|Make scenario execution exports|execution_id|scenario|started_at|operations,credits,duration_seconds,error_count,retries,input_bundles,output_bundles,data_transfer_mb,execution_cost,saved_minutes
+webhook-delivery|Webhook delivery reliability|delivery_id|subscriber|sent_at|status_code,latency_ms,payload_bytes,attempts,retry_delay_seconds,queue_seconds,error_count,delivery_cost,age_seconds,signature_failures
+data-pipelines|Data pipeline processing metrics|run_id|pipeline|started_at|input_rows,output_rows,rejected_rows,duplicate_rows,duration_seconds,bytes_processed,compute_cost,retries,lag_minutes,validation_errors
+rag-evaluation|RAG evaluation observations|case_id|retriever|evaluated_at|precision,recall,faithfulness,relevance,latency_ms,input_tokens,output_tokens,cost,retrieved_chunks,citation_count
+llm-usage|LLM usage and cost exports|request_id|model|requested_at|input_tokens,output_tokens,cached_tokens,latency_ms,cost,retries,error_count,quality_score,tool_calls,context_tokens
+model-evaluations|Model evaluation observations|case_id|model|evaluated_at|accuracy,precision,recall,f1_score,latency_ms,cost,input_tokens,output_tokens,refusals,format_errors
+training-runs|ML training run measurements|run_id|experiment|started_at|training_loss,validation_loss,accuracy,epochs,learning_rate,gpu_hours,cost,training_samples,validation_samples,model_size_mb
+embedding-jobs|Embedding processing operations|job_id|model|started_at|documents,chunks,input_tokens,dimensions,duration_seconds,cost,failed_chunks,retries,vector_count,storage_mb
+search-relevance|Search relevance evaluations|query_id|index|evaluated_at|precision_at_k,recall_at_k,ndcg,mrr,latency_ms,result_count,clicks,conversions,revenue,zero_results
+business-expenses|Business expense records|expense_id|category|spent_at|amount,tax,tip,discount,reimbursed_amount,receipt_count,approval_days,payment_fee,budget,variance
+invoices-receivable|Accounts receivable aging|invoice_id|customer|issued_at|invoice_amount,paid_amount,balance,tax,discount,overdue_days,collection_cost,payment_fee,installments,credit_amount
+invoices-payable|Accounts payable operations|invoice_id|supplier|received_at|invoice_amount,paid_amount,balance,tax,discount,days_to_due,late_fee,payment_fee,approval_days,budget
+cashflow-records|Recorded cash movements|transaction_id|category|posted_at|inflow,outflow,balance,fees,tax,reserve,receivable,payable,transfer_amount,exchange_rate
+project-budgets|Project budget tracking|cost_id|project|recorded_at|budget,actual_cost,committed_cost,forecast_cost,labor_hours,material_cost,contractor_cost,contingency,approved_changes,remaining_budget
+employee-timesheets|Employee time records|entry_id|team|worked_at|regular_hours,overtime_hours,billable_hours,leave_hours,hourly_rate,labor_cost,project_hours,break_minutes,late_minutes,utilization_percent
+hiring-pipeline|Recruitment process metrics|application_id|role|applied_at|days_in_stage,interviews,assessment_score,feedback_count,recruiting_cost,offer_amount,notice_days,experience_years,source_cost,communication_count
+training-attendance|Staff training measurements|attendance_id|course|attended_at|attendance_minutes,completion_percent,quiz_score,training_cost,practice_hours,attempts,feedback_score,certificates,absence_minutes,materials_cost
+freelance-projects|Freelance project delivery|project_id|client|started_at|quoted_fee,paid_amount,balance,estimated_hours,actual_hours,revisions,expenses,delay_days,invoice_count,margin
+consulting-engagements|Consulting engagement operations|engagement_id|client|started_at|contract_value,billable_hours,nonbillable_hours,expenses,paid_amount,outstanding_balance,deliverables,revisions,travel_cost,margin
+restaurant-orders|Restaurant order operations|order_id|service_type|ordered_at|revenue,food_cost,beverage_cost,discount,tax,tip,items,prep_minutes,wait_minutes,waste_cost
+food-delivery|Food delivery operations|order_id|platform|ordered_at|revenue,commission,discount,packaging_cost,food_cost,delivery_minutes,prep_minutes,items,refund_amount,net_proceeds
+bakery-batches|Bakery production operations|batch_id|product|produced_at|produced_units,sold_units,unsold_units,ingredient_cost,labor_hours,energy_cost,revenue,waste_units,discount_cost,margin
+hotel-bookings|Hotel reservation operations|booking_id|room_type|checked_in_at|room_revenue,nights,guests,discount,commission,cleaning_cost,extras_revenue,refund_amount,booking_lead_days,total_cost
+tour-bookings|Tour operations|booking_id|tour|departed_at|revenue,guests,guide_cost,transport_cost,entrance_fees,food_cost,refund_amount,discount,duration_hours,margin
+event-registration|Event registration operations|registration_id|ticket_type|registered_at|ticket_revenue,attendees,discount,refund_amount,payment_fee,marketing_cost,checkins,materials_cost,lead_days,extras_revenue
+property-rentals|Rental property operations|lease_id|property|recorded_at|rent_due,rent_paid,arrears,deposit,maintenance_cost,utility_cost,vacant_days,occupied_days,management_fee,net_income
+utilities-usage|Utility consumption records|reading_id|site|recorded_at|electricity_kwh,water_cbm,gas_units,electricity_cost,water_cost,gas_cost,peak_demand_kw,occupancy_hours,temperature_c,production_units
+remittance-records|OFW remittance records|transfer_id|provider|sent_at|sent_amount,received_amount,transfer_fee,exchange_rate,delivery_hours,discount,bank_fee,cashout_fee,recipient_count,total_cost
+nonprofit-programs|Nonprofit program operations|activity_id|program|completed_at|beneficiaries,donations,grants,program_cost,admin_cost,volunteer_hours,staff_hours,activities,materials_cost,travel_cost
+school-programs|School program operations|session_id|course|held_at|enrolled_students,attendees,completion_count,assessment_score,teaching_hours,materials_cost,program_cost,feedback_score,absence_count,tuition_collected
+research-projects|Research project operations|study_id|project|recorded_at|participants,responses,completion_rate,recruitment_cost,research_hours,analysis_hours,publication_cost,missing_responses,excluded_responses,budget
+survey-responses|Survey response measurements|response_id|segment|submitted_at|satisfaction_score,effort_score,recommendation_score,response_minutes,completed_questions,total_questions,skipped_questions,age_years,tenure_months,spend
+document-processing|Document processing operations|document_id|document_type|processed_at|page_count,word_count,processing_seconds,extracted_fields,missing_fields,validation_errors,review_minutes,confidence_score,file_size_kb,processing_cost
+translation-projects|Translation delivery operations|job_id|language_pair|completed_at|source_words,target_words,fee,editing_hours,translation_hours,revision_count,quality_score,deadline_delay_hours,tool_cost,margin
+design-projects|Design project delivery|project_id|design_type|completed_at|quoted_fee,actual_cost,planned_hours,actual_hours,revisions,assets_delivered,approval_days,rejected_assets,client_score,margin
+video-editing|Video editing operations|job_id|format|completed_at|source_minutes,final_minutes,editing_hours,render_minutes,fee,revision_count,storage_gb,license_cost,client_score,margin
+print-production|Print production operations|job_id|product|printed_at|ordered_units,printed_units,rejected_units,paper_cost,ink_cost,labor_hours,revenue,setup_minutes,waste_units,margin
+local-services|Local service job operations|job_id|service|completed_at|fee,labor_hours,materials_cost,travel_cost,discount,paid_amount,balance,callback_count,waiting_minutes,margin
+repair-services|Repair shop job operations|job_id|device_type|completed_at|diagnostic_minutes,repair_hours,parts_cost,labor_fee,total_fee,paid_amount,returned_jobs,warranty_days,queue_days,margin
+laundry-operations|Laundry service operations|job_id|service_type|completed_at|weight_kg,revenue,detergent_cost,water_cost,electricity_cost,labor_hours,turnaround_hours,discount,redone_kg,margin
+fitness-classes|Fitness class operations|session_id|class_type|held_at|bookings,attendees,no_shows,revenue,instructor_cost,duration_minutes,capacity,waitlist_count,refund_amount,feedback_score
+membership-organizations|Membership organization operations|member_id|tier|recorded_at|dues_due,dues_paid,arrears,tenure_months,event_attendance,volunteer_hours,donations,benefits_cost,referrals,engagement_score
+equipment-rentals|Equipment rental operations|rental_id|equipment_type|started_at|rental_fee,rental_days,deposit,maintenance_cost,delivery_cost,late_fee,damage_cost,utilization_hours,paid_amount,margin
+agriculture-harvests|Farm harvest operations|harvest_id|crop|harvested_at|harvest_kg,sold_kg,spoilage_kg,revenue,seed_cost,fertilizer_cost,labor_hours,water_cost,transport_cost,margin
+construction-tasks|Construction task operations|task_id|trade|completed_at|planned_hours,actual_hours,material_cost,labor_cost,equipment_cost,progress_percent,rework_hours,delay_days,budget,actual_cost
+quality-inspections|Quality inspection measurements|inspection_id|product_line|inspected_at|sample_units,passed_units,failed_units,critical_defects,minor_defects,inspection_minutes,rework_cost,scrap_cost,measurement_value,tolerance
+service-contracts|Service contract operations|contract_id|service_level|recorded_at|contract_value,paid_amount,balance,service_hours,support_hours,incident_count,response_hours,expenses,discount,margin
+internal-projects|Internal project operations|task_id|project|updated_at|planned_hours,actual_hours,progress_percent,budget,actual_cost,blocked_days,dependencies,revision_count,delay_days,remaining_hours
+"""
+
+
+def profiles():
+    result = []
+    for line in PROFILE_SOURCE.strip().splitlines():
+        slug, title, entity, group, date, metrics = line.split("|")
+        result.append({"id": slug, "title": title, "entity": entity,
+                       "group": group, "date": date, "metrics": metrics.split(",")})
+    return result
