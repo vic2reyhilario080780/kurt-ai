@@ -4,6 +4,8 @@ The chat bridge executes only the native data tools. It reuses the existing
 model router, so its provider selection and fallback behavior stay centralized.
 """
 
+from kurt.utils.security import redact
+
 import asyncio
 import json
 from pathlib import Path
@@ -151,7 +153,7 @@ def invoke_native(name, params, allowed_paths=None):
 
 
 def tool_text(value, limit=16000):
-    text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+    text = json.dumps(redact(value), ensure_ascii=False, allow_nan=False)
     if len(text) > limit:
         return json.dumps({"truncated": True, "preview": text[:limit // 2],
                            "note": "This is a partial result. Use kurt library run --output for a complete report."}, ensure_ascii=False)

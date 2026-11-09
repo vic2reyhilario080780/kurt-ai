@@ -198,3 +198,11 @@ MIT License — Free to use, modify, distribute.
 ---
 
 Made with ❤️ para sa mga Pinoy developers ni **Daddy Tito**
+
+### Hosted subscription foundation
+
+`kurt cloud status`, `kurt cloud ask`, and `kurt cloud run` connect explicitly to the hosted API. See [SaaS architecture, isolation controls and deployment requirements](docs/SAAS_FOUNDATION.md). The foundation is locally tested; billing, client sign-in and live Linux isolation verification remain required before a paid launch.
+
+### Coding workbench
+
+Use `kurt code "fix the failing tests" --cwd /path/to/repo` for scoped read/edit/test work, or add `--backend codex` for explicit delegation to your installed Codex CLI. See [coding capabilities, verification and limits](docs/CODING_WORKBENCH.md).

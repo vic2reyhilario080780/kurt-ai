@@ -4,6 +4,8 @@ Registry entries describe servers, not necessarily unique apps or working servic
 Only an explicit connection test starts a package or contacts a server.
 """
 
+from kurt.utils.security import require_secure_endpoint
+
 import json
 import gzip
 import os
@@ -234,6 +236,8 @@ def parse_config(raw, name=None):
                 raise ValueError(f"{server_name}: missing command.")
         elif not isinstance(cfg.get("url"), str) or urlparse(cfg["url"]).scheme not in ("https", "http") or not urlparse(cfg["url"]).netloc:
             raise ValueError(f"{server_name}: invalid HTTP URL.")
+        if transport in ("http", "sse"):
+            require_secure_endpoint(cfg["url"])
         connections.append(MCPConnection(name=server_name, transport=transport,
             command=cfg.get("command"), args=args, env=env, url=cfg.get("url"), headers=headers,
             enabled=cfg.get("enabled", not cfg.get("disabled", False)), description=cfg.get("description", "")))

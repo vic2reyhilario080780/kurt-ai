@@ -13,6 +13,8 @@ Features:
 
 from __future__ import annotations
 
+from kurt.utils.security import redact
+
 import logging
 import os
 import platform
@@ -394,7 +396,7 @@ class WakeWordListener:
 
     def _fire_command(self, event: VoiceEvent):
         """Fire all registered callbacks"""
-        logger.info(f"Voice command: '{event.text}'")
+        logger.info(f"Voice command: '{redact(event.text)}'")
         for cb in self._callbacks:
             try:
                 cb(event)

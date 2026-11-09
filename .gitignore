@@ -45,3 +45,16 @@ htmlcov/
 # Distribution
 dist/
 build/
+
+# Credential variants and editor backups
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.kurt_bak
+
+# Hosted control-plane state and device credentials
+.kurt-saas/
+*.kurt-token
+control.db
+control.db-*

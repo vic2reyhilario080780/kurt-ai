@@ -31,5 +31,18 @@
   "limitations": [
     "No claim that every app/browser interaction was tested",
     "Provider quotas and host desktop permissions remain applicable"
-  ]
+  ],
+  "security_followup": {
+    "date": "2026-11-09",
+    "regression_tests_passed": 93,
+    "os_sandbox_enforcement_tests": "passed",
+    "live_cli_configuration_and_permissions_probes": "passed",
+    "dependency_audit": {
+      "moderate": 33,
+      "high": 0,
+      "critical": 0,
+      "npm_override": "12.2.2"
+    },
+    "note": "Original model/screenshot evidence above predates sandbox hardening; follow-up probes did not send a screenshot or call a model."
+  }
 }

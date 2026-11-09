@@ -12,6 +12,8 @@ Usage:
     kurt plugins
 """
 
+from kurt.utils.security import redact
+
 import asyncio
 import os
 import sys
@@ -95,6 +97,11 @@ app = typer.Typer(
         "Tagalog tip: hindi mo kailangan gamitin lahat ng commands — \"kurt chat\" lang, sapat na iyon."
     ),
 )
+
+from kurt.saas.client import register_commands as register_cloud_commands
+register_cloud_commands(app)
+from kurt.core.coding import register_commands as register_coding_commands
+register_coding_commands(app)
 
 console = Console()
 
@@ -375,12 +382,12 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 messages=messages,
             ):
                 full_response += chunk
-                live.update(Text(full_response))
+                live.update(Text(redact(full_response)))
 
         console.print()
 
     except Exception as e:
-        err_str = str(e)
+        err_str = redact(str(e))
         # Detect auth errors (bad/missing key) vs model errors (404)
         is_auth_error = "401" in err_str or "Unauthorized" in err_str
         console.print(f"\n[red]❌ Error: {e}[/red]")
@@ -399,7 +406,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                         messages=messages,
                     ):
                         full_response += chunk
-                        live.update(Text(full_response))
+                        live.update(Text(redact(full_response)))
                 console.print()
             except Exception as e2:
                 console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
@@ -1254,6 +1261,55 @@ def ls(
     console.print(list_dir(path, depth))
 
 
+@app.command(rich_help_panel="📂 Files & Code")
+def grep(
+    query: str = typer.Argument(..., help="Regex or text pattern to search for"),
+    path: str = typer.Option(".", "--path", "-p", help="Directory or file path"),
+    include: Optional[str] = typer.Option(None, "--include", "-i", help="Filename glob filter e.g. '*.py'"),
+    case_sensitive: bool = typer.Option(False, "--case-sensitive", "-s", help="Enable case-sensitive search"),
+    max_results: int = typer.Option(50, "--max-results", "-n", help="Max matches to return"),
+):
+    """🔎 Fast regex/text search across files in a directory (like ripgrep).
+
+    Halimbawa (example): kurt grep "ModelRouter" --include "*.py"
+    """
+    from kurt.core.file_ops import grep_search
+    console.print(grep_search(query=query, path=path, include=include, case_sensitive=case_sensitive, max_results=max_results))
+
+
+@app.command("find", rich_help_panel="📂 Files & Code")
+def find_cmd(
+    pattern: str = typer.Argument("*", help="Filename glob or substring pattern"),
+    path: str = typer.Option(".", "--path", "-p", help="Root directory to search"),
+    max_results: int = typer.Option(50, "--max-results", "-n", help="Max files to return"),
+):
+    """📂 Find files by glob or filename substring.
+
+    Halimbawa (example): kurt find "*.py" --path kurt
+    """
+    from kurt.core.file_ops import find_files
+    console.print(find_files(pattern=pattern, path=path, max_results=max_results))
+
+
+@app.command(rich_help_panel="🖱️  Automate")
+def doctor(
+    action: str = typer.Argument("summary", help="Action: summary, cpu, mem, disk, net, crashes, startup, open_folder"),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target path for 'disk' or 'open_folder'"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Max items to display"),
+):
+    """🖥️ Diagnose and debug your iMac / host machine (CPU, RAM, disk, network, crash logs, startup items, Finder).
+
+    Halimbawa (example):
+      kurt doctor summary
+      kurt doctor cpu
+      kurt doctor disk --target ~/Downloads
+      kurt doctor open_folder --target ~/Downloads
+    """
+    from kurt.core.mac_doctor import run_doctor_action, format_doctor_report
+    data = run_doctor_action(action=action, target=target, limit=limit)
+    console.print(format_doctor_report(data))
+
+
 # ══════════════════════════════════════
 # PHASE 3 — AGENT + CODEBASE + DIFF
 # ══════════════════════════════════════
@@ -1263,7 +1319,7 @@ def agent(
     task: str = typer.Argument(..., help="Task for the agent to complete autonomously"),
     path: str = typer.Option(".", "--path", "-p", help="Working directory"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    max_steps: int = typer.Option(15, "--max-steps", help="Max agent steps (safety limit)"),
+    max_steps: int = typer.Option(25, "--max-steps", help="Max agent steps (safety limit)"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Native workflow-agent ID"),
     data: Optional[str] = typer.Option(None, "--data", help="CSV/JSON input for a native workflow agent"),
     output: Optional[str] = typer.Option(None, "--output", help="New JSON report path for a native workflow"),

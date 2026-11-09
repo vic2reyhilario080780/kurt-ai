@@ -4,6 +4,12 @@ Multi-step agentic task execution. Routes tool calls and loops until done.
 Like Claude Code CLI's agentic mode — plan → execute → verify → repeat.
 """
 
+from kurt.utils.security import redact
+from kurt.utils.execution import restricted_run
+from kurt.utils.workspace import workspace, workspace_path, current_workspace
+from kurt.core.coding_tools import CODING_TOOLS, execute_coding_tool
+from kurt.core.agent_schema import agent_function_schemas
+
 import os
 import re
 import json
@@ -20,24 +26,25 @@ from rich import box
 
 from kurt.core.file_ops import (
     read_file, read_file_summary, apply_edit,
-    write_new_file, run_file, run_code_string, list_dir
+    write_new_file, run_file, run_code_string, list_dir,
+    grep_search, find_files, multi_edit,
 )
 from kurt.core.mcp_client import (
     load_registry, list_tools as mcp_list_tools,
     call_tool as mcp_call_tool, execute_mcp_tool
 )
-from kurt.capabilities.bridge import NATIVE_TOOLS, DESKTOP_CLI_TOOLS, invoke_native, tool_text, function_schemas
+from kurt.capabilities.bridge import NATIVE_TOOLS, DESKTOP_CLI_TOOLS, invoke_native, tool_text, function_schemas, NativeToolRouter
 
 console = Console()
 
-MAX_STEPS = 15  # Safety limit — prevent infinite loops
+MAX_STEPS = 25  # Safety limit — expanded for deep multi-step tasks
 
 
 # ─────────────────────────────────────────────────────────────
 # Tool Definitions (what the AI can call)
 # ─────────────────────────────────────────────────────────────
 
-TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + [
+TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [
     {
         "name": "read_file",
         "description": "Read a file's contents. Use for understanding code before editing.",
@@ -61,6 +68,44 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + [
             "path": "string — file path",
             "old_str": "string — exact text to replace (unique in file)",
             "new_str": "string — replacement text",
+        },
+    },
+    {
+        "name": "multi_edit",
+        "description": "Apply multiple exact text replacements to a single file atomically.",
+        "parameters": {
+            "path": "string — file path",
+            "edits": "list of objects — [{'old_str': '...', 'new_str': '...'}, ...]",
+        },
+    },
+    {
+        "name": "grep_search",
+        "description": "Search for a regex or text pattern across files in a directory or file (like ripgrep).",
+        "parameters": {
+            "query": "string — regex or text pattern to search for",
+            "path": "optional string — directory or file path (default: '.')",
+            "include": "optional string — filename glob filter e.g. '*.py'",
+            "case_sensitive": "optional boolean — default false",
+            "max_results": "optional int — max matches (default 50)",
+        },
+    },
+    {
+        "name": "find_files",
+        "description": "Find files by glob or filename substring within a directory.",
+        "parameters": {
+            "pattern": "string — glob like '*.py' or substring like 'router'",
+            "path": "optional string — root directory (default: '.')",
+            "max_results": "optional int — max files to return (default 50)",
+        },
+    },
+    {
+        "name": "background_task",
+        "description": "Manage background shell processes (dev servers, watchers, long builds): start, list, status, or kill.",
+        "parameters": {
+            "action": "string — 'start', 'list', 'status', or 'kill'",
+            "cmd": "optional string — command to launch when action='start'",
+            "task_id": "optional string — task ID for 'status' or 'kill'",
+            "cwd": "optional string — working directory (default: '.')",
         },
     },
     {
@@ -131,7 +176,7 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + [
             "then continue reasoning with the result."
         ),
         "parameters": {
-            "tool": "string — claude, gemini, openclaw, peekaboo, gh, or bash",
+            "tool": "string — codex, claude, gemini, openclaw, peekaboo, gh, or bash",
             "prompt": "string — task for claude/gemini/openclaw; CLI command string for peekaboo; command/args for gh/bash",
             "args": "optional list of exact CLI arguments for openclaw/peekaboo instead of prompt",
             "agent": "optional OpenClaw agent name, default main",
@@ -211,6 +256,125 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + [
             "script": "string — AppleScript to execute",
         },
     },
+    # ── Super-Agent: Vision, Browser, iMac Doctor, Subagents & Planning ──
+    {
+        "name": "analyze_screen",
+        "description": "Analyze an image using Vision AI — either the live screen, or an existing image file (screenshot, photo, downloaded picture) when 'path' is given.",
+        "parameters": {
+            "path": "optional string — path to an existing image file to analyze; if omitted, captures the live screen instead",
+            "mode": "optional string — 'describe' (default), 'ocr', 'find', or 'context'",
+            "query": "optional string — element to find, region hint for ocr, task description for context, or (with 'path' set and no other mode) a free-form question about the image",
+        },
+    },
+    {
+        "name": "find_and_click",
+        "description": "Find a UI element on screen by description using Vision AI and click its estimated coordinates.",
+        "parameters": {
+            "element": "string — description of UI element to click, e.g. 'Search bar', 'Play button'",
+            "button": "optional string — 'left' (default), 'right', 'double'",
+        },
+    },
+    {
+        "name": "scroll",
+        "description": "Scroll the mouse wheel at coordinates (x, y).",
+        "parameters": {
+            "x": "int — x coordinate (default 500)",
+            "y": "int — y coordinate (default 500)",
+            "amount": "optional int — scroll units (default 3)",
+            "direction": "optional string — 'down' (default), 'up', 'left', 'right'",
+        },
+    },
+    {
+        "name": "drag",
+        "description": "Click and drag from (x1, y1) to (x2, y2).",
+        "parameters": {
+            "x1": "int — start x",
+            "y1": "int — start y",
+            "x2": "int — end x",
+            "y2": "int — end y",
+        },
+    },
+    {
+        "name": "clipboard",
+        "description": "Read or write the system clipboard.",
+        "parameters": {
+            "action": "string — 'copy' or 'paste'",
+            "text": "optional string — text to copy when action='copy'",
+        },
+    },
+    {
+        "name": "browser_action",
+        "description": "Control Kurt's Playwright automation browser (open URL, read text, click selector/text, type into input, screenshot, list links, search, close).",
+        "parameters": {
+            "action": "string — 'open', 'read', 'click', 'type', 'screenshot', 'links', 'search', or 'close'",
+            "url": "optional string — URL for 'open'",
+            "selector": "optional string — CSS selector for 'click' or 'type'",
+            "text": "optional string — visible text to click or text to type",
+            "query": "optional string — search query for 'search'",
+        },
+    },
+    {
+        "name": "mac_doctor",
+        "description": "Diagnose and debug the host machine (auto-adapts to macOS, Windows, or Linux): CPU/RAM hogs, disk space & health, listening network ports, crash logs, startup items, or open folders.",
+        "parameters": {
+            "action": "string — 'summary', 'profile', 'cpu', 'mem', 'disk', 'net', 'crashes', 'startup', or 'open_folder'",
+            "target": "optional string — directory/file path for 'disk' or 'open_folder'",
+            "limit": "optional int — max items to return (default 10)",
+        },
+    },
+    {
+        "name": "system_doctor",
+        "description": "Cross-platform alias for mac_doctor: diagnose CPU/RAM, disk, network ports, crash logs, startup items, or open folders on macOS, Windows, or Linux.",
+        "parameters": {
+            "action": "string — 'summary', 'profile', 'cpu', 'mem', 'disk', 'net', 'crashes', 'startup', or 'open_folder'",
+            "target": "optional string — directory/file path for 'disk' or 'open_folder'",
+            "limit": "optional int — max items to return (default 10)",
+        },
+    },
+    {
+        "name": "os_script",
+        "description": "Execute a host automation script that auto-adapts to the current OS: AppleScript on macOS, PowerShell on Windows, or Bash on Linux.",
+        "parameters": {
+            "script": "string — script to execute for the current host OS",
+        },
+    },
+    {
+        "name": "open_folder",
+        "description": "Open a folder or reveal a file in macOS Finder (or system file manager).",
+        "parameters": {
+            "path": "string — folder or file path to open",
+            "reveal": "optional boolean — if true, reveal file in Finder",
+        },
+    },
+    {
+        "name": "spawn_subagent",
+        "description": "Launch an autonomous subagent with its own context window and specialized role ('research', 'coder', 'mac-doctor', 'qa-verifier', or custom).",
+        "parameters": {
+            "role": "string — subagent role e.g. 'research', 'coder', 'mac-doctor', 'qa-verifier'",
+            "task": "string — clear, actionable task for the subagent",
+            "model": "optional string — override model id",
+            "max_steps": "optional int — max steps for subagent (default 8)",
+        },
+    },
+    {
+        "name": "swarm_execute",
+        "description": "Run multiple subagents in parallel and aggregate their findings.",
+        "parameters": {
+            "subtasks": "list of objects — [{'role': 'research', 'task': '...'}, ...]",
+        },
+    },
+    {
+        "name": "create_plan",
+        "description": "Create a structured Markdown implementation plan artifact with Mermaid diagrams and checklists.",
+        "parameters": {
+            "title": "string — plan title",
+            "summary": "string — executive summary of the goal",
+            "steps": "list of strings — ordered implementation steps",
+            "mermaid_diagram": "optional string — Mermaid flowchart or sequence diagram",
+            "verification": "optional list of strings — verification checklist items",
+            "output_path": "optional string — custom file path for the plan",
+        },
+    },
 ]
 
 
@@ -221,20 +385,10 @@ async def _build_mcp_tools_prompt() -> str:
     if not enabled:
         return ""
 
-    lines = ["\n\nCONNECTED MCP TOOLS (use with mcp_tool):"]
-    for name, conn in enabled.items():
-        try:
-            tools = await mcp_list_tools(conn)
-            if tools:
-                lines.append(f"\n[{name}]")
-                for t in tools[:10]:  # Cap at 10 per server
-                    params = list(t.input_schema.get("properties", {}).keys())[:4]
-                    lines.append(f"  {name}/{t.name}: {t.description[:60]}"
-                                 + (f"  ({', '.join(params)})" if params else ""))
-        except Exception:
-            pass
+    # Discover concrete schemas only when requested, not on every task startup.
+    names = list(enabled)[:20]
+    return "Configured MCP servers (discover via mcp_list_tools before mcp_tool): " + ", ".join(names)
 
-    return "\n".join(lines) if len(lines) > 1 else ""
 
 TOOLS_PROMPT = """You have access to these tools. To call a tool, respond with a JSON block:
 ```tool
@@ -315,6 +469,24 @@ def _run_coro_blocking(coro):
 # ─────────────────────────────────────────────────────────────
 
 def execute_tool(tool_name: str, params: dict) -> str:
+    try:
+        if not isinstance(params, dict):
+            raise ValueError("Tool parameters must be an object")
+        params = dict(params)
+        if tool_name in {"read_file","list_dir","edit_file","multi_edit","create_file","run_file","grep_search","find_files"}:
+            params["path"] = str(workspace_path(params.get("path", ".")))
+        if tool_name == "background_task":
+            params["cwd"] = str(workspace_path(params.get("cwd", ".")))
+        if tool_name == "create_plan" and params.get("output_path"):
+            params["output_path"] = str(workspace_path(params["output_path"]))
+        if tool_name in {t["name"] for t in CODING_TOOLS}:
+            return json.dumps(redact(execute_coding_tool(tool_name, params)), ensure_ascii=False)
+        return redact(_execute_tool(tool_name, params))
+    except Exception as exc:
+        return "❌ " + redact(str(exc))
+
+
+def _execute_tool(tool_name: str, params: dict) -> str:
     """Execute a tool call and return string result"""
     import subprocess
 
@@ -334,6 +506,38 @@ def execute_tool(tool_name: str, params: dict) -> str:
                 params.get("old_str", ""),
                 params.get("new_str", ""),
             )
+
+        elif tool_name == "multi_edit":
+            return multi_edit(
+                params.get("path", ""),
+                params.get("edits", []),
+            )
+
+        elif tool_name == "grep_search":
+            return grep_search(
+                query=params.get("query", ""),
+                path=params.get("path", "."),
+                include=params.get("include"),
+                case_sensitive=bool(params.get("case_sensitive", False)),
+                max_results=int(params.get("max_results", 50)),
+            )
+
+        elif tool_name == "find_files":
+            return find_files(
+                pattern=params.get("pattern", "*"),
+                path=params.get("path", "."),
+                max_results=int(params.get("max_results", 50)),
+            )
+
+        elif tool_name == "background_task":
+            from kurt.core.subagents import manage_background_task
+            res = manage_background_task(
+                action=params.get("action", "list"),
+                cmd=params.get("cmd"),
+                task_id=params.get("task_id"),
+                cwd=params.get("cwd", "."),
+            )
+            return json.dumps(res, indent=2, ensure_ascii=False)
 
         elif tool_name == "create_file":
             return write_new_file(params.get("path", ""), params.get("content", ""))
@@ -377,8 +581,8 @@ def execute_tool(tool_name: str, params: dict) -> str:
             if danger:
                 return f"🚨 Refused: dangerous pattern '{danger}'"
             try:
-                r = subprocess.run(
-                    cmd, shell=True, capture_output=True, text=True, timeout=30
+                r = restricted_run(
+                    cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=str(current_workspace())
                 )
                 out = r.stdout.strip()
                 err = r.stderr.strip()
@@ -418,7 +622,7 @@ def execute_tool(tool_name: str, params: dict) -> str:
             cli_tool = (params.get("tool") or "").strip().lower()
             prompt = params.get("prompt", "")
             if not cli_tool:
-                return "❌ delegate_cli requires tool: claude, gemini, openclaw, peekaboo, gh, or bash"
+                return "❌ delegate_cli requires tool: codex, claude, gemini, openclaw, peekaboo, gh, or bash"
             if cli_tool in ("openclaw", "peekaboo"):
                 from kurt.core.cli_tools import delegate_desktop_cli
                 return delegate_desktop_cli(cli_tool, prompt, args=params.get("args"), agent=params.get("agent", "main"),
@@ -428,6 +632,9 @@ def execute_tool(tool_name: str, params: dict) -> str:
 
             from kurt.core.cli_orchestrator import _resolve_cmd, _run_shell, _cmd_exists
 
+            if cli_tool == "codex":
+                from kurt.core.codex_adapter import run_codex
+                return json.dumps(run_codex(prompt,cwd=current_workspace()),ensure_ascii=False)
             if cli_tool == "claude":
                 if not _cmd_exists("claude"):
                     return "❌ Claude Code CLI not found. Run: npm install"
@@ -538,13 +745,196 @@ def execute_tool(tool_name: str, params: dict) -> str:
             script = params.get("script", "")
             if not script:
                 return "❌ No script given"
-            r = subprocess.run(
+            r = restricted_run(
                 ["osascript", "-e", script],
                 capture_output=True, text=True, timeout=15
             )
             if r.returncode == 0:
                 return r.stdout.strip() or "✓ Script ran successfully"
             return f"❌ AppleScript error: {r.stderr.strip()}"
+
+        elif tool_name == "analyze_screen":
+            from kurt.core.vision import describe_screen, read_text_on_screen, find_element, understand_context, answer_about_image, load_image_b64
+            mode = (params.get("mode") or "describe").strip().lower()
+            query = params.get("query", "")
+            path = (params.get("path") or "").strip()
+            if path:
+                img_file = Path(path).expanduser()
+                if not img_file.is_file():
+                    return f"❌ Image file not found: {path}"
+                try:
+                    img_b64 = load_image_b64(str(img_file))
+                except Exception as e:
+                    return f"❌ Could not read image file: {e}"
+                if mode == "ocr":
+                    vres = read_text_on_screen(img_b64, region_hint=query)
+                elif mode == "find":
+                    vres = find_element(img_b64, element_description=query or "button")
+                elif mode == "context":
+                    vres = understand_context(img_b64, task=query or "current task")
+                elif query:
+                    vres = answer_about_image(img_b64, query)
+                else:
+                    vres = describe_screen(img_b64)
+                if vres.success:
+                    return f"👁️ Vision ({vres.model_used}) on {img_file.name}:\n{vres.description}"
+                return f"⚠️ Local vision model unavailable ({vres.error}) for {img_file.name}."
+
+            from kurt.core.computer_use import screenshot as _shot, get_active_window
+            shot = _shot()
+            if not shot.success:
+                return f"❌ Screenshot failed: {shot.message}"
+            img_b64 = shot.data.get("image_b64", "")
+            if mode == "ocr":
+                vres = read_text_on_screen(img_b64, region_hint=query)
+            elif mode == "find":
+                vres = find_element(img_b64, element_description=query or "button")
+            elif mode == "context":
+                vres = understand_context(img_b64, task=query or "current task")
+            else:
+                vres = describe_screen(img_b64)
+            if vres.success:
+                return f"👁️ Vision ({vres.model_used}):\n{vres.description}"
+            win = get_active_window()
+            return f"⚠️ Local vision model unavailable ({vres.error}). Active window: {win.message}. ({shot.message})"
+
+        elif tool_name == "find_and_click":
+            from kurt.core.computer_use import screenshot as _shot, click as _click
+            from kurt.core.vision import find_element
+            element_desc = params.get("element", "")
+            if not element_desc:
+                return "❌ find_and_click requires 'element' description"
+            shot = _shot()
+            if not shot.success:
+                return f"❌ Screenshot failed: {shot.message}"
+            vres = find_element(shot.data.get("image_b64", ""), element_desc)
+            if vres.success and vres.elements and "x" in vres.elements[0] and "y" in vres.elements[0]:
+                x, y = int(vres.elements[0]["x"]), int(vres.elements[0]["y"])
+                cres = _click(x, y, button=params.get("button", "left"))
+                return f"✓ Found '{element_desc}' at ({x}, {y}) → {cres.message}"
+            return f"❌ Could not pinpoint coordinates for '{element_desc}'. Vision info: {vres.description or vres.error}"
+
+        elif tool_name == "scroll":
+            from kurt.core.computer_use import scroll as _scroll
+            x = int(params.get("x", 500))
+            y = int(params.get("y", 500))
+            amount = int(params.get("amount", 3))
+            direction = params.get("direction", "down")
+            res = _scroll(x, y, amount=amount, direction=direction)
+            return f"✓ {res.message}" if res.success else f"❌ {res.message}"
+
+        elif tool_name == "drag":
+            from kurt.core.computer_use import drag as _drag
+            res = _drag(
+                int(params.get("x1", 0)),
+                int(params.get("y1", 0)),
+                int(params.get("x2", 0)),
+                int(params.get("y2", 0)),
+            )
+            return f"✓ {res.message}" if res.success else f"❌ {res.message}"
+
+        elif tool_name == "clipboard":
+            from kurt.core.computer_use import clipboard_copy, clipboard_paste
+            act = (params.get("action") or "paste").strip().lower()
+            if act == "copy":
+                res = clipboard_copy(params.get("text", ""))
+                return f"✓ {res.message}" if res.success else f"❌ {res.message}"
+            res = clipboard_paste()
+            return res.data.get("text", "") if res.success else f"❌ {res.message}"
+
+        elif tool_name == "browser_action":
+            from kurt.core.cli_orchestrator import _get_browser_session, close_browser_session
+            act = (params.get("action") or "read").strip().lower()
+            if act == "close":
+                close_browser_session()
+                return "✓ Browser session closed"
+            session = _get_browser_session()
+            if act == "open":
+                res = session.go(params.get("url", ""))
+                return f"✓ Opened: {res.title} ({res.url})" if res.success else f"❌ {res.error}"
+            if act == "read":
+                res = session.read()
+                return f"Title: {res.title}\nURL: {res.url}\n\n{res.content[:4000]}" if res.success else f"❌ {res.error}"
+            if act == "click":
+                ok = session.click(selector=params.get("selector"), text=params.get("text"))
+                return "✓ Clicked element" if ok else "❌ Click failed"
+            if act == "type":
+                ok = session.type(params.get("selector", ""), params.get("text", ""))
+                return "✓ Typed into element" if ok else "❌ Type failed"
+            if act == "screenshot":
+                import base64 as _b64, time as _time
+                shots_dir = Path.home() / ".kurt" / "browser_screenshots"
+                shots_dir.mkdir(parents=True, exist_ok=True)
+                b64 = session.screenshot_b64()
+                if not b64:
+                    return "❌ Browser screenshot failed"
+                save_path = shots_dir / f"kurt_browser_{int(_time.time())}.png"
+                save_path.write_bytes(_b64.b64decode(b64))
+                return f"✓ Saved browser screenshot: {save_path}"
+            if act == "links":
+                links = session.get_links()
+                return json.dumps(links, indent=2, ensure_ascii=False)
+            if act == "search":
+                res = session.search(params.get("query", ""))
+                return f"✓ Searched ({res.title}):\n{res.content[:3000]}" if res.success else f"❌ {res.error}"
+            return f"❌ Unknown browser_action: {act}"
+
+        elif tool_name in ("mac_doctor", "system_doctor"):
+            from kurt.core.mac_doctor import run_doctor_action, format_doctor_report
+            data = run_doctor_action(
+                action=params.get("action", "summary"),
+                target=params.get("target"),
+                limit=int(params.get("limit", 10)),
+            )
+            return format_doctor_report(data)
+
+        elif tool_name == "os_script":
+            from kurt.core.mac_doctor import run_os_script
+            res = run_os_script(params.get("script", ""))
+            if res.get("status") == "ok":
+                return res.get("output", "✓ Script ran successfully")
+            return f"❌ {res.get('engine', 'OS Script')} error: {res.get('error')}"
+
+        elif tool_name == "open_folder":
+            from kurt.core.mac_doctor import open_folder as _open_folder
+            res = _open_folder(
+                path=params.get("path", "."),
+                reveal=bool(params.get("reveal", False)),
+            )
+            return f"✓ {res['message']}" if res.get("status") == "ok" else f"❌ {res.get('error')}"
+
+        elif tool_name == "spawn_subagent":
+            from kurt.core.subagents import run_subagent_async
+            res = _run_coro_blocking(
+                run_subagent_async(
+                    role=params.get("role", "research"),
+                    task=params.get("task", ""),
+                    model=params.get("model"),
+                    max_steps=int(params.get("max_steps", 8)),
+                )
+            )
+            return json.dumps(res, indent=2, ensure_ascii=False)
+
+        elif tool_name == "swarm_execute":
+            from kurt.core.subagents import run_swarm_async
+            res = _run_coro_blocking(
+                run_swarm_async(
+                    subtasks=params.get("subtasks", []),
+                )
+            )
+            return json.dumps(res, indent=2, ensure_ascii=False)
+
+        elif tool_name == "create_plan":
+            from kurt.core.subagents import create_plan_artifact
+            res = create_plan_artifact(
+                title=params.get("title", "Implementation Plan"),
+                summary=params.get("summary", ""),
+                steps=params.get("steps", []),
+                mermaid_diagram=params.get("mermaid_diagram"),
+                verification=params.get("verification"),
+                output_path=params.get("output_path"),
+            )
+            return json.dumps(res, indent=2, ensure_ascii=False)
 
         elif tool_name == "done":
             return f"DONE: {params.get('summary', 'Task complete.')}"
@@ -562,27 +952,11 @@ def execute_tool(tool_name: str, params: dict) -> str:
 
 def parse_tool_call(response: str) -> Optional[tuple[str, dict]]:
     """Extract tool name and params from AI response"""
-    # Look for ```tool ... ``` block
-    pattern = r"```tool\s*\n(.*?)```"
-    match = re.search(pattern, response, re.DOTALL)
-    if match:
-        try:
-            data = json.loads(match.group(1).strip())
-            return data.get("tool"), data.get("params", {})
-        except json.JSONDecodeError:
-            pass
-
-    # Also look for plain JSON with "tool" key
-    json_pattern = r'\{"tool":\s*"(\w+)"[^}]*"params":\s*(\{[^}]*\})'
-    jmatch = re.search(json_pattern, response, re.DOTALL)
-    if jmatch:
-        try:
-            tool = jmatch.group(1)
-            params = json.loads(jmatch.group(2))
-            return tool, params
-        except Exception:
-            pass
-
+    from kurt.capabilities.bridge import parse_request
+    match = re.search(r"```tool\s*\n(.*?)```", response, re.DOTALL)
+    request = parse_request(match.group(0) if match else response)
+    if request and isinstance(request.get("params", {}), dict):
+        return request["tool"], request.get("params", {})
     return None, None
 
 
@@ -590,7 +964,14 @@ def parse_tool_call(response: str) -> Optional[tuple[str, dict]]:
 # Main Agent Loop
 # ─────────────────────────────────────────────────────────────
 
-async def run_agent(
+async def run_agent(task, analysis, router, cwd=".", max_steps=MAX_STEPS, verbose=False, skill=None, tool_profile="all"):
+    if type(max_steps) is not int or not 1 <= max_steps <= 100:
+        raise ValueError("Agent steps must be between 1 and 100")
+    with workspace(cwd) as root:
+        return await _run_agent(task, analysis, router, str(root), max_steps, verbose, skill, tool_profile)
+
+
+async def _run_agent(
     task: str,
     analysis,
     router,
@@ -598,11 +979,19 @@ async def run_agent(
     max_steps: int = MAX_STEPS,
     verbose: bool = False,
     skill: Optional[str] = None,
+    tool_profile: str = "all",
 ) -> AgentResult:
     """
     Multi-step agent loop.
     Sends task to AI → gets tool call → executes → feeds result back → repeats.
     """
+    if tool_profile not in ("all", "coding"):
+        raise ValueError("Unknown tool profile")
+    coding_names = {"read_file","list_dir","edit_file","multi_edit","grep_search","find_files", "background_task",
+                    "create_file","run_file","run_code","bash","done","mcp_tool","call_model","search_web","read_webpage",
+                    "create_plan","spawn_subagent","swarm_execute"} | {t["name"] for t in CODING_TOOLS}
+    active_tools = TOOLS if tool_profile == "all" else [t for t in TOOLS if t["name"] in coding_names]
+    portable_prompt = "Use one fenced tool JSON request at a time. Available tools:\n" + json.dumps(active_tools)
     steps = []
     files_changed = []
     skill_prompt = ""
@@ -612,14 +1001,34 @@ async def run_agent(
         if not skill_prompt:
             raise ValueError(f"Skill is missing or disabled: {skill}")
 
+    instructions = ""
+    instruction_path = Path(cwd) / "AGENTS.md"
+    if instruction_path.is_file():
+        instructions = read_file(str(instruction_path))[:16384]
     # Build MCP tools section
     mcp_section = await _build_mcp_tools_prompt()
 
+    from kurt.core.mac_doctor import get_os_profile
+    os_prof = get_os_profile()
+
     system_prompt = (
-        f"You are KURT, an AI assistant for Daddy Tito's iMac. Working dir: {cwd}\n\n"
-        f"{TOOLS_PROMPT}"
+        f"You are KURT, an AI assistant running on {os_prof['os_label']} ({os_prof['system']} {os_prof['release']}, {os_prof['machine']}). "
+        f"Working dir: {cwd}\n"
+        f"Host Profile: shell={os_prof['shell']}, package_manager={os_prof['package_manager']}, "
+        f"file_manager={os_prof['file_manager']}, shortcut_modifier={os_prof['primary_modifier']}, "
+        f"automation={os_prof['automation_engine']}\n\n"
+        f"{'Use the supplied function tools. Call one tool at a time.' if getattr(router, 'supports_native_tools', False) else portable_prompt}"
         f"{mcp_section}\n\n"
+        "Coding workflow: inspect files and git status first; preserve existing user changes. "
+        "Use grep_search/find_files, edit_file/multi_edit, run_checks with exact argv, "
+        "and git_inspect to review the final diff. Read AGENTS.md in the active workspace and any applicable nested instructions before editing. "
+        "Report actual failed or unrun checks; do not invent passing results. "
+        "Do not auto-commit, publish, deploy, send messages, reset or clean user changes. "
+        "Use codex_task only for explicitly requested delegation. "
+        "Read runtime errors carefully; never bypass a sandbox failure.\n"
+
         f"{skill_prompt}\n\n"
+        f"Repository instructions:\n{instructions}\n\n"
         "RULES:\n"
         "1. For app/browser tasks: open_app first → screenshot → click → type_text\n"
         "2. Always screenshot before clicking to see current screen state\n"
@@ -670,13 +1079,10 @@ async def run_agent(
         # Get AI response
         full_response = ""
         try:
-            route_options = {"native_tools": function_schemas()} if getattr(router, "supports_native_tools", False) else {}
+            route_options = {"native_tools": agent_function_schemas(active_tools)} if getattr(router, "supports_native_tools", False) else {}
             with Live(Text(""), refresh_per_second=8, console=console) as live:
-                async for chunk in router.route(
-                    provider=analysis.provider,
-                    model=analysis.model,
-                    messages=messages,
-                    **route_options,
+                async for chunk in NativeToolRouter(router, on_status=console.print)._chunks(
+                    analysis.provider, analysis.model, messages, route_options
                 ):
                     full_response += chunk
                     # Show thinking in dim
@@ -704,15 +1110,15 @@ async def run_agent(
         step.tool_params = tool_params or {}
 
         # Show what tool is being called
-        params_preview = json.dumps(tool_params, ensure_ascii=False)[:80] if tool_params else ""
+        params_preview = json.dumps(redact(tool_params), ensure_ascii=False)[:80] if tool_params else ""
         console.print(f"  🔧 [yellow]{tool_name}[/yellow] [dim]{params_preview}[/dim]")
 
         # Execute tool
-        result = execute_tool(tool_name, tool_params or {})
+        result = await asyncio.to_thread(execute_tool, tool_name, tool_params or {})
         step.tool_result = result
 
         # Track edited files
-        if tool_name in ("edit_file", "create_file"):
+        if tool_name in ("edit_file", "multi_edit", "create_file") and result.startswith("✅"):
             fp = (tool_params or {}).get("path", "")
             if fp and fp not in files_changed:
                 files_changed.append(fp)
@@ -724,21 +1130,23 @@ async def run_agent(
         # Check if done
         if tool_name == "done" or result.startswith("DONE:"):
             step.is_done = True
-            step.done_summary = tool_params.get("summary", result)
+            step.done_summary = (tool_params or {}).get("summary", result)
             console.print(f"\n[bold green]✅ Agent done![/bold green]")
             console.print(f"[dim]{step.done_summary}[/dim]")
             break
 
         # Feed result back to AI
         messages.append({"role": "assistant", "content": full_response})
-        messages.append({"role": "user", "content": f"Tool result:\n{result}"})
+        messages.append({"role": "user", "content": "Tool result:\n" + result[:12000] + ("\n[Result truncated; inspect narrower ranges.]" if len(result)>12000 else "")})
+        if len(messages) > 18:
+            messages = messages[:2] + messages[-16:]
 
     else:
         console.print(f"\n[yellow]⚠️  Reached max steps ({max_steps})[/yellow]")
 
     # Build summary
     done_step = next((s for s in reversed(steps) if s.is_done), None)
-    summary = done_step.done_summary if done_step else f"Completed {len(steps)} steps"
+    summary = done_step.done_summary if done_step else f"Incomplete after {len(steps)} steps; no successful completion was recorded"
 
     return AgentResult(
         success=bool(done_step),

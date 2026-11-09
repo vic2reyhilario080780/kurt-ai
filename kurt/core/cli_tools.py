@@ -5,6 +5,9 @@ downloaded implicitly. A timed-out desktop action is not automatically retried.
 """
 
 from dataclasses import asdict, dataclass
+from kurt.utils.security import redact, child_env
+from kurt.utils.execution import service_argv
+
 import json
 import os
 from pathlib import Path
@@ -34,7 +37,7 @@ class CLIResult:
     hint: str = ""
 
     def text(self):
-        return json.dumps(asdict(self), ensure_ascii=False)
+        return json.dumps(redact(asdict(self)), ensure_ascii=False)
 
 
 def resolve_cli(tool):
@@ -46,12 +49,16 @@ def resolve_cli(tool):
     return shutil.which(tool)
 
 
-def cli_env():
+def cli_env(tool="openclaw"):
     # Upstream Node entrypoints and their child processes use this runtime.
     from dotenv import dotenv_values
     from kurt.utils.env_loader import ENV_PATH
     env = {k: v for k, v in dotenv_values(ENV_PATH).items() if isinstance(v, str)} if ENV_PATH.exists() else {}
     env.update(os.environ)
+    allowed = ("OPENCLAW_CONFIG_PATH", "OPENCLAW_STATE_DIR", "OPENCLAW_GATEWAY_TOKEN", "GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY") if tool == "openclaw" else ()
+    if tool == "openclaw" and not env.get("OPENCLAW_CONFIG_PATH") and not env.get("OPENCLAW_STATE_DIR") and not (Path.home() / ".openclaw/openclaw.json").exists() and MANAGED_CONFIG.exists():
+        allowed = ("GROQ_API_KEY",)
+    env = child_env(allow=allowed, source=env)
     env.update({"PATH": str(NODE_BIN) + os.pathsep + os.environ.get("PATH", ""), "NO_COLOR": "1"})
     if not env.get("OPENCLAW_CONFIG_PATH") and not env.get("OPENCLAW_STATE_DIR") and not (Path.home() / ".openclaw" / "openclaw.json").exists() and MANAGED_CONFIG.exists():
         env["OPENCLAW_CONFIG_PATH"] = str(MANAGED_CONFIG)
@@ -97,8 +104,8 @@ def run_cli(tool, args, timeout=180):
         return CLIResult(tool, "missing", hint="Run npm install in the Kurt project, or install the upstream CLI on PATH.")
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
-            process = subprocess.Popen([executable, *args], stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                       env=cli_env(), start_new_session=True)
+            process = subprocess.Popen(service_argv([executable, *args], tool), stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                       env=cli_env(tool), start_new_session=True)
         except OSError as exc:
             return CLIResult(tool, "failed", stderr=str(exc), hint="Check the CLI installation and runtime requirements.")
         try:
@@ -132,7 +139,7 @@ def run_cli(tool, args, timeout=180):
     elif status == "failed":
         hint = ("Check macOS Accessibility, Screen Recording and Event Synthesizing permissions; inspect the CLI error."
                 if tool == "peekaboo" else "Check OpenClaw configuration, model quota/context budget and Gateway availability if using Gateway mode.")
-    return CLIResult(tool, status, stdout, stderr, code, parsed, out_cut or err_cut, hint)
+    return CLIResult(tool, status, redact(stdout), redact(stderr), code, redact(parsed), out_cut or err_cut, hint)
 
 
 def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=None, timeout=180):
@@ -144,6 +151,7 @@ def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=No
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("A nonempty task/command is required.")
     if tool == "openclaw":
+        prompt = redact(prompt)
         if not isinstance(agent, str) or not agent.strip():
             raise ValueError("OpenClaw agent must be a nonempty name.")
         if managed_openclaw() and agent == "main" and session_id is None:

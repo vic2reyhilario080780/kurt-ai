@@ -4,6 +4,9 @@ Handles slash commands inside `kurt chat` — routes to Claude Code CLI,
 Gemini CLI, gh CLI, and other terminal tools.
 """
 
+from kurt.utils.security import redact, child_env
+from kurt.utils.execution import restricted_run, service_argv
+import shlex
 import os
 import subprocess
 import shutil
@@ -25,8 +28,11 @@ def _resolve_cmd(name: str) -> str:
     local = NODE_BIN / name
     if local.exists():
         return str(local)
-    # Fallback: npx (still uses project node_modules first)
-    return f"npx --prefix {PROJECT_ROOT} {name}"
+    # Return an executable path, never a compound shell command.
+    resolved = shutil.which(name)
+    if resolved:
+        return resolved
+    raise FileNotFoundError(f"CLI not found: {name}")
 
 
 @dataclass
@@ -65,22 +71,29 @@ SLASH_COMMANDS = {
     # ── System — shell out to other dev tools ───────────────────────
     "/run":       "Run a shell command  e.g. /run ls -la",
     "/gh":        "Run GitHub CLI  e.g. /gh pr list",
+    "/codex":     "Delegate a coding task to installed Codex CLI (read-only by default)",
     "/claude":    "Delegate to Claude Code CLI  e.g. /claude \"review main.py for bugs\"",
     "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
     "/openclaw":  "Delegate a task to OpenClaw  e.g. /openclaw summarize the task results",
     "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
     "/cli":       "CLI availability/readiness  e.g. /cli status | /cli probe",
     "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
+    "/doctor":    "Diagnose & debug your iMac  e.g. /doctor summary | cpu | mem | disk | net | crashes | startup | open <path>",
+    "/grep":      "Fast regex/text codebase search  e.g. /grep ModelRouter",
+    "/find":      "Find files by glob or substring  e.g. /find *.py",
+    "/tasks":     "Manage background tasks  e.g. /tasks list | start <cmd> | status <id> | kill <id>",
+    "/subagent":  "Launch an autonomous subagent  e.g. /subagent research | find all API endpoints",
+    "/plan":      "Create a structured Markdown plan artifact  e.g. /plan Refactor Auth | step 1; step 2",
     # ── Web & Computer — browsing and desktop control ────────────────
     "/web":       "Fetch a page or search the web  e.g. /web https://example.com",
     "/browser":   "Control a real (Playwright) browser  e.g. /browser open https://example.com",
-    "/computer":  "Control the Mac desktop  e.g. /computer screenshot",
+    "/computer":  "Control the Mac desktop  e.g. /computer screenshot | analyze [image_path] | open <folder>",
 }
 
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config"]),
-    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library"]),
-    ("⚙️  System", ["/run", "/gh", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp"]),
+    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
+    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/doctor", "/grep", "/find", "/tasks"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -123,15 +136,19 @@ def _run_shell(cmd: str, args: str) -> str:
     """Run a shell command and return output"""
     full_cmd = f"{cmd} {args}".strip()
     try:
-        result = subprocess.run(
-            full_cmd,
-            shell=True,
+        trusted = Path(cmd).name in {"claude", "gemini", "gh"}
+        runner = subprocess.run if trusted else restricted_run
+        options = {"env": child_env(allow=("ANTHROPIC_API_KEY",) if Path(cmd).name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY") if Path(cmd).name == "gemini" else ("GH_TOKEN", "GITHUB_TOKEN"))} if trusted else {}
+        result = runner(
+            service_argv([cmd, *shlex.split(args)], Path(cmd).name) if trusted else full_cmd,
+            shell=not trusted,
             capture_output=True,
             text=True,
             timeout=30,
+            **options,
         )
-        out = result.stdout.strip()
-        err = result.stderr.strip()
+        out = redact(result.stdout.strip())
+        err = redact(result.stderr.strip())
         if result.returncode != 0 and err:
             return f"[stderr]\n{err}\n[stdout]\n{out}" if out else f"❌ Error:\n{err}"
         return out if out else "(no output)"
@@ -238,11 +255,15 @@ def handle_slash(
 
     # ── /info ───────────────────────────────────────────────────────
     if cmd == "/info":
+        from kurt.core.mac_doctor import get_os_profile
+        prof = get_os_profile()
         lines = [
             "",
-            "ℹ️   KURT Session Info",
+            "ℹ️   KURT Session & Host Info",
             "─" * 35,
             f"  Session ID  : {session_id[:8]}…",
+            f"  Host OS     : {prof['os_label']} ({prof['system']} {prof['release']}, {prof['machine']})",
+            f"  Shell / Pkg : {prof['shell']} · {prof['package_manager']}",
             f"  Model       : {current_model}",
             f"  Skill       : {current_skill or 'none'}",
             f"  Claude CLI  : {'✅ installed' if _cmd_exists('claude') else '❌ not found'}",
@@ -381,6 +402,17 @@ def handle_slash(
             output = f"CLI configuration error: {exc}"
         return SlashResult(True, output, True, feed_to_ai=True)
 
+    if cmd == "/codex":
+        from kurt.core.codex_adapter import run_codex, codex_status
+        import json
+        if args in ("", "status"):
+            return SlashResult(True, json.dumps(codex_status(),ensure_ascii=False),True)
+        try:
+            result=run_codex(args,cwd=Path.cwd())
+            return SlashResult(True,json.dumps(result,ensure_ascii=False),True,feed_to_ai=True)
+        except (ValueError,OSError,RuntimeError) as exc:
+            return SlashResult(True,"Codex delegation failed: "+redact(str(exc)),True)
+
     # ── /claude ─────────────────────────────────────────────────────
     if cmd == "/claude":
         if not _cmd_exists("claude"):
@@ -400,7 +432,7 @@ def handle_slash(
                 continue_chat=True,
             )
         claude_cmd = _resolve_cmd("claude")
-        output = _run_shell(claude_cmd, f'--print "{args}"')
+        output = _run_shell(claude_cmd, f'--print {shlex.quote(redact(args))}')
         return SlashResult(handled=True, output=f"🤖 Claude Code:\n\n{output}", continue_chat=True, feed_to_ai=True)
 
     # ── /gemini ─────────────────────────────────────────────────────
@@ -421,7 +453,7 @@ def handle_slash(
                 continue_chat=True,
             )
         gemini_cmd = _resolve_cmd("gemini")
-        output = _run_shell(gemini_cmd, f'-p "{args}"')
+        output = _run_shell(gemini_cmd, f'-p {shlex.quote(redact(args))}')
         return SlashResult(handled=True, output=f"✨ Gemini:\n\n{output}", continue_chat=True, feed_to_ai=True)
 
     # ── /gh ─────────────────────────────────────────────────────────
@@ -559,11 +591,128 @@ def handle_slash(
                 return SlashResult(handled=True, output=f"🖱️  {result.message}", continue_chat=True)
             return SlashResult(handled=True, output=f"❌ Click failed: {result.message}", continue_chat=True)
 
+        elif sub_cmd == "analyze":
+            from kurt.core.agent_loop import execute_tool
+            tokens = sub_args.split(None, 1)
+            maybe_path = Path(tokens[0]).expanduser() if tokens else None
+            if maybe_path and maybe_path.is_file():
+                img_query = tokens[1].strip() if len(tokens) > 1 else ""
+                out = execute_tool("analyze_screen", {"mode": "describe", "path": str(maybe_path), "query": img_query})
+            else:
+                out = execute_tool("analyze_screen", {"mode": "describe", "query": sub_args})
+            return SlashResult(handled=True, output=out, continue_chat=True, feed_to_ai=True)
+
+        elif sub_cmd == "open":
+            from kurt.core.mac_doctor import open_folder
+            res = open_folder(sub_args or ".")
+            if res.get("status") == "ok":
+                return SlashResult(handled=True, output=f"📂 {res['message']}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ {res.get('error')}", continue_chat=True)
+
         return SlashResult(
             handled=True,
-            output="Usage: /computer screenshot | /computer type <text> | /computer click <x> <y>",
+            output="Usage: /computer screenshot | analyze [image_path] [question] | type <text> | click <x> <y> | open <folder>",
             continue_chat=True,
         )
+
+    # ── /doctor, /mac, or /system (Cross-Platform Host Diagnostics) ─
+    if cmd in ("/doctor", "/mac", "/system"):
+        from kurt.core.mac_doctor import run_doctor_action, format_doctor_report
+        sub = args.split(None, 1)
+        act = sub[0].lower() if sub else "summary"
+        target = sub[1].strip() if len(sub) > 1 else None
+        data = run_doctor_action(action=act, target=target)
+        report = format_doctor_report(data)
+        return SlashResult(handled=True, output=report, continue_chat=True, feed_to_ai=True)
+
+    # ── /grep ───────────────────────────────────────────────────────
+    if cmd == "/grep":
+        if not args:
+            return SlashResult(handled=True, output="Usage: /grep <pattern> [path]", continue_chat=True)
+        from kurt.core.file_ops import grep_search
+        parts2 = args.split(None, 1)
+        query = parts2[0]
+        path = parts2[1].strip() if len(parts2) > 1 else "."
+        try:
+            out = grep_search(query=query, path=path)
+        except Exception as e:
+            out = f"❌ {e}"
+        return SlashResult(handled=True, output=out, continue_chat=True, feed_to_ai=True)
+
+    # ── /find ───────────────────────────────────────────────────────
+    if cmd == "/find":
+        from kurt.core.file_ops import find_files
+        parts2 = args.split(None, 1) if args else ["*"]
+        pat = parts2[0]
+        path = parts2[1].strip() if len(parts2) > 1 else "."
+        try:
+            out = find_files(pattern=pat, path=path)
+        except Exception as e:
+            out = f"❌ {e}"
+        return SlashResult(handled=True, output=out, continue_chat=True, feed_to_ai=True)
+
+    # ── /tasks ──────────────────────────────────────────────────────
+    if cmd == "/tasks":
+        import json as _json
+        from kurt.core.subagents import manage_background_task
+        sub = args.split(None, 1)
+        act = sub[0].lower() if sub else "list"
+        rest = sub[1].strip() if len(sub) > 1 else ""
+        if act == "start":
+            res = manage_background_task(action="start", cmd=rest)
+        elif act in ("status", "kill"):
+            res = manage_background_task(action=act, task_id=rest)
+        else:
+            res = manage_background_task(action="list")
+        return SlashResult(handled=True, output=_json.dumps(res, indent=2, ensure_ascii=False), continue_chat=True)
+
+    # ── /subagent ───────────────────────────────────────────────────
+    if cmd == "/subagent":
+        if not args:
+            return SlashResult(
+                handled=True,
+                output="Usage: /subagent <role> | <task>\nRoles: research, coder, mac-doctor, qa-verifier\ne.g. /subagent research | find how routing works",
+                continue_chat=True,
+            )
+        import json as _json
+        from kurt.core.agent_loop import _run_coro_blocking
+        from kurt.core.subagents import run_subagent_async
+        if "|" in args:
+            role, task_str = [x.strip() for x in args.split("|", 1)]
+        else:
+            role, task_str = "research", args.strip()
+        res = _run_coro_blocking(run_subagent_async(role=role, task=task_str))
+        return SlashResult(
+            handled=True,
+            output=f"🤖 Subagent [{role}] ({res.get('status')}):\n\n{res.get('summary', '')}",
+            continue_chat=True,
+            feed_to_ai=True,
+        )
+
+    # ── /plan ───────────────────────────────────────────────────────
+    if cmd == "/plan":
+        if not args:
+            return SlashResult(
+                handled=True,
+                output="Usage: /plan <title> | <step 1; step 2; step 3>",
+                continue_chat=True,
+            )
+        from kurt.core.subagents import create_plan_artifact
+        if "|" in args:
+            title, steps_raw = [x.strip() for x in args.split("|", 1)]
+            steps_list = [s.strip() for s in steps_raw.split(";") if s.strip()]
+        else:
+            title = args.strip()
+            steps_list = ["Analyze requirements and existing files", "Implement core changes", "Run tests and verify"]
+        res = create_plan_artifact(title=title, summary=title, steps=steps_list)
+        if res.get("status") == "ok":
+            return SlashResult(
+                handled=True,
+                output=f"📋 Plan Artifact Created: {res['path']}\n\n{res['preview']}",
+                continue_chat=True,
+                feed_to_ai=True,
+            )
+        return SlashResult(handled=True, output=f"❌ {res.get('error')}", continue_chat=True)
 
     # ── /web ────────────────────────────────────────────────────────
     if cmd == "/web":

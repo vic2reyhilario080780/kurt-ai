@@ -4,6 +4,8 @@ No shell, network, account access, generated code or source-file modification.
 Rows are supplied explicitly by the user. Domain schemas never infer units.
 """
 
+from kurt.utils.security import require_public_file
+
 import csv
 from datetime import datetime, timezone
 import io
@@ -32,6 +34,7 @@ METHODS = {
 
 def load_rows(path):
     """Bounded CSV/JSON loading; never execute spreadsheet formulas."""
+    require_public_file(path)
     path = Path(path).expanduser()
     if path.suffix.lower() not in (".csv", ".json"):
         raise ValueError("Input must be a .csv or .json file.")

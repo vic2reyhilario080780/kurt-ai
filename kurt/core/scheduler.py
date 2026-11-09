@@ -4,6 +4,10 @@ Schedule recurring tasks — runs via system cron or manual trigger.
 Hybrid: KURT manages schedule, Claude executes the AI task.
 """
 
+from kurt.utils.security import redact, write_private_text
+import re
+import shlex
+
 import json
 import subprocess
 import sys
@@ -33,7 +37,7 @@ def _load_schedule() -> list:
 
 def _save_schedule(tasks: list):
     KURT_DIR.mkdir(exist_ok=True)
-    SCHEDULE_FILE.write_text(json.dumps(tasks, indent=2, ensure_ascii=False))
+    write_private_text(SCHEDULE_FILE, json.dumps(redact(tasks), indent=2, ensure_ascii=False))
 
 
 def _next_id(tasks: list) -> str:
@@ -151,17 +155,23 @@ def add_schedule():
 
 def install_cron(task: dict):
     """Install task into system crontab"""
-    kurt_bin = sys.executable.replace("python", "kurt")
-    # Use kurt CLI if available, else python -m kurt
-    kurt_cmd = f"kurt ask '{task['prompt']}' >> ~/.kurt/logs/{task['id']}.log 2>&1"
-    cron_line = f"{task['cron']} {kurt_cmd}"
+    # Keep prompts and their secrets out of crontab and shell syntax entirely.
+    if not re.fullmatch(r"task-[0-9]+", task.get("id", "")):
+        raise ValueError("Invalid scheduled task ID")
+    cron = task.get("cron", "")
+    if not re.fullmatch(r"[0-9*/,\-]+(?: [0-9*/,\-]+){4}", cron):
+        raise ValueError("Cron must contain exactly five numeric schedule fields")
+    log_dir = KURT_DIR / "logs"
+    log_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    kurt_cmd = "umask 077; kurt schedule run " + shlex.quote(task["id"]) + " >> " + shlex.quote(str(log_dir / (task["id"] + ".log"))) + " 2>&1"
+    cron_line = f"{cron} {kurt_cmd}"
 
     try:
         result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
         existing = result.stdout if result.returncode == 0 else ""
 
         if cron_line not in existing:
-            new_crontab = existing.rstrip() + f"\n# KURT: {task['name']}\n{cron_line}\n"
+            new_crontab = existing.rstrip() + f"\n# KURT: {task['id']}\n{cron_line}\n"
             proc = subprocess.run(
                 ["crontab", "-"],
                 input=new_crontab,
@@ -198,7 +208,7 @@ def run_schedule(task_id: str):
     tasks = _load_schedule()
     for t in tasks:
         if t["id"] == task_id:
-            console.print(f"[dim]Running: {t['prompt']}[/dim]")
+            console.print(f"[dim]Running: {redact(t['prompt'])}[/dim]")
             # Update last_run
             t["last_run"] = datetime.now().isoformat()
             t["run_count"] = t.get("run_count", 0) + 1

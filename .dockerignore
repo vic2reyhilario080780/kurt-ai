@@ -1,0 +1,33 @@
+# Allowlist the offline worker build context; never send credentials or local state.
+**
+!kurt/
+kurt/**
+!kurt/__init__.py
+!kurt/capabilities/
+kurt/capabilities/**
+!kurt/capabilities/*.py
+!kurt/data/
+kurt/data/**
+!kurt/data/native_pack/
+kurt/data/native_pack/**
+!kurt/data/native_pack/*.json.gz
+!kurt/utils/
+kurt/utils/**
+!kurt/utils/__init__.py
+!kurt/utils/security.py
+!kurt/saas/
+kurt/saas/**
+!kurt/saas/__init__.py
+!kurt/saas/protocol.py
+!kurt/saas/worker.py
+!deploy/
+deploy/**
+!deploy/saas/
+deploy/saas/**
+!deploy/saas/Worker.Dockerfile
+# Final credential exclusions also override any future broad source inclusion.
+**/.env*
+**/*.env
+**/*.kurt-token
+**/__pycache__/
+**/*.pyc

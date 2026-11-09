@@ -3,6 +3,8 @@ KURT Memory - Nag-reremember ng conversations
 SQLite-based, local, private
 """
 
+from kurt.utils.security import redact
+
 import sqlite3
 import json
 import os
@@ -18,6 +20,7 @@ def init_db():
     """Initialize the memory database"""
     KURT_DIR.mkdir(exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
+    os.chmod(DB_PATH, 0o600)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -49,12 +52,13 @@ def save_message(session_id: str, role: str, content: str,
                   model: str = None, task_type: str = None):
     """Save a message to memory"""
     conn = sqlite3.connect(DB_PATH)
+    os.chmod(DB_PATH, 0o600)
     cursor = conn.cursor()
 
     cursor.execute("""
         INSERT INTO conversations (session_id, role, content, model, task_type)
         VALUES (?, ?, ?, ?, ?)
-    """, (session_id, role, content, model, task_type))
+    """, (session_id, role, redact(content), model, task_type))
 
     # Update session
     cursor.execute("""
@@ -69,6 +73,7 @@ def save_message(session_id: str, role: str, content: str,
 def get_history(session_id: str, limit: int = 20) -> list:
     """Get conversation history for a session"""
     conn = sqlite3.connect(DB_PATH)
+    os.chmod(DB_PATH, 0o600)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -82,13 +87,14 @@ def get_history(session_id: str, limit: int = 20) -> list:
     conn.close()
 
     # Reverse to get chronological order
-    messages = [{"role": row[0], "content": row[1]} for row in reversed(rows)]
+    messages = [{"role": row[0], "content": redact(row[1])} for row in reversed(rows)]
     return messages
 
 
 def list_sessions(limit: int = 10) -> list:
     """List recent sessions"""
     conn = sqlite3.connect(DB_PATH)
+    os.chmod(DB_PATH, 0o600)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -106,6 +112,7 @@ def list_sessions(limit: int = 10) -> list:
 def clear_session(session_id: str):
     """Clear a specific session"""
     conn = sqlite3.connect(DB_PATH)
+    os.chmod(DB_PATH, 0o600)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
     cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))

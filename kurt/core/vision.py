@@ -302,6 +302,26 @@ def detect_ui_state(image_b64: str, model: Optional[str] = None) -> VisionResult
         return VisionResult(success=False, error=str(e))
 
 
+def load_image_b64(path: str) -> str:
+    """Read an arbitrary image file from disk and return it base64-encoded."""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def answer_about_image(image_b64: str, question: str, model: Optional[str] = None) -> VisionResult:
+    """
+    Answer an arbitrary free-form question about an existing image (not a live
+    screen capture) — e.g. a saved screenshot, a photo, a downloaded picture.
+    """
+    model = model or _best_vision_model()
+    prompt = question.strip() or "Describe what you see in this image."
+    try:
+        response = _ollama_vision(image_b64, prompt, model)
+        return VisionResult(success=True, description=response, raw=response, model_used=model)
+    except Exception as e:
+        return VisionResult(success=False, error=str(e))
+
+
 # ─────────────────────────────────────────────────────────────
 # Claude Vision fallback (when Ollama not available)
 # ─────────────────────────────────────────────────────────────
@@ -311,6 +331,9 @@ def describe_screen_claude(image_b64: str, prompt: str = "") -> VisionResult:
     Fallback: use Claude API for vision when Ollama is not available.
     Requires ANTHROPIC_API_KEY in environment.
     """
+    import os
+    if os.environ.get("KURT_ALLOW_CLOUD_VISION") != "1":
+        return VisionResult(success=False, error="Cloud vision is disabled. Use local Ollama, or explicitly enable KURT_ALLOW_CLOUD_VISION=1.")
     try:
         import anthropic
         client = anthropic.Anthropic()
@@ -353,7 +376,7 @@ def describe_screen_claude(image_b64: str, prompt: str = "") -> VisionResult:
 # Smart vision router — tries local first, falls back to Claude
 # ─────────────────────────────────────────────────────────────
 
-def smart_vision(image_b64: str, prompt: str, prefer_local: bool = True) -> VisionResult:
+def smart_vision(image_b64: str, prompt: str, prefer_local: bool = True, allow_cloud: bool = True) -> VisionResult:
     """
     Smart vision: use local Ollama if available, else Claude API.
     prefer_local=True: always try Ollama first
@@ -372,7 +395,9 @@ def smart_vision(image_b64: str, prompt: str, prefer_local: bool = True) -> Visi
         except Exception as e:
             logger.warning(f"Local vision failed, falling back to Claude: {e}")
 
-    # Fallback to Claude
+    if not allow_cloud:
+        return VisionResult(success=False, error="Local vision unavailable; cloud fallback is disabled for this request.")
+    # Fallback to Claude (requires explicit environment opt-in as well).
     return describe_screen_claude(image_b64, prompt)
 
 

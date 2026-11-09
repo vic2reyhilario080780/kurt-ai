@@ -342,7 +342,8 @@ def close_app(app_name: str) -> ActionResult:
 def run_command(cmd: str, shell: bool = True, timeout: int = 30) -> ActionResult:
     """Run a shell command and return output"""
     try:
-        result = subprocess.run(
+        from kurt.utils.execution import restricted_run
+        result = restricted_run(
             cmd, shell=shell, capture_output=True,
             text=True, timeout=timeout
         )

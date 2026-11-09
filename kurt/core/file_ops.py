@@ -4,6 +4,9 @@ AI-powered file reading, editing, and code execution.
 Comparable to Claude Code CLI file tools.
 """
 
+from kurt.utils.security import redact, require_public_file, sensitive_path
+from kurt.utils.execution import restricted_run
+
 import os
 import re
 import sys
@@ -32,6 +35,7 @@ def read_file(path: str, lines: Optional[str] = None) -> str:
     lines: optional range like '10-25' or '10' (single line)
     Returns the content as string.
     """
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return f"❌ File not found: {path}"
@@ -39,7 +43,7 @@ def read_file(path: str, lines: Optional[str] = None) -> str:
         return f"❌ Not a file: {path}"
 
     try:
-        content = p.read_text(encoding="utf-8", errors="replace")
+        content = redact(p.read_text(encoding="utf-8", errors="replace"))
     except Exception as e:
         return f"❌ Cannot read file: {e}"
 
@@ -69,11 +73,12 @@ def read_file(path: str, lines: Optional[str] = None) -> str:
 
 def read_file_summary(path: str) -> dict:
     """Return file metadata for display"""
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return {"error": f"File not found: {path}"}
     stat = p.stat()
-    content = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+    content = redact(p.read_text(encoding="utf-8", errors="replace")) if p.is_file() else ""
     lines = content.count("\n") + 1 if content else 0
     ext = p.suffix.lstrip(".") or "txt"
     return {
@@ -95,6 +100,7 @@ def apply_edit(path: str, old_str: str, new_str: str, dry_run: bool = False) -> 
     Replace old_str with new_str in file.
     Returns success/fail message.
     """
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return f"❌ File not found: {path}"
@@ -138,6 +144,7 @@ def apply_edit(path: str, old_str: str, new_str: str, dry_run: bool = False) -> 
 
 def insert_at_line(path: str, line_num: int, text: str) -> str:
     """Insert text before a specific line number"""
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return f"❌ File not found: {path}"
@@ -154,6 +161,7 @@ def insert_at_line(path: str, line_num: int, text: str) -> str:
 
 def write_new_file(path: str, content: str) -> str:
     """Create a new file with given content"""
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if p.exists():
         return f"❌ File already exists: {path}. Use apply_edit to modify it."
@@ -190,6 +198,7 @@ def run_file(path: str, args: str = "", timeout: int = 30) -> dict:
     Returns dict: {stdout, stderr, returncode, runtime_ms}
     """
     import time
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return {"error": f"File not found: {path}"}
@@ -213,7 +222,7 @@ def run_file(path: str, args: str = "", timeout: int = 30) -> dict:
 
     start = time.time()
     try:
-        result = subprocess.run(
+        result = restricted_run(
             cmd,
             capture_output=True,
             text=True,
@@ -268,6 +277,7 @@ def run_code_string(code: str, lang: str = "python", timeout: int = 30) -> dict:
 
 def list_dir(path: str = ".", depth: int = 2) -> str:
     """List directory tree up to depth"""
+    require_public_file(path)
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return f"❌ Path not found: {path}"
@@ -307,3 +317,192 @@ def _walk_tree(p: Path, lines: list, prefix: str, depth: int, current: int):
         if entry.is_dir() and current + 1 < depth:
             extension = "    " if is_last else "│   "
             _walk_tree(entry, lines, prefix + extension, depth, current + 1)
+
+
+# ─────────────────────────────────────────────────────────────
+# Advanced Codebase Search & Multi-Edit (Gemini CLI / Antigravity Grade)
+# ─────────────────────────────────────────────────────────────
+
+_SEARCH_IGNORE_DIRS = {
+    ".git", "__pycache__", "node_modules", "venv", ".venv",
+    "dist", "build", ".next", ".nuxt", "coverage", ".pytest_cache",
+    ".mypy_cache", "eggs", ".eggs", "target", "out", ".openclaw-kurt",
+}
+
+
+def grep_search(
+    query: str,
+    path: str = ".",
+    include: Optional[str] = None,
+    case_sensitive: bool = False,
+    max_results: int = 50,
+) -> str:
+    """
+    Search for a regex or text pattern across files in `path`.
+    Returns formatted file:line:match results with secrets redacted.
+    """
+    import fnmatch
+
+    if not query or not str(query).strip():
+        return "❌ grep_search requires a non-empty query"
+
+    require_public_file(path)
+    root = Path(path).expanduser().resolve()
+    if not root.exists():
+        return f"❌ Path not found: {path}"
+
+    max_results = max(1, min(int(max_results), 200))
+    flags = 0 if case_sensitive else re.IGNORECASE
+    try:
+        regex = re.compile(query, flags)
+    except re.error:
+        regex = re.compile(re.escape(query), flags)
+
+    matches = []
+
+    def _scan_file(fp: Path, display_rel: str):
+        if sensitive_path(fp):
+            return
+        if include and not fnmatch.fnmatch(fp.name, include):
+            return
+        try:
+            if fp.stat().st_size > 1024 * 1024:  # Skip files > 1MB
+                return
+            text = fp.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return
+        for idx, line in enumerate(text.splitlines(), 1):
+            if regex.search(line):
+                snippet = redact(line.strip()[:200])
+                matches.append(f"{display_rel}:{idx}: {snippet}")
+                if len(matches) >= max_results:
+                    return
+
+    if root.is_file():
+        _scan_file(root, root.name)
+    else:
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [
+                d for d in sorted(dirnames)
+                if d not in _SEARCH_IGNORE_DIRS and not d.startswith(".")
+            ]
+            for fname in sorted(filenames):
+                fp = Path(dirpath) / fname
+                try:
+                    rel = str(fp.relative_to(root))
+                except ValueError:
+                    rel = str(fp)
+                _scan_file(fp, rel)
+                if len(matches) >= max_results:
+                    break
+            if len(matches) >= max_results:
+                break
+
+    if not matches:
+        return f"No matches found for '{query}' in {path}"
+    header = f"🔎 Found {len(matches)} match(es) for '{query}':"
+    if len(matches) >= max_results:
+        header += f" (capped at {max_results})"
+    return header + "\n" + "\n".join(matches)
+
+
+def find_files(
+    pattern: str = "*",
+    path: str = ".",
+    max_results: int = 50,
+) -> str:
+    """
+    Find files by glob or substring pattern within `path`.
+    Skips ignored directories and sensitive credential files.
+    """
+    import fnmatch
+
+    require_public_file(path)
+    root = Path(path).expanduser().resolve()
+    if not root.exists():
+        return f"❌ Path not found: {path}"
+    if not root.is_dir():
+        return f"❌ Not a directory: {path}"
+
+    max_results = max(1, min(int(max_results), 200))
+    pat = (pattern or "*").strip()
+    is_glob = any(ch in pat for ch in "*?[]")
+
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            d for d in sorted(dirnames)
+            if d not in _SEARCH_IGNORE_DIRS and not d.startswith(".")
+        ]
+        for fname in sorted(filenames):
+            fp = Path(dirpath) / fname
+            if sensitive_path(fp):
+                continue
+            try:
+                rel = str(fp.relative_to(root))
+            except ValueError:
+                rel = str(fp)
+            matched = (
+                fnmatch.fnmatch(fname.lower(), pat.lower())
+                or fnmatch.fnmatch(rel.lower(), pat.lower())
+                if is_glob
+                else pat.lower() in rel.lower()
+            )
+            if matched:
+                found.append(rel)
+                if len(found) >= max_results:
+                    break
+        if len(found) >= max_results:
+            break
+
+    if not found:
+        return f"No files matching '{pattern}' in {path}"
+    return f"📂 Found {len(found)} file(s) matching '{pattern}':\n" + "\n".join(f"  {f}" for f in found)
+
+
+def multi_edit(path: str, edits: list[dict], dry_run: bool = False) -> str:
+    """
+    Apply multiple old_str -> new_str replacements to a single file atomically.
+    If any edit fails, no changes are written.
+    """
+    require_public_file(path)
+    p = Path(path).expanduser().resolve()
+    if not p.exists():
+        return f"❌ File not found: {path}"
+    if not isinstance(edits, list) or not edits:
+        return "❌ multi_edit requires a non-empty list of {'old_str': ..., 'new_str': ...} dicts"
+
+    try:
+        original = p.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        return f"❌ Cannot read: {e}"
+
+    content = original
+    for idx, edit in enumerate(edits, 1):
+        if not isinstance(edit, dict):
+            return f"❌ Edit #{idx} must be an object with 'old_str' and 'new_str'"
+        old_str = edit.get("old_str", "")
+        new_str = edit.get("new_str", "")
+        if not old_str:
+            return f"❌ Edit #{idx} has empty old_str"
+        if old_str not in content:
+            return f"❌ Edit #{idx} failed: old_str not found in {p.name}"
+        count = content.count(old_str)
+        if count > 1:
+            return f"❌ Edit #{idx} failed: found {count} occurrences of old_str — provide more context"
+        content = content.replace(old_str, new_str, 1)
+
+    if dry_run:
+        return f"✅ Dry-run OK — {len(edits)} edits validated for {p.name}"
+
+    backup_path = str(p) + ".kurt_bak"
+    try:
+        Path(backup_path).write_text(original, encoding="utf-8")
+    except Exception:
+        pass
+
+    try:
+        p.write_text(content, encoding="utf-8")
+        return f"✅ Applied {len(edits)} edits to {p.name}  (Backup: {backup_path})"
+    except Exception as e:
+        return f"❌ Write failed: {e}"

@@ -102,10 +102,17 @@ the terminal's default Node is older. The OpenClaw and Peekaboo executable looku
 prefers local files, then PATH; there is no implicit `npx` download on a missing
 tool. Peekaboo requires macOS 15+ and the appropriate macOS permissions.
 
-OpenClaw's npm and Zod patch dependencies are overridden to 12.2.1 and 4.6.6.
-The online npm audit still reports **34 moderate and 1 high** advisory entries
-in the dependency tree, including bundled npm's Undici. These remain upstream
-dependency limitations; no forced downgrade or incompatible audit fix was used.
+OpenClaw's npm and Zod dependencies are overridden to 12.2.2 and 4.6.6.
+The security follow-up audit reports **33 moderate, 0 high and 0 critical**
+findings. Remaining glob/minimatch advisories include bundled npm dependencies;
+no forced downgrade or unverified major override was applied.
+
+Kurt now launches these adapters through a macOS service sandbox that blocks
+direct access to Kurt's credential store while preserving the intended service
+credentials and desktop/network capabilities. Generated shell/code uses a
+stricter sandbox with networking and IPC denied. Unsupported hosts fail closed.
+Cloud vision requires explicit `KURT_ALLOW_CLOUD_VISION=1`; background screen
+monitoring always stays local. See [security audit](API_KEY_SECURITY_AUDIT.md).
 
 ## Verification
 

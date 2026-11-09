@@ -4,6 +4,9 @@ Connect to any MCP server (stdio or HTTP/SSE), list tools, execute tool calls.
 Works with: local servers, remote HTTP servers, Composio, Zapier MCP, etc.
 """
 
+from kurt.utils.security import redact, child_env, register_secrets, require_secure_endpoint
+from kurt.utils.execution import service_argv
+
 import os
 import json
 import asyncio
@@ -138,22 +141,26 @@ async def mcp_session(conn: MCPConnection):
     from mcp.client.sse import sse_client
     from mcp.client.streamable_http import streamable_http_client
 
+    register_secrets([v for v in conn.env.values()] + [v for k, v in conn.headers.items() if k.lower() not in ("accept", "content-type", "user-agent")])
     if not conn.enabled:
         raise ValueError("Connection is disabled.")
+    if conn.transport in ("http", "sse"):
+        require_secure_endpoint(conn.url)
     async with AsyncExitStack() as stack:
         if conn.transport == "stdio":
             import tempfile
             # Drain subprocess diagnostics without exposing secrets to the chat.
             errors = stack.enter_context(tempfile.TemporaryFile(mode="w+"))
+            argv = service_argv([conn.command, *conn.args], "mcp")
             streams = await stack.enter_async_context(stdio_client(
-                StdioServerParameters(command=conn.command, args=conn.args,
-                                      env={**os.environ, **conn.env}), errlog=errors))
+                StdioServerParameters(command=argv[0], args=argv[1:],
+                                      env=child_env(extra=conn.env)), errlog=errors))
         elif conn.transport == "sse":
             streams = await stack.enter_async_context(sse_client(
                 conn.url, headers=conn.headers, timeout=15, sse_read_timeout=30))
         elif conn.transport == "http":
             client = await stack.enter_async_context(httpx.AsyncClient(
-                headers=conn.headers, timeout=httpx.Timeout(30, connect=15), follow_redirects=True))
+                headers=conn.headers, timeout=httpx.Timeout(30, connect=15), follow_redirects=False))
             streams = await stack.enter_async_context(streamable_http_client(
                 conn.url, http_client=client))
         else:
@@ -219,7 +226,7 @@ async def call_tool(conn: MCPConnection, tool_name: str, params: dict) -> str:
             text = "\n".join(parts)
             if result.structuredContent:
                 text += "\n" + json.dumps(result.structuredContent, ensure_ascii=False)
-            return ("❌ Tool error: " if result.isError else "") + text
+            return ("❌ Tool error: " if result.isError else "") + redact(text)
     except Exception as exc:
         return f"❌ MCP error ({conn.name}/{tool_name}): {connection_error(exc)}"
 
@@ -287,7 +294,7 @@ def show_connections():
     for name, conn in registry.items():
         target = conn.url or (f"{conn.command} {' '.join(conn.args)}" if conn.command else "—")
         status = "[green]✓ enabled[/green]" if conn.enabled else "[dim]disabled[/dim]"
-        t.add_row(name, conn.transport, target[:50], status, conn.description[:40])
+        t.add_row(name, conn.transport, redact(target)[:50], status, redact(conn.description)[:40])
 
     console.print(t)
 

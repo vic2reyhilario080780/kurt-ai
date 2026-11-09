@@ -1,0 +1,24 @@
+[Unit]
+Description=Kurt hosted API foundation
+After=network-online.target
+
+[Service]
+# Create this unprivileged account and private state dir during provisioning.
+User=kurt-api
+Group=kurt-api
+WorkingDirectory=/opt/kurt
+EnvironmentFile=/etc/kurt/api.env
+# TLS termination must explicitly trust only its local proxy, never arbitrary IPs.
+ExecStart=/opt/kurt/venv/bin/python -m uvicorn kurt.saas.app:create_app --factory --host 127.0.0.1 --port 8080 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --limit-concurrency 32 --timeout-keep-alive 5 --no-access-log
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kurt-saas
+RestrictSUIDSGID=true
+LockPersonality=true
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -14,25 +14,14 @@ def load_env():
     if not ENV_PATH.exists():
         return False
 
-    with open(ENV_PATH) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip()
-                # .env file takes priority UNLESS the env var looks like a real key
-                # (i.e., don't overwrite a key the user explicitly exported in their shell)
-                existing = os.environ.get(key, "")
-                placeholder_prefixes = (
-                    "sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your",
-                    "sk-ant-your", "your-key", "r8_your", "",
-                )
-                existing_is_placeholder = not existing or any(
-                    existing.startswith(p) for p in placeholder_prefixes
-                )
-                if existing_is_placeholder:
-                    os.environ[key] = value
+    from dotenv import dotenv_values
+    for key, value in dotenv_values(ENV_PATH).items():
+        if value is None:
+            continue
+        existing = os.environ.get(key, "")
+        prefixes = ("sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your", "sk-ant-your", "your-key", "r8_your")
+        if not existing or existing.startswith(prefixes):
+            os.environ[key] = value
 
     return True
 

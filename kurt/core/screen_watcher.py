@@ -169,6 +169,7 @@ class ScreenWatcher:
                     img_b64,
                     "What changed on this screen? Be brief. Any notifications, errors, new windows?",
                     prefer_local=True,
+                    allow_cloud=False,
                 )
                 if result.success:
                     description = result.description
@@ -179,7 +180,7 @@ class ScreenWatcher:
             event_type=self._classify_event(description),
             timestamp=datetime.now(),
             description=description,
-            screenshot_b64=img_b64,
+            screenshot_b64="",  # Do not retain/transmit background screenshots in events.
             metadata={"change_ratio": change_ratio},
         )
 

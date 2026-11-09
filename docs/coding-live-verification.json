@@ -1,0 +1,23 @@
+{
+  "tested_at": "2026-11-09T13:54:34.032101+00:00",
+  "backend": "kurt",
+  "status": "completed",
+  "verification": "passed",
+  "actual_fix_present": true,
+  "checks": [
+    {
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "status": "passed",
+      "exit_code": 0
+    }
+  ],
+  "fixture": "disposable synthetic arithmetic repository",
+  "production_files_modified": false,
+  "delegated_agents": false,
+  "git_inspection_during_live_test": "blocked by macOS sandbox startup",
+  "git_broker_followup": "corrected; real sandboxed regression inspection passed",
+  "scope": "Native Kurt live model only; external Codex model execution was not performed"
+}

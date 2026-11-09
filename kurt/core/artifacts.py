@@ -3,6 +3,8 @@ KURT Artifacts System v2.3
 Auto-save and manage AI-generated code, designs, and outputs.
 """
 
+from kurt.utils.security import redact, write_private_text
+
 import json
 import hashlib
 import re
@@ -32,7 +34,7 @@ def _load_index() -> list:
 
 def _save_index(index: list):
     KURT_DIR.mkdir(exist_ok=True)
-    ARTIFACTS_INDEX.write_text(json.dumps(index, indent=2, ensure_ascii=False))
+    write_private_text(ARTIFACTS_INDEX, json.dumps(redact(index), indent=2, ensure_ascii=False))
 
 
 def extract_code_blocks(text: str) -> list[dict]:
@@ -53,6 +55,7 @@ def save_artifact(prompt: str, response: str, task_type: str = "code") -> list[s
     """Auto-save code blocks from AI response. Returns list of saved file paths."""
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    prompt, response = redact(prompt), redact(response)
     blocks = extract_code_blocks(response)
     if not blocks:
         return []
@@ -84,7 +87,7 @@ def save_artifact(prompt: str, response: str, task_type: str = "code") -> list[s
         fname = f"{ts_str}_{slug}_{i+1}.{ext}"
         fpath = ARTIFACTS_DIR / fname
 
-        fpath.write_text(block["code"])
+        write_private_text(fpath, block["code"])
         saved_paths.append(str(fpath))
 
         # Add to index

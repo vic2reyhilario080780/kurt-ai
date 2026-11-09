@@ -3,6 +3,8 @@ KURT Router - Nag-cocall ng tamang AI API
 Supports: OpenRouter, Groq, Google AI, DeepSeek, Ollama (local)
 """
 
+from kurt.utils.security import redact
+
 import os
 import json
 import asyncio
@@ -64,7 +66,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": messages,
+            "messages": redact(messages),
             "stream": stream,
         }
 
@@ -104,7 +106,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": messages,
+            "messages": redact(messages),
             "stream": stream,
         }
 
@@ -113,7 +115,7 @@ class ModelRouter:
         calls = {}
         if native_tools:
             from kurt.capabilities.bridge import function_history
-            payload["messages"] = function_history(messages, native_tools)
+            payload["messages"] = function_history(redact(messages), native_tools)
             payload["tools"] = native_tools
             payload["tool_choice"] = "auto"
             payload["parallel_tool_calls"] = False
@@ -217,7 +219,7 @@ class ModelRouter:
             "Authorization": f"Key {self.fal_key}",
             "Content-Type": "application/json",
         }
-        payload = {"prompt": prompt}
+        payload = {"prompt": redact(prompt)}
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
@@ -239,7 +241,7 @@ class ModelRouter:
             "Content-Type": "application/json",
             "Prefer": "wait",
         }
-        payload = {"input": input_params}
+        payload = {"input": redact(input_params)}
 
         async with httpx.AsyncClient(timeout=600.0) as client:
             # Not every model (official or community) supports the
@@ -261,7 +263,12 @@ class ModelRouter:
 
             while data.get("status") in ("starting", "processing"):
                 await asyncio.sleep(2)
-                poll = await client.get(data["urls"]["get"], headers=headers)
+                from urllib.parse import urlsplit
+                poll_url = data["urls"]["get"]
+                parsed = urlsplit(poll_url)
+                if parsed.scheme != "https" or parsed.hostname != "api.replicate.com" or parsed.port not in (None, 443) or parsed.username or parsed.password:
+                    raise ValueError("Refusing to send Replicate credentials to an untrusted polling origin")
+                poll = await client.get(poll_url, headers=headers)
                 poll.raise_for_status()
                 data = poll.json()
 
@@ -289,7 +296,7 @@ class ModelRouter:
         # Separate system messages from user/assistant messages
         system_parts = []
         chat_messages = []
-        for m in messages:
+        for m in redact(messages):
             if m["role"] == "system":
                 system_parts.append(m["content"])
             else:
@@ -337,7 +344,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": messages,
+            "messages": redact(messages),
             "stream": stream,
         }
 
@@ -376,6 +383,8 @@ class ModelRouter:
         native_tools: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
+
+        messages = redact(messages)
 
         # Check if provider key exists, fallback to openrouter
         if not self._has_key(provider) and provider not in ("ollama",):
