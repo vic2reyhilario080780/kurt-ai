@@ -198,10 +198,12 @@ def handle_slash(
                 output=(
                     f"Current model: {current_model}\n"
                     "Usage: /model <name>\n"
-                    "  Groq (libre, mabilis): /model openai/gpt-oss-120b\n"
-                    "  Groq (pinakamabilis):  /model llama-3.1-8b-instant\n"
-                    "  OpenRouter free:      /model google/gemma-3-27b-it:free\n"
-                    "  Auto-route:           /model auto"
+                    "  Groq (libre, mabilis):  /model openai/gpt-oss-120b\n"
+                    "  Auto-route:             /model auto\n\n"
+                    "Gustong paid na model? Browse first, then switch:\n"
+                    "  kurt models list    — 400+ OpenRouter text models (bills OpenRouter top-up)\n"
+                    "  kurt models fal     — 1,400+ fal.ai image/video/audio models (bills fal.ai top-up)\n"
+                    "  Then: /model <id-from-that-list>"
                 ),
                 continue_chat=True,
             )

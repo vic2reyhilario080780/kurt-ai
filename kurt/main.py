@@ -476,6 +476,26 @@ def models_stats_cmd():
     models_stats()
 
 
+@models_app.command("fal")
+def models_fal_cmd(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by name/ID"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category, e.g. text-to-image"),
+    limit: int = typer.Option(30, "--limit", "-n", help="Max results"),
+    stats: bool = typer.Option(False, "--stats", help="Show category breakdown instead of a list"),
+):
+    """🎨 List 1,400+ fal.ai models (image/video/audio/speech/LLM) — all paid, billed to your fal.ai top-up.
+
+    Halimbawa (example): kurt models fal --category text-to-image
+    """
+    load_env()
+    if stats:
+        from kurt.models.fal import models_stats as fal_stats
+        fal_stats()
+    else:
+        from kurt.models.fal import models_list as fal_list
+        fal_list(search=search, category=category, limit=limit)
+
+
 # ══════════════════════════════════════
 # CHAT COMMAND (Interactive Mode)
 # ══════════════════════════════════════
