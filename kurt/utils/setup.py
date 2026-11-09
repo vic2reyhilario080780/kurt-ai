@@ -284,11 +284,12 @@ def run_setup():
 
         console.print(f"  [blue]🔗 Get key: {provider['url']}[/blue]")
 
-        # Show existing key (masked)
+        # Flag an existing key WITHOUT showing any of its characters on screen
+        # or leaving them in terminal scrollback — only the owner running
+        # setup should ever see key material, and only while typing it in.
         current = existing.get(provider["key"], "")
         if current:
-            masked = current[:8] + "..." + current[-4:] if len(current) > 12 else "***"
-            console.print(f"  [green]✅ Current: {masked}[/green]")
+            console.print(f"  [green]✅ Already configured[/green]")
             if not Confirm.ask(f"  Update this key?", default=False):
                 console.print()
                 continue
