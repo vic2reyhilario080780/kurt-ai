@@ -35,6 +35,7 @@ class SlashResult:
     continue_chat: bool    # True = stay in chat, False = exit
     model_override: Optional[str] = None   # Override model for next turn
     skill_override: Optional[str] = None   # Override active skill for next turn
+    feed_to_ai: bool = False               # If True, persist `output` into chat history so Kurt's own LLM sees it next turn
 
 
 # ─────────────────────────────────────────
@@ -307,7 +308,7 @@ def handle_slash(
             )
         claude_cmd = _resolve_cmd("claude")
         output = _run_shell(claude_cmd, f'--print "{args}"')
-        return SlashResult(handled=True, output=f"🤖 Claude Code:\n\n{output}", continue_chat=True)
+        return SlashResult(handled=True, output=f"🤖 Claude Code:\n\n{output}", continue_chat=True, feed_to_ai=True)
 
     # ── /gemini ─────────────────────────────────────────────────────
     if cmd == "/gemini":
@@ -328,7 +329,7 @@ def handle_slash(
             )
         gemini_cmd = _resolve_cmd("gemini")
         output = _run_shell(gemini_cmd, f'-p "{args}"')
-        return SlashResult(handled=True, output=f"✨ Gemini:\n\n{output}", continue_chat=True)
+        return SlashResult(handled=True, output=f"✨ Gemini:\n\n{output}", continue_chat=True, feed_to_ai=True)
 
     # ── /gh ─────────────────────────────────────────────────────────
     if cmd == "/gh":

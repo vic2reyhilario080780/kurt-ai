@@ -555,6 +555,9 @@ def chat(
                 console.print(f"[dim]Model set to: {current_model}[/dim]")
             if slash_result.skill_override:
                 current_skill = slash_result.skill_override
+            if slash_result.feed_to_ai and slash_result.output:
+                # So Kurt's own LLM sees what /claude or /gemini produced on the next turn
+                save_message(session_id, "assistant", slash_result.output)
             if not slash_result.continue_chat:
                 break
             continue

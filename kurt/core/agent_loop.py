@@ -108,6 +108,32 @@ TOOLS = [
             "params": "object — tool parameters as JSON object",
         },
     },
+    # ── Orchestration Tools ───────────────────────────────────
+    {
+        "name": "call_model",
+        "description": (
+            "Delegate a sub-task to a specific AI model/provider and get its full response back as text. "
+            "Use this to chain models within one task — e.g. research with one model, then pass its output "
+            "to a different model to rewrite or summarize."
+        ),
+        "parameters": {
+            "provider": "string — 'groq', 'openrouter', 'anthropic', or 'ollama'",
+            "model": "string — model id for that provider, e.g. 'openai/gpt-oss-120b', 'google/gemma-3-27b-it:free'",
+            "prompt": "string — the task/prompt to send to that model",
+        },
+    },
+    {
+        "name": "delegate_cli",
+        "description": (
+            "Delegate a sub-task to an external CLI AI agent or shell and get its output back as text. "
+            "Use this to hand work off to Claude Code, Gemini CLI, GitHub CLI, or a raw shell command, "
+            "then continue reasoning with the result."
+        ),
+        "parameters": {
+            "tool": "string — 'claude', 'gemini', 'gh', or 'bash'",
+            "prompt": "string — the task/prompt (claude/gemini) or command/args (gh/bash)",
+        },
+    },
     # ── Computer Use Tools ───────────────────────────────────
     {
         "name": "screenshot",
@@ -241,6 +267,45 @@ class AgentResult:
 
 
 # ─────────────────────────────────────────────────────────────
+# Orchestration helpers
+# ─────────────────────────────────────────────────────────────
+
+async def _collect_model_response(provider: str, model: str, messages: list) -> str:
+    """Run one model call to completion and return the full text."""
+    from kurt.core.router import ModelRouter
+    router = ModelRouter()
+    full = ""
+    async for chunk in router.route(provider=provider, model=model, messages=messages):
+        full += chunk
+    return full
+
+
+def _run_coro_blocking(coro):
+    """
+    Run an async coroutine to completion from sync code, regardless of whether
+    the calling thread already has a running event loop (execute_tool is called
+    synchronously both from inside run_agent's active asyncio.run() loop and
+    from plain sync callers like the voice-command handler). A dedicated thread
+    with its own fresh loop avoids 'event loop is already running' errors either way.
+    """
+    import threading
+    outcome = {}
+
+    def _runner():
+        try:
+            outcome["value"] = asyncio.run(coro)
+        except Exception as e:
+            outcome["error"] = e
+
+    t = threading.Thread(target=_runner)
+    t.start()
+    t.join()
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("value", "")
+
+
+# ─────────────────────────────────────────────────────────────
 # Tool Executor
 # ─────────────────────────────────────────────────────────────
 
@@ -325,6 +390,58 @@ def execute_tool(tool_name: str, params: dict) -> str:
             import asyncio as _asyncio
             loop = _asyncio.get_event_loop()
             return loop.run_until_complete(execute_mcp_tool(tool_ref, mcp_params))
+
+        # ── Orchestration Tools ───────────────────────────────────
+
+        elif tool_name == "call_model":
+            provider = (params.get("provider") or "").strip().lower()
+            model = (params.get("model") or "").strip()
+            prompt = params.get("prompt", "")
+            if not provider or not model or not prompt:
+                return "❌ call_model requires 'provider', 'model', and 'prompt'"
+            try:
+                response = _run_coro_blocking(
+                    _collect_model_response(provider, model, [{"role": "user", "content": prompt}])
+                )
+                return response.strip() or "(empty response)"
+            except Exception as e:
+                return f"❌ call_model failed: {e}"
+
+        elif tool_name == "delegate_cli":
+            import shlex
+            cli_tool = (params.get("tool") or "").strip().lower()
+            prompt = params.get("prompt", "")
+            if not cli_tool:
+                return "❌ delegate_cli requires 'tool' ('claude', 'gemini', 'gh', or 'bash')"
+            if not prompt:
+                return "❌ delegate_cli requires 'prompt'"
+
+            from kurt.core.cli_orchestrator import _resolve_cmd, _run_shell, _cmd_exists
+
+            if cli_tool == "claude":
+                if not _cmd_exists("claude"):
+                    return "❌ Claude Code CLI not found. Run: npm install"
+                return _run_shell(_resolve_cmd("claude"), f"--print {shlex.quote(prompt)}")
+
+            elif cli_tool == "gemini":
+                if not _cmd_exists("gemini"):
+                    return "❌ Gemini CLI not found. Run: npm install"
+                return _run_shell(_resolve_cmd("gemini"), f"-p {shlex.quote(prompt)}")
+
+            elif cli_tool == "gh":
+                if not _cmd_exists("gh"):
+                    return "❌ GitHub CLI (gh) not found. Install: brew install gh"
+                return _run_shell("gh", prompt)
+
+            elif cli_tool == "bash":
+                from kurt.core.file_ops import _is_dangerous
+                danger = _is_dangerous(prompt)
+                if danger:
+                    return f"🚨 Refused: dangerous pattern '{danger}'"
+                return _run_shell("", prompt)
+
+            else:
+                return f"❌ Unknown delegate_cli tool: {cli_tool}. Use 'claude', 'gemini', 'gh', or 'bash'"
 
         # ── Computer Use Tools ───────────────────────────────────
 
@@ -494,6 +611,8 @@ async def run_agent(
         "6. If a tool fails, try an alternative approach\n"
         "7. For web tasks: use search_web or open_url instead of manual typing when possible\n"
         "8. Use run_applescript for Mac-only automation; use run_command with PowerShell/bash on Windows/Linux\n"
+        "9. For multi-model tasks (e.g. 'research with X then write with Y'), use call_model to run a sub-task "
+        "on a specific provider/model and get its text back, or delegate_cli to hand a sub-task to claude/gemini/gh/bash\n"
         "\nEXAMPLE MULTI-STEP TASK (open spotify in safari):\n"
         "Step 1: open_app('Safari')\n"
         "Step 2: screenshot() — verify Safari opened\n"
