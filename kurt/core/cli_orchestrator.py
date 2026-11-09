@@ -7,6 +7,7 @@ Gemini CLI, gh CLI, and other terminal tools.
 import os
 import subprocess
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -36,6 +37,7 @@ class SlashResult:
     model_override: Optional[str] = None   # Override model for next turn
     skill_override: Optional[str] = None   # Override active skill for next turn
     feed_to_ai: bool = False               # If True, persist `output` into chat history so Kurt's own LLM sees it next turn
+    new_session_id: Optional[str] = None   # If set, caller should replace its session_id with this (fresh history)
 
 
 # ─────────────────────────────────────────
@@ -151,6 +153,16 @@ def handle_slash(
         lines += ["", "Tip: /claude, /gemini, /gh pipe directly to their CLIs"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
+    # ── /clear ──────────────────────────────────────────────────────
+    if cmd == "/clear":
+        new_id = str(uuid.uuid4())
+        return SlashResult(
+            handled=True,
+            output=f"🆕 New session: {new_id[:8]}",
+            continue_chat=True,
+            new_session_id=new_id,
+        )
+
     # ── /exit /quit ─────────────────────────────────────────────────
     if cmd in ("/exit", "/quit"):
         close_browser_session()
@@ -231,40 +243,23 @@ def handle_slash(
 
     # ── /models ─────────────────────────────────────────────────────
     if cmd == "/models":
-        lines = [
-            "",
-            "🤖  Quick Model Reference",
-            "─" * 42,
-            "  FREE via Groq (sobrang bilis, 14,400 req/day)",
-            "    openai/gpt-oss-120b    ← default",
-            "    llama-3.1-8b-instant       ← fastest",
-            "    gemma2-9b-it",
-            "  FREE via OpenRouter (:free models)",
-            "    google/gemma-4-31b-it:free",
-            "    nvidia/nemotron-3.5-lightning:free",
-            "  PAID",
-            "    anthropic/claude-3.5-sonnet",
-            "    openai/gpt-4o",
-            "    anthropic/claude-3-5-haiku",
-            "",
-            "Switch: /model <model-name>",
-            "  e.g. /model llama-3.1-8b-instant",
-            "  e.g. /model anthropic/claude-3.5-sonnet",
-        ]
+        from kurt.core.orchestrator import ROUTING_TABLE
+        lines = ["", "🤖  Model Routing Table (live)", "─" * 50]
+        for task_type, route in ROUTING_TABLE.items():
+            lines.append(f"  {task_type.value:<10} → {route['model']}  [{route['provider']}]")
+            lines.append(f"              fallback → {route['fallback_model']}  [{route['fallback_provider']}]")
+        lines += ["", "Switch: /model <model-name>", "  e.g. /model openai/gpt-oss-120b"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
     # ── /skills ─────────────────────────────────────────────────────
     if cmd == "/skills":
-        lines = [
-            "",
-            "🧠  Skill Categories (top 10)",
-            "─" * 40,
-            "  eng, code, files, designs, pipelines,",
-            "  tickets, notes, apis, refdocs, aiagents…",
-            "",
-            "Full list: `kurt skill --help`",
-            "Apply skill: /skill <name>",
-        ]
+        from kurt.skills.manager import get_all_skills
+        skills = get_all_skills()
+        lines = ["", f"🧠  Installed Skills ({len(skills)})", "─" * 40]
+        for s in skills:
+            kind = "built-in" if s.get("builtin") else "custom"
+            lines.append(f"  {s['id']:<15} {s['description']} [{kind}]")
+        lines += ["", "Browse the marketplace catalog: `kurt skill --help`", "Apply skill: /skill <name>"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
     # ── /save ───────────────────────────────────────────────────────

@@ -558,6 +558,9 @@ def chat(
             if slash_result.feed_to_ai and slash_result.output:
                 # So Kurt's own LLM sees what /claude or /gemini produced on the next turn
                 save_message(session_id, "assistant", slash_result.output)
+            if slash_result.new_session_id:
+                session_id = slash_result.new_session_id
+                last_response = ""
             if not slash_result.continue_chat:
                 break
             continue

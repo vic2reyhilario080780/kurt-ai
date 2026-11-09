@@ -5,6 +5,7 @@ Supports: OpenRouter, Groq, Google AI, DeepSeek, Ollama (local)
 
 import os
 import json
+import asyncio
 import httpx
 from typing import Optional, AsyncGenerator
 
@@ -19,6 +20,8 @@ class ModelRouter:
         self.deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        self.fal_key = os.getenv("FAL_API_KEY", "")
+        self.replicate_key = os.getenv("REPLICATE_API_TOKEN", "")
 
     def _has_key(self, provider: str) -> bool:
         """Check if a real API key exists (not empty, not a placeholder)"""
@@ -33,6 +36,8 @@ class ModelRouter:
             "deepseek": self.deepseek_key,
             "openai": self.openai_key,
             "anthropic": self.anthropic_key,
+            "fal": self.fal_key,
+            "replicate": self.replicate_key,
         }
         key = keys.get(provider, "")
         if not key:
@@ -101,6 +106,7 @@ class ModelRouter:
             "stream": stream,
         }
 
+        yielded_any = False
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
@@ -116,11 +122,120 @@ class ModelRouter:
                             break
                         try:
                             chunk = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        # Groq can send a mid-stream error event (e.g. the model
+                        # internally attempted its own tool-call format, which the
+                        # API rejects since no `tools` param was declared). That
+                        # chunk has no "choices" key — previously this was silently
+                        # swallowed by the KeyError catch below, making a rejected
+                        # request look identical to "model returned nothing."
+                        if "error" in chunk:
+                            err = chunk["error"]
+                            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                            raise RuntimeError(f"Groq API error: {msg}")
+                        try:
                             delta = chunk["choices"][0]["delta"]
                             if "content" in delta and delta["content"]:
+                                yielded_any = True
                                 yield delta["content"]
-                        except (json.JSONDecodeError, KeyError, IndexError):
+                        except (KeyError, IndexError):
                             continue
+        if not yielded_any:
+            raise RuntimeError(
+                f"Groq returned no content for model '{model}' — the stream ended with no "
+                "text and no explicit error. This usually means the model's response was "
+                "entirely internal reasoning with no final answer."
+            )
+
+    async def call_groq_transcription(
+        self,
+        file_path: str,
+        model: str = "whisper-large-v3",
+    ) -> AsyncGenerator[str, None]:
+        """Transcribe an audio file via Groq's Whisper endpoint (not chat completions)."""
+        headers = {"Authorization": f"Bearer {self.groq_key}"}
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+        files = {"file": (os.path.basename(file_path), file_bytes)}
+        data = {"model": model}
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers=headers,
+                data=data,
+                files=files,
+            )
+            response.raise_for_status()
+            result = response.json()
+            yield result.get("text", "")
+
+    async def call_fal(
+        self,
+        prompt: str,
+        model: str = "fal-ai/flux/schnell",
+    ) -> AsyncGenerator[str, None]:
+        """Generate an image via fal.ai, yield the resulting image URL."""
+        headers = {
+            "Authorization": f"Key {self.fal_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"prompt": prompt}
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            images = data.get("images", [])
+            if not images:
+                raise RuntimeError(f"fal.ai returned no images: {data}")
+            yield images[0].get("url", "")
+
+    async def call_replicate(
+        self,
+        model: str,
+        input_params: dict,
+    ) -> AsyncGenerator[str, None]:
+        """Run a model on Replicate (blocks via Prefer: wait, polls if it runs long), yield the output URL."""
+        headers = {
+            "Authorization": f"Bearer {self.replicate_key}",
+            "Content-Type": "application/json",
+            "Prefer": "wait",
+        }
+        payload = {"input": input_params}
+
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            # Not every model (official or community) supports the
+            # /v1/models/{owner}/{name}/predictions shorthand — look up the
+            # latest version hash and create the prediction the universal way.
+            model_resp = await client.get(f"https://api.replicate.com/v1/models/{model}", headers=headers)
+            model_resp.raise_for_status()
+            version_id = model_resp.json().get("latest_version", {}).get("id")
+            if not version_id:
+                raise RuntimeError(f"Replicate model '{model}' has no latest_version to run")
+
+            response = await client.post(
+                "https://api.replicate.com/v1/predictions",
+                headers=headers,
+                json={"version": version_id, **payload},
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            while data.get("status") in ("starting", "processing"):
+                await asyncio.sleep(2)
+                poll = await client.get(data["urls"]["get"], headers=headers)
+                poll.raise_for_status()
+                data = poll.json()
+
+            if data.get("status") != "succeeded":
+                raise RuntimeError(f"Replicate prediction failed: {data.get('error') or data.get('status')}")
+
+            output = data.get("output")
+            if isinstance(output, list):
+                output = output[0] if output else ""
+            yield str(output)
 
     async def call_anthropic(
         self,
@@ -208,17 +323,25 @@ class ModelRouter:
                         except (json.JSONDecodeError, KeyError):
                             continue
 
+    # Replicate model name -> real owner/name slug on Replicate
+    REPLICATE_MODEL_SLUGS = {
+        "musicgen-large": "meta/musicgen",
+        "wan-2.1": "wavespeedai/wan-2.1-t2v-480p",
+    }
+    GROQ_TRANSCRIPTION_MODELS = ("whisper-large-v3", "whisper-large-v3-turbo")
+
     async def route(
         self,
         provider: str,
         model: str,
         messages: list,
         stream: bool = True,
+        file_path: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
 
         # Check if provider key exists, fallback to openrouter
-        if not self._has_key(provider) and provider != "ollama":
+        if not self._has_key(provider) and provider not in ("ollama",):
             # Try openrouter as universal fallback
             if self._has_key("openrouter"):
                 provider = "openrouter"
@@ -243,9 +366,23 @@ class ModelRouter:
             else:
                 raise RuntimeError("No Anthropic API key and no OpenRouter key — cannot call Claude!")
         elif provider == "groq":
-            # Map groq model names
-            groq_model = model.replace("groq/", "")
-            async for chunk in self.call_groq(groq_model, messages, stream):
+            if model in self.GROQ_TRANSCRIPTION_MODELS:
+                # Audio transcription — not a chat message, needs an actual file.
+                path = file_path or (messages[-1]["content"] if messages else "")
+                async for chunk in self.call_groq_transcription(path, model):
+                    yield chunk
+            else:
+                groq_model = model.replace("groq/", "")
+                async for chunk in self.call_groq(groq_model, messages, stream):
+                    yield chunk
+        elif provider == "fal":
+            prompt = messages[-1]["content"] if messages else ""
+            async for chunk in self.call_fal(prompt, model):
+                yield chunk
+        elif provider == "replicate":
+            prompt = messages[-1]["content"] if messages else ""
+            replicate_model = self.REPLICATE_MODEL_SLUGS.get(model, model)
+            async for chunk in self.call_replicate(replicate_model, {"prompt": prompt}):
                 yield chunk
         elif provider == "ollama":
             async for chunk in self.call_ollama(model, messages, stream):

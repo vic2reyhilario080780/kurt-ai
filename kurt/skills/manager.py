@@ -693,9 +693,19 @@ def init_skills():
                 json.dump({**skill_data, "id": skill_id, "builtin": True}, f, indent=2)
 
 
+def get_all_skills() -> list[dict]:
+    """Return raw data for every installed skill (built-in + custom)."""
+    init_skills()
+    skills = []
+    for skill_file in sorted(SKILLS_DIR.glob("*.json")):
+        with open(skill_file) as f:
+            skills.append(json.load(f))
+    return skills
+
+
 def list_skills():
     """List all installed skills"""
-    init_skills()
+    skills = get_all_skills()
 
     table = Table(
         title="🧠 KURT Skills",
@@ -708,10 +718,7 @@ def list_skills():
     table.add_column("Description", style="dim", width=40)
     table.add_column("Type", style="yellow", width=10)
 
-    for skill_file in sorted(SKILLS_DIR.glob("*.json")):
-        with open(skill_file) as f:
-            skill = json.load(f)
-
+    for skill in skills:
         skill_type = "[green]Built-in[/green]" if skill.get("builtin") else "[blue]Custom[/blue]"
         table.add_row(
             skill["id"],
