@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-11-09T08:52:27.187569+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-20b",
+  "status": "passed",
+  "tools": [
+    "inspect_native_input",
+    "search_native",
+    "inspect_native",
+    "run_native"
+  ],
+  "expected_rows": 8,
+  "expected_sum": 1160,
+  "answer": "**Shopee order operations – Gross Sales (descriptive statistics)**  \n\n| Metric | Value |\n|--------|-------|\n| **Row count** | **8** |\n| **Total gross sales** | **1,160.0** |\n\n*The data were processed locally with Kurt’s “Shopee order operations: gross_sales / Descriptive statistics” plugin. No live app connections were used, and the values above are the exact totals and row count that the plugin computed from the supplied file.*",
+  "data": "synthetic fixture only",
+  "external_app_actions": false
+}

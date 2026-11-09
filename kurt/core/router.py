@@ -12,6 +12,7 @@ from typing import Optional, AsyncGenerator
 
 class ModelRouter:
     """Routes requests to the correct AI provider"""
+    supports_native_tools = True
 
     def __init__(self):
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
@@ -92,7 +93,8 @@ class ModelRouter:
         self,
         model: str,
         messages: list,
-        stream: bool = True
+        stream: bool = True,
+        native_tools: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
         """Call models via Groq (super fast!)"""
         headers = {
@@ -107,6 +109,14 @@ class ModelRouter:
         }
 
         yielded_any = False
+        collected_text = ""
+        calls = {}
+        if native_tools:
+            from kurt.capabilities.bridge import function_history
+            payload["messages"] = function_history(messages, native_tools)
+            payload["tools"] = native_tools
+            payload["tool_choice"] = "auto"
+            payload["parallel_tool_calls"] = False
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
@@ -136,11 +146,37 @@ class ModelRouter:
                             raise RuntimeError(f"Groq API error: {msg}")
                         try:
                             delta = chunk["choices"][0]["delta"]
+                            if native_tools:
+                                collected_text += delta.get("content") or ""
+                                for call in delta.get("tool_calls", []):
+                                    entry = calls.setdefault(call["index"], {"id": "", "name": "", "arguments": ""})
+                                    entry["id"] += call.get("id") or ""
+                                    entry["name"] += call.get("function", {}).get("name") or ""
+                                    entry["arguments"] += call.get("function", {}).get("arguments") or ""
+                                continue
                             if "content" in delta and delta["content"]:
                                 yielded_any = True
                                 yield delta["content"]
                         except (KeyError, IndexError):
                             continue
+        if native_tools and calls:
+            if len(calls) != 1:
+                raise RuntimeError("Expected one native tool call per response.")
+            call = next(iter(calls.values()))
+            allowed_names = {t["function"]["name"] for t in native_tools}
+            if call["name"] not in allowed_names:
+                raise RuntimeError("Groq returned an undeclared native tool.")
+            try:
+                arguments = json.loads(call["arguments"])
+                if not isinstance(arguments, dict):
+                    raise ValueError("Expected object arguments.")
+            except ValueError as exc:
+                raise RuntimeError("Groq returned invalid native tool arguments.") from exc
+            yield "```tool\n" + json.dumps({"tool": call["name"], "params": arguments, "call_id": call["id"]}) + "\n```"
+            yielded_any = True
+        elif native_tools and collected_text:
+            yield collected_text
+            yielded_any = True
         if not yielded_any:
             raise RuntimeError(
                 f"Groq returned no content for model '{model}' — the stream ended with no "
@@ -337,6 +373,7 @@ class ModelRouter:
         messages: list,
         stream: bool = True,
         file_path: Optional[str] = None,
+        native_tools: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
 
@@ -373,7 +410,7 @@ class ModelRouter:
                     yield chunk
             else:
                 groq_model = model.replace("groq/", "")
-                async for chunk in self.call_groq(groq_model, messages, stream):
+                async for chunk in self.call_groq(groq_model, messages, stream, native_tools=native_tools):
                     yield chunk
         elif provider == "fal":
             prompt = messages[-1]["content"] if messages else ""

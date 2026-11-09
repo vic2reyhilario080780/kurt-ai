@@ -407,6 +407,10 @@ def _show_no_key_help():
 async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt=""):
     """Stream AI response with real-time display"""
     router = ModelRouter()
+    if analysis.task_type not in {TaskType.IMAGE, TaskType.MUSIC, TaskType.VIDEO, TaskType.TRANSCRIBE}:
+        from kurt.capabilities.bridge import NativeToolRouter
+        router = NativeToolRouter(router, on_tool=lambda name: console.print(f"[dim]🔧 {name}[/dim]"),
+                                  on_status=lambda text: console.print(text, markup=False))
 
     console.print()
 
@@ -646,8 +650,10 @@ def chat(
             if slash_result.skill_override:
                 current_skill = slash_result.skill_override
             if slash_result.feed_to_ai and slash_result.output:
-                # So Kurt's own LLM sees what /claude or /gemini produced on the next turn
+                # Keep the request and computed results available to follow-up turns.
+                save_message(session_id, "user", prompt)
                 save_message(session_id, "assistant", slash_result.output)
+                last_response = slash_result.output
             if slash_result.new_session_id:
                 session_id = slash_result.new_session_id
                 last_response = ""
@@ -1285,6 +1291,7 @@ def agent(
     profile: Optional[str] = typer.Option(None, "--profile", help="Native workflow-agent ID"),
     data: Optional[str] = typer.Option(None, "--data", help="CSV/JSON input for a native workflow agent"),
     output: Optional[str] = typer.Option(None, "--output", help="New JSON report path for a native workflow"),
+    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Apply an installed skill to the AI agent"),
 ):
     """🤖 Like 'kurt do', but for coding tasks — Kurt reads/edits files and runs
     commands on its own until the task is done (similar to Claude Code's agent mode).
@@ -1292,6 +1299,8 @@ def agent(
     Halimbawa (example): kurt agent "fix the failing test in test_api.py"
     """
     if profile:
+        if skill:
+            raise typer.BadParameter("Use --skill for the AI agent or --profile for a declared native workflow.")
         from kurt.capabilities.commands import run_and_write
         if not data:
             raise typer.BadParameter("--profile requires --data with a CSV or JSON file.")
@@ -1328,6 +1337,7 @@ def agent(
         router=router,
         cwd=str(Path(path).expanduser().resolve()),
         max_steps=max_steps,
+        skill=skill,
     ))
 
     if result.files_changed:
@@ -1991,9 +2001,12 @@ def skill_pipelines(
 # ══════════════════════════════════════
 
 @plugin_app.command("list")
-def plugin_list():
+def plugin_list(
+    search: str = typer.Option("", "--search", "-s"),
+    limit: int = typer.Option(40, "--limit", min=1, max=10000),
+):
     """List all plugins"""
-    list_plugins()
+    list_plugins(search=search, limit=limit)
 
 
 @plugin_app.command("enable")

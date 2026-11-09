@@ -63,6 +63,8 @@ def chat_command(arguments):
 def register_commands(main_app, skill_app, plugin_app, console):
     app = typer.Typer(help="Run Kurt's 30,000 native data workflows (CSV/JSON)")
     main_app.add_typer(app, name="library")
+    agents_app = typer.Typer(help="Discover and execute Kurt's 10,000 native workflow agents")
+    main_app.add_typer(agents_app, name="agents")
 
     @app.command("stats")
     def stats():
@@ -111,6 +113,26 @@ def register_commands(main_app, skill_app, plugin_app, console):
             print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         if result["status"] != "completed":
             raise typer.Exit(1)
+
+    @agents_app.command("list")
+    def agents_list(query: str = typer.Option("", "--search", "-s"),
+                    limit: int = typer.Option(20, min=1, max=10000)):
+        search(query, "agent", limit)
+
+    @agents_app.command("show")
+    def agents_show(identity: str):
+        try:
+            item = runtime.get_capability(identity)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        if item["kind"] != "agent":
+            raise typer.BadParameter("An agent ID is required.")
+        show(identity)
+
+    @agents_app.command("run")
+    def agents_run(identity: str, input_path: Path = typer.Option(..., "--input", "-i"),
+                   output: Optional[Path] = typer.Option(None, "--output", "-o")):
+        execute(identity, input_path, output, "agent")
 
     @app.command("run")
     def run(identity: str, input_path: Path = typer.Option(..., "--input", "-i"),

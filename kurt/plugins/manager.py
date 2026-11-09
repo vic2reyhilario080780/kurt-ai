@@ -94,9 +94,27 @@ def init_plugins():
                 json.dump({**plugin_data, "id": plugin_id, "builtin": True}, f, indent=2)
 
 
-def list_plugins():
-    """List all plugins"""
+def get_all_plugins(include_native=True):
+    """One registry view for legacy feature packs and executable native plugins."""
     init_plugins()
+    plugins = []
+    for plugin_file in sorted(PLUGINS_DIR.glob("*.json")):
+        plugin = json.loads(plugin_file.read_text())
+        plugins.append({**plugin, "id": plugin.get("id", plugin_file.stem)})
+    if include_native:
+        from kurt.capabilities.runtime import search, enabled
+        plugins.extend({**p, "builtin": True, "enabled": enabled(p["id"]),
+                        "capabilities": [p["method"]], "entrypoint": "kurt.capabilities.runtime:run_capability"}
+                       for p in search(kind="plugin", limit=10000))
+    return plugins
+
+
+def list_plugins(search="", limit=40):
+    """List all plugins"""
+    plugins = get_all_plugins()
+    total = len(plugins)
+    words = search.casefold().split()
+    plugins = [p for p in plugins if all(w in (p['id'] + ' ' + p['name'] + ' ' + p['description']).casefold() for w in words)]
 
     table = Table(
         title="🔌 KURT Plugins",
@@ -109,10 +127,7 @@ def list_plugins():
     table.add_column("Status", style="yellow", width=10)
     table.add_column("Type", style="dim", width=10)
 
-    for plugin_file in sorted(PLUGINS_DIR.glob("*.json")):
-        with open(plugin_file) as f:
-            plugin = json.load(f)
-
+    for plugin in plugins[:limit]:
         status = "[green]✅ ON[/green]" if plugin.get("enabled") else "[red]⭕ OFF[/red]"
         ptype = "[green]Built-in[/green]" if plugin.get("builtin") else "[blue]Custom[/blue]"
 
@@ -125,8 +140,7 @@ def list_plugins():
         )
 
     console.print(table)
-    from kurt.capabilities.runtime import manifest
-    console.print(f"[dim]Also available: {manifest()['counts']['plugin']:,} executable native plugins. Browse: kurt library search <words> --kind plugin[/dim]")
+    console.print(f"[dim]Showing {min(limit, len(plugins))} of {len(plugins):,} matches; {total:,} registered plugins. Search: kurt plugin list --search <words>[/dim]")
     console.print("[dim]Enable: kurt plugin enable <id>[/dim]")
     console.print("[dim]Disable: kurt plugin disable <id>[/dim]")
 
@@ -189,13 +203,4 @@ def disable_plugin(plugin_id: str):
 
 def get_enabled_plugins() -> list:
     """Get list of enabled plugins"""
-    init_plugins()
-    enabled = []
-
-    for plugin_file in PLUGINS_DIR.glob("*.json"):
-        with open(plugin_file) as f:
-            plugin = json.load(f)
-        if plugin.get("enabled"):
-            enabled.append(plugin)
-
-    return enabled
+    return [plugin for plugin in get_all_plugins() if plugin.get("enabled")]

@@ -58,6 +58,8 @@ SLASH_COMMANDS = {
     "/models":    "Show the live model routing table  e.g. /models",
     "/skill":     "Apply a skill to the next message  e.g. /skill tiktok",
     "/skills":    "List or search Kurt's loaded skills  e.g. /skills trading",
+    "/agents":    "Discover native workflow agents  e.g. /agents shopee gross_sales",
+    "/plugins":   "Discover executable native plugins  e.g. /plugins shopee gross_sales",
     "/library":   "Run a native data workflow (local, no AI call)  e.g. /library stats",
     # ── System — shell out to other dev tools ───────────────────────
     "/run":       "Run a shell command  e.g. /run ls -la",
@@ -73,7 +75,7 @@ SLASH_COMMANDS = {
 
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save"]),
-    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/library"]),
+    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library"]),
     ("⚙️  System", ["/run", "/gh", "/claude", "/gemini", "/mcp"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
@@ -273,6 +275,14 @@ def handle_slash(
             output = chat_command(args)
         except (ValueError, OSError) as exc:
             output = f"Native workflow: {exc}"
+        return SlashResult(handled=True, output=output, continue_chat=True,
+                           feed_to_ai=args.strip().startswith("run "))
+
+    if cmd in ("/agents", "/plugins"):
+        from kurt.capabilities.runtime import search
+        kind = "agent" if cmd == "/agents" else "plugin"
+        rows = search(args, kind=kind, include_disabled=False)
+        output = "\n".join(f"{e['id']} | {e['name']}" for e in rows) or "No ready native workflows matched."
         return SlashResult(handled=True, output=output, continue_chat=True)
 
     # ── /skills ─────────────────────────────────────────────────────

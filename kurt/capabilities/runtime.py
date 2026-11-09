@@ -63,6 +63,8 @@ def domain_pack(domain):
 
 
 def get_capability(identity):
+    if not isinstance(identity, str):
+        raise ValueError("A native capability ID must be text.")
     parts = identity.split("--")
     if len(parts) != 4 or parts[0] not in ("kurt-skill", "kurt-agent", "kurt-plugin"):
         raise ValueError("Unknown native capability ID. Use kurt library search.")
@@ -76,7 +78,15 @@ def get_capability(identity):
     return result
 
 
-def search(query="", kind=None, limit=20):
+def available(identity):
+    """Respect disabled dependencies across all three public entry types."""
+    item = get_capability(identity)
+    dependencies = ([item["plugin"]] if item["kind"] == "skill" else
+                    [s["plugin"] for s in item["steps"]] if item["kind"] == "agent" else [])
+    return item["enabled"] and all(enabled(dep) for dep in dependencies)
+
+
+def search(query="", kind=None, limit=20, include_disabled=True):
     if kind and kind not in ("skill", "agent", "plugin"):
         raise ValueError("Kind must be skill, agent or plugin.")
     if not isinstance(limit, int) or limit < 1 or limit > 30_000:
@@ -87,6 +97,8 @@ def search(query="", kind=None, limit=20):
         if kind and entry["kind"] != kind:
             continue
         if all(w in (entry["id"] + " " + entry["name"] + " " + entry["description"]).casefold() for w in words):
+            if not include_disabled and not available(entry["id"]):
+                continue
             output.append(dict(entry))
             if len(output) >= limit:
                 break

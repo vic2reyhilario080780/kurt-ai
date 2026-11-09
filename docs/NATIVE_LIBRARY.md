@@ -24,11 +24,32 @@ All three entry types can run locally against user-supplied CSV or JSON records:
 
 The workflow agents execute declared plans. Their local runner does not use
 autonomous LLM reasoning. The existing Kurt AI agent can discover and execute
-these workflows through `search_native` and `run_native`; that path still
-requires the user's model/provider configuration. Applying a native skill with
-`/skill` injects its instructions, but ordinary chat does not automatically
-become a tool-executing agent. Use `/library run` for direct execution, or
-`kurt agent`/`kurt do` for model-driven tool selection.
+these workflows through `search_native`, `inspect_native_input`, `inspect_native`
+and `run_native`. **Ordinary `kurt chat` and `kurt ask` now use the same native
+tools**: the model can inspect supplied data, find a workflow, load its contract,
+execute it and explain the returned numbers. These model-driven paths require
+the user's configured AI provider. Definitions load on demand, so all 30,000
+instructions do not enter every conversation.
+
+Applying `/skill <native-skill-id>` injects its instructions into subsequent chat
+turns. `kurt agent --skill <id>` also loads the selected skill. Disabled native
+plugins and their dependent skills/agent recipes are excluded from model
+discovery; the runner enforces the same settings even when an ID is supplied
+directly. The plugin manager's enabled registry includes all enabled native
+plugins, alongside the older feature packs.
+
+Normal chat's native bridge reads CSV/JSON paths explicitly supplied in user
+messages (quote paths containing spaces). It executes at most eight native
+tool calls per response. Text-protocol responses stream; Groq function-enabled
+responses are buffered until text versus a tool call can be distinguished. A short HTTP 429
+with a numeric Retry-After up to 45 seconds is retried once per request; other
+API errors use the existing chat fallback.
+
+Groq native function schemas and streamed function-call arguments are supported
+directly, with matching call/result IDs, following the
+[Groq tool-use protocol](https://console.groq.com/docs/tool-use/overview).
+Other current providers retain the portable JSON tool-block path. Their models
+must follow the tool protocol; the live smoke test below covers Groq specifically.
 
 The ten operations are descriptive statistics, data quality audit, group
 comparison, UTC daily trends, record rankings, IQR outlier review, five-bin
@@ -71,6 +92,9 @@ selected workflow uses them.
 kurt library run kurt-plugin--shopee-orders--gross_sales--group --input orders.csv
 kurt skill run kurt-skill--shopee-orders--gross_sales--describe --input orders.csv
 kurt agent "analyze these orders" --profile kurt-agent--shopee-orders--gross_sales--describe --data orders.csv
+kurt agents list --search "shopee gross_sales"
+kurt agents run kurt-agent--shopee-orders--gross_sales--describe --input orders.csv
+kurt plugin list --search "shopee gross_sales"
 ```
 
 With `--profile`, the selected declared plan controls execution; the task text
@@ -82,13 +106,34 @@ In Kurt chat:
 ```text
 /library stats
 /library search shopee gross_sales
+/agents shopee gross_sales
+/plugins shopee gross_sales
 /library run kurt-agent--shopee-orders--gross_sales--describe "orders.csv"
 /skill kurt-skill--shopee-orders--gross_sales--describe
 ```
 
+You can ask naturally in `kurt chat`:
+
+```text
+Kurt, analyze mo ang gross_sales ng Shopee orders sa "orders.csv". Ibigay ang total at breakdown per shop.
+```
+
+Or use a one-off model-driven request:
+
+```sh
+kurt ask 'Analyze gross_sales in the Shopee export "orders.csv" using the native library.'
+kurt agent 'Analyze the Shopee export "orders.csv"' --skill kurt-skill--shopee-orders--gross_sales--describe
+```
+
+The supplied file must exist and match the selected workflow's column contract.
+No path or data is invented for the user. `/library run` saves its request and
+result into chat history, so follow-up questions can refer to computed results
+and `/save` can save the last report.
+
 The existing skill manager can resolve all 10,000 native skill prompts.
-Skill listings show a bounded preview and the full count. Plugin listings show
-the 10,000 native plugin count and the search command.
+Skill listings show a bounded preview and the full count. Plugin listings can
+search old and native entries together. `kurt agents list/show/run` provides an
+explicit discovery/inspection/execution path for all native workflow agents.
 
 Native plugins support existing enable/disable commands. Disabling a plugin
 also blocks skills and agent steps that depend on it:
@@ -139,6 +184,17 @@ input, timezones, zero denominators, signed/constant data, agent stop behavior,
 disable propagation, non-destructive files and CLI/chat/agent-tool routing.
 
 See [the recorded verification report](native-library-verification.json).
+See also [the real-model smoke-test report](native-live-chat-verification.json):
+Groq `openai/gpt-oss-20b` inspected input, searched for a recipe, inspected its
+definition, ran it, and reported the computed sum of 1160 from eight synthetic
+records. No live app actions were performed. Run the test explicitly with:
+
+```sh
+python3 tools/verify_native_chat.py --live --model openai/gpt-oss-20b
+```
+
+This opt-in command makes real API calls using the configured Groq key.
+
 This proves deterministic local execution against supplied fixtures. It does
 not prove the quality of every model's interpretation, correctness of the
 user's source data, causal explanations, live integrations, or suitability of

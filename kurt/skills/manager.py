@@ -756,6 +756,10 @@ def get_skill_prompt(skill_id: str) -> str | None:
     """Get a skill's system prompt"""
     skill = get_skill(skill_id)
     if skill:
+        if skill_id.startswith("kurt-skill--"):
+            from kurt.capabilities.runtime import available
+            if not available(skill_id):
+                return None
         return skill.get("system_prompt", "")
     return None
 
