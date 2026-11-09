@@ -37,7 +37,16 @@ pipx install kurt-ai
 git clone https://github.com/daddytito/kurt-ai
 cd kurt-ai
 pip install -e .
+
+# Windows: one-command setup (npm + pip + playwright + .env scaffold)
+.\install_deps.ps1
 ```
+
+**Windows note:** code-execution tools (`bash`, `run_code`, the coding agent
+workbench) use a lexical pre-flight guard on Windows instead of the macOS
+kernel-level sandbox — real protection against commands that reference
+credential paths, but not an equivalent guarantee. See the docstring in
+`kurt/utils/execution.py` for details.
 
 ### Setup (one-time lang)
 

@@ -5,6 +5,7 @@ import platform
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from kurt.utils.execution import restricted_run
@@ -56,6 +57,76 @@ class ExecutionSecurityTests(unittest.TestCase):
             result=subprocess.run(argv,env=child_env(),capture_output=True,text=True,timeout=15)
             self.assertNotEqual(result.returncode,0)
             self.assertNotIn('synthetic-only',result.stdout)
+
+class WindowsGuardTests(unittest.TestCase):
+    """This runner has no real Windows host, so platform.system() is patched
+    to exercise the lexical guard's control flow. It verifies the guard's
+    logic, not kernel-level enforcement — see the module docstring on
+    execution.py: unlike macOS Seatbelt, this can be defeated by a command
+    that builds a sensitive path indirectly at runtime. Re-verify on an
+    actual Windows host before trusting this as equivalent to the Mac path."""
+
+    def test_benign_shell_command_passes_through(self):
+        from kurt.utils import execution
+        with patch('kurt.utils.execution.platform.system', return_value='Windows'):
+            argv = execution.restricted_argv('echo hi', shell=True)
+        self.assertEqual(argv, ['cmd', '/c', 'echo hi'])
+
+    def test_benign_argv_passes_through(self):
+        from kurt.utils import execution
+        with patch('kurt.utils.execution.platform.system', return_value='Windows'):
+            argv = execution.restricted_argv(['python', 'script.py'], shell=False)
+        self.assertEqual(argv, ['python', 'script.py'])
+
+    def test_protected_directory_reference_refused(self):
+        from kurt.utils import execution
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root)
+            with patch('kurt.utils.execution.Path.home', return_value=home), \
+                 patch('kurt.utils.execution.platform.system', return_value='Windows'):
+                variants = (
+                    f'{home}\\.ssh\\id_rsa',
+                    f'{home}/.SSH/id_rsa',
+                    str(home / '.aws' / 'credentials'),
+                )
+                for variant in variants:
+                    with self.subTest(variant=variant):
+                        with self.assertRaises(RuntimeError):
+                            execution.restricted_argv(f'type {variant}', shell=True)
+
+    def test_credential_filename_anywhere_refused(self):
+        from kurt.utils import execution
+        with patch('kurt.utils.execution.platform.system', return_value='Windows'):
+            with self.assertRaises(RuntimeError):
+                execution.restricted_argv('cat somewhere\\credentials.json', shell=True)
+
+    def test_service_argv_also_guarded(self):
+        from kurt.utils import execution
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root)
+            with patch('kurt.utils.execution.Path.home', return_value=home), \
+                 patch('kurt.utils.execution.platform.system', return_value='Windows'):
+                safe = execution.service_argv(['claude', '--print', 'hi'], 'claude')
+                self.assertEqual(safe, ['claude', '--print', 'hi'])
+                with self.assertRaises(RuntimeError):
+                    execution.service_argv(['claude', '--print', str(home / '.aws' / 'credentials')], 'claude')
+
+    def test_restricted_run_builds_windows_argv_and_env(self):
+        from kurt.utils import execution
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured['argv'] = argv
+            captured['kwargs'] = kwargs
+            return SimpleNamespace(returncode=0, stdout='ok', stderr='')
+
+        with patch('kurt.utils.execution.platform.system', return_value='Windows'), \
+             patch('kurt.utils.execution.subprocess.run', side_effect=fake_run):
+            result = execution.restricted_run('echo hi', shell=True)
+        self.assertEqual(captured['argv'], ['cmd', '/c', 'echo hi'])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('creationflags', captured['kwargs'])
+
 
 class PolicyTests(unittest.TestCase):
     def test_unsupported_host_fails_closed(self):
