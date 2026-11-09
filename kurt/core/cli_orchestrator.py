@@ -53,6 +53,7 @@ SLASH_COMMANDS = {
     "/history":   "Show recent messages in this session  e.g. /history",
     "/info":      "Show session ID, active model, and active skill  e.g. /info",
     "/save":      "Save Kurt's last reply to a file  e.g. /save answer.md",
+    "/config":    "Personalize Kurt — theme, name, greeting  e.g. /config theme",
     # ── AI Tools — models, skills, and native workflows ─────────────
     "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
     "/models":    "Show the live model routing table  e.g. /models",
@@ -60,12 +61,15 @@ SLASH_COMMANDS = {
     "/skills":    "List or search Kurt's loaded skills  e.g. /skills trading",
     "/agents":    "Discover native workflow agents  e.g. /agents shopee gross_sales",
     "/plugins":   "Discover executable native plugins  e.g. /plugins shopee gross_sales",
-    "/library":   "Run a native data workflow (local, no AI call)  e.g. /library stats",
+    "/library":   "Browse & run native data workflows (local, no AI call)  e.g. /library domains",
     # ── System — shell out to other dev tools ───────────────────────
     "/run":       "Run a shell command  e.g. /run ls -la",
     "/gh":        "Run GitHub CLI  e.g. /gh pr list",
     "/claude":    "Delegate to Claude Code CLI  e.g. /claude \"review main.py for bugs\"",
     "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
+    "/openclaw":  "Delegate a task to OpenClaw  e.g. /openclaw summarize the task results",
+    "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
+    "/cli":       "CLI availability/readiness  e.g. /cli status | /cli probe",
     "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
     # ── Web & Computer — browsing and desktop control ────────────────
     "/web":       "Fetch a page or search the web  e.g. /web https://example.com",
@@ -74,9 +78,9 @@ SLASH_COMMANDS = {
 }
 
 SLASH_GROUPS = [
-    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save"]),
+    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config"]),
     ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library"]),
-    ("⚙️  System", ["/run", "/gh", "/claude", "/gemini", "/mcp"]),
+    ("⚙️  System", ["/run", "/gh", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -168,7 +172,7 @@ def handle_slash(
             for slash in slash_names:
                 desc = SLASH_COMMANDS.get(slash, "")
                 lines.append(f"  {slash:<12}  {desc}")
-        lines += ["", "Tip: /claude, /gemini, /gh pipe directly to their CLIs"]
+        lines += ["", "Tip: /claude, /gemini, /openclaw and /peekaboo return their CLI results to Kurt"]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
     # ── /clear ──────────────────────────────────────────────────────
@@ -242,9 +246,46 @@ def handle_slash(
             f"  Claude CLI  : {'✅ installed' if _cmd_exists('claude') else '❌ not found'}",
             f"  Gemini CLI  : {'✅ installed' if _cmd_exists('gemini') else '❌ not found'}",
             f"  gh CLI      : {'✅ installed' if _cmd_exists('gh') else '❌ not found'}",
+            f"  OpenClaw CLI: {'✅ installed' if _cmd_exists('openclaw') else '❌ not found'}",
+            f"  Peekaboo CLI: {'✅ installed' if _cmd_exists('peekaboo') else '❌ not found'}",
             "",
         ]
         return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
+
+    # ── /config ─────────────────────────────────────────────────────
+    if cmd == "/config":
+        from kurt.core.persona import (
+            config_show, config_theme_wizard, config_name_wizard,
+            config_icon_wizard, config_language_wizard, config_aimode_wizard,
+            config_projects_wizard, config_full_wizard, reset_persona,
+        )
+        wizards = {
+            "": config_show,
+            "show": config_show,
+            "theme": config_theme_wizard,
+            "name": config_name_wizard,
+            "icon": config_icon_wizard,
+            "language": config_language_wizard,
+            "lang": config_language_wizard,
+            "aimode": config_aimode_wizard,
+            "projects": config_projects_wizard,
+            "setup": config_full_wizard,
+        }
+        sub = args.strip().lower()
+        if sub == "reset":
+            reset_persona()
+            return SlashResult(handled=True, output="♻️  Persona reset to defaults.", continue_chat=True)
+        wizard = wizards.get(sub)
+        if wizard is None:
+            return SlashResult(
+                handled=True,
+                output="Usage: /config [show|theme|name|icon|language|aimode|projects|setup|reset]",
+                continue_chat=True,
+            )
+        # These wizards print/prompt directly (interactive Rich prompts) — run them
+        # in place, same as any other console.input() in this loop.
+        wizard()
+        return SlashResult(handled=True, output="", continue_chat=True)
 
     # ── /history ────────────────────────────────────────────────────
     if cmd == "/history":
@@ -318,6 +359,25 @@ def handle_slash(
             return SlashResult(handled=True, output="Usage: /run <shell command>  e.g. /run ls -la", continue_chat=True)
         output = _run_shell("", args)
         return SlashResult(handled=True, output=f"$ {args}\n\n{output}", continue_chat=True)
+
+    if cmd == "/cli":
+        from kurt.core.cli_tools import cli_status
+        import json
+        if args not in ("", "status", "probe"):
+            return SlashResult(True, "Usage: /cli status | /cli probe", True)
+        return SlashResult(True, json.dumps(cli_status(probe=args == "probe"), indent=2), True)
+
+    if cmd in ("/openclaw", "/peekaboo"):
+        from kurt.core.cli_tools import delegate_desktop_cli
+        if not args:
+            usage = "/openclaw <task>" if cmd == "/openclaw" else "/peekaboo <command and args>, e.g. permissions status --json"
+            return SlashResult(True, "Usage: " + usage, True)
+        try:
+            result = delegate_desktop_cli(cmd[1:], args)
+            output = result.text()
+        except ValueError as exc:
+            output = f"CLI configuration error: {exc}"
+        return SlashResult(True, output, True, feed_to_ai=True)
 
     # ── /claude ─────────────────────────────────────────────────────
     if cmd == "/claude":

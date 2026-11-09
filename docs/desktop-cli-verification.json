@@ -1,0 +1,35 @@
+{
+  "tested_at": "2026-11-09T09:59:01.433810+00:00",
+  "openclaw": {
+    "version": "2026.11.2",
+    "mode": "managed headless embedded",
+    "actual_reply": "KURT_OPENCLAW_OK",
+    "status": "passed",
+    "credentials": "Inherited Groq environment reference; key not copied to config"
+  },
+  "peekaboo": {
+    "version": "4.9.8",
+    "status": "passed",
+    "operation": "local screenshot",
+    "format": "PNG",
+    "dimensions": [
+      1920,
+      1080
+    ],
+    "image_sent_to_model": false
+  },
+  "dependency_audit": {
+    "moderate": 34,
+    "high": 1,
+    "critical": 0,
+    "remaining_high": "bundled npm/undici",
+    "patch_overrides": {
+      "npm": "12.2.1",
+      "zod": "4.6.6"
+    }
+  },
+  "limitations": [
+    "No claim that every app/browser interaction was tested",
+    "Provider quotas and host desktop permissions remain applicable"
+  ]
+}

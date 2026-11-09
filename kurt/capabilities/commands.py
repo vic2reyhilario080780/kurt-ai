@@ -57,7 +57,45 @@ def chat_command(arguments):
         if len(text) > 16000:
             return text[:16000] + "\n[Preview truncated. Use kurt library run --output for the complete report.]"
         return text
-    return "Usage: /library stats | search <words> | show <id> | run <id> <quoted-input-path>"
+    if command == "domains" and len(parts) == 1:
+        return list_domains()
+    if command == "domains" and len(parts) == 2:
+        return describe_domain(parts[1])
+    return (
+        "Usage: /library stats | domains | domains <name> | search <words> | "
+        "show <id> | run <id> <quoted-input-path>\n"
+        "Don't know a domain name yet? Start with /library domains to browse all 100."
+    )
+
+
+def list_domains():
+    manifest = runtime.manifest()
+    domains = sorted({e["domain"] for e in manifest["index"]})
+    rows = ["  ".join(domains[i:i + 4]) for i in range(0, len(domains), 4)]
+    return (
+        f"📚 {len(domains)} domains available — each has ~10 metrics × 10 operations "
+        "(describe, quality, group, trend, rank, outliers, histogram, contribution, "
+        "changes, normalize).\n\n"
+        + "\n".join(rows)
+        + "\n\nDrill in: /library domains <name>  e.g. /library domains shopee-orders"
+    )
+
+
+def describe_domain(domain):
+    try:
+        pack = runtime.domain_pack(domain)
+    except ValueError:
+        return f"Unknown domain: {domain}\nRun /library domains to see all available names."
+    profile = pack["profile"]
+    metrics = "\n".join(f"  • {m}" for m in profile["metrics"])
+    return (
+        f"📦 {profile['title']}  (domain: {domain})\n"
+        f"Entity: {profile['entity']}   Group: {profile['group']}   Date: {profile['date']}\n\n"
+        f"Metrics available:\n{metrics}\n\n"
+        "Pick a metric + operation, e.g.:\n"
+        f"  /library show kurt-skill--{domain}--{profile['metrics'][0]}--describe\n"
+        f"  /library run kurt-plugin--{domain}--{profile['metrics'][0]}--describe \"your_file.csv\""
+    )
 
 
 def register_commands(main_app, skill_app, plugin_app, console):

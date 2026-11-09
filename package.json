@@ -1,21 +1,35 @@
 {
   "name": "kurt-ai",
   "version": "3.0.0",
-  "description": "K.U.R.T. — Kinetic Unified Response Terminal",
+  "description": "K.U.R.T. \u2014 Kinetic Unified Response Terminal",
   "private": true,
   "scripts": {
-    "postinstall": "echo '✅ npm deps installed. Run: bash install_deps.sh'"
+    "postinstall": "echo '\u2705 npm deps installed. Run: bash install_deps.sh'"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "latest",
-    "@google/gemini-cli": "latest"
+    "@google/gemini-cli": "latest",
+    "@steipete/peekaboo": "4.9.8",
+    "node": "24.22.1",
+    "openclaw": "2026.11.2"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
   "kurt": {
-    "note": "CLI tools are run via npx from node_modules — no global installs needed"
+    "note": "CLI tools resolve from project node_modules/.bin first, then PATH. OpenClaw uses the project-local Node 24 runtime."
+  },
+  "allowScripts": {
+    "node": true,
+    "node-bin-setup": true,
+    "openclaw": true,
+    "@steipete/peekaboo": true
+  },
+  "overrides": {
+    "openclaw": {
+      "npm": "12.2.1",
+      "zod": "4.6.6"
+    }
   }
 }

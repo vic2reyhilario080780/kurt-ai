@@ -509,12 +509,16 @@ def chat(
     # ── Welcome banner — Kurt's own startup screen ───────────────────
     from kurt import __version__ as _kurt_version
     _dim_style = _theme.get("dim", "dim")
+    _accent_style = _theme.get("accent", _theme["primary"])
     console.print(Panel(
-        f"[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]  [dim]v{_kurt_version} · {session_id[:8]}[/dim]\n\n"
+        f"[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]  [dim]v{_kurt_version} · {session_id[:8]}[/dim]\n"
+        f"[{_accent_style}]{get_greeting()}[/{_accent_style}]\n\n"
         f"[dim]Model:[/dim] {current_model}   [dim]Skill:[/dim] {current_skill or 'none'}\n\n"
-        f"[{_dim_style}]Type your message to start · /help for commands · /exit to quit[/{_dim_style}]",
+        f"[{_dim_style}]Type your message to start · /help for commands · /exit to quit\n"
+        f"kurt config to personalize — theme, name, greeting[/{_dim_style}]",
         box=box.ROUNDED,
         border_style=_theme.get("border", "cyan"),
+        style=_theme.get("background", ""),
     ))
 
     # ── Voice mode (Hey Kurt) ────────────────────────────────────────

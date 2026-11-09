@@ -45,6 +45,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold cyan",
         "box_style": "ROUNDED",
         "emoji_prefix": "🤖",
+        "background": "on #001414",
     },
     "neon": {
         "name": "Neon Pink",
@@ -60,6 +61,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold magenta",
         "box_style": "DOUBLE",
         "emoji_prefix": "✨",
+        "background": "on #15001a",
     },
     "matrix": {
         "name": "Matrix Green",
@@ -75,6 +77,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold green",
         "box_style": "MINIMAL",
         "emoji_prefix": "🟢",
+        "background": "on #000a00",
     },
     "gold": {
         "name": "Gold / Royal",
@@ -90,6 +93,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold yellow",
         "box_style": "HEAVY",
         "emoji_prefix": "👑",
+        "background": "on #1a1500",
     },
     "minimal": {
         "name": "Minimal White",
@@ -105,6 +109,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold white",
         "box_style": "SIMPLE",
         "emoji_prefix": "◆",
+        "background": "",
     },
     "sunset": {
         "name": "Sunset Orange",
@@ -120,6 +125,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold orange1",
         "box_style": "ROUNDED",
         "emoji_prefix": "🌅",
+        "background": "on #1a0a00",
     },
     "ocean": {
         "name": "Ocean Blue",
@@ -135,6 +141,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold blue",
         "box_style": "ROUNDED",
         "emoji_prefix": "🌊",
+        "background": "on #00091a",
     },
     "pinoy": {
         "name": "Pinoy — Blue, Red, Yellow",
@@ -150,6 +157,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold blue",
         "box_style": "ROUNDED",
         "emoji_prefix": "🇵🇭",
+        "background": "on #00071a",
     },
 }
 
@@ -430,7 +438,9 @@ def config_theme_wizard():
     for key, theme in BUILTIN_THEMES.items():
         current = " ← current" if key == p.get("theme") else ""
         prefix = theme.get("emoji_prefix", "●")
-        console.print(f"  [{theme['banner_color']}]{prefix} {key:12}[/{theme['banner_color']}] — {theme['name']}{current}")
+        bg = theme.get("background", "")
+        swatch_style = f"{theme['primary']} {bg}".strip()
+        console.print(f"  [{swatch_style}] {prefix} {key:12} — {theme['name']}{current} [/{swatch_style}]")
 
     console.print()
     choice = Prompt.ask(

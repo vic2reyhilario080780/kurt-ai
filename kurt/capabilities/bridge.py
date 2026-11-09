@@ -24,6 +24,16 @@ NATIVE_TOOLS = [
      "parameters": {"capability_id": "string from search_native", "input_path": "string: CSV/JSON path supplied by the user"}},
 ]
 
+DESKTOP_CLI_TOOLS = [
+    {"name": "desktop_cli_status", "description": "Check whether OpenClaw and Peekaboo are installed; optionally probe Gateway health and desktop permissions without sending tasks.",
+     "parameters": {"probe": "optional boolean"}},
+    {"name": "desktop_cli", "description": "Delegate a user-requested task to OpenClaw, or execute direct Peekaboo desktop CLI arguments using Kurt as the AI. Observe before and after desktop actions. Inspect returned status/JSON and never auto-retry timed-out actions.",
+     "parameters": {"tool": "openclaw or peekaboo", "prompt": "task for OpenClaw; CLI command string for Peekaboo",
+                    "args": "optional exact string argument list instead of prompt", "agent": "optional OpenClaw agent, default main",
+                    "session_id": "optional OpenClaw session", "timeout": "optional 1–600 seconds"}},
+]
+CHAT_TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS
+
 
 def function_schemas():
     """JSON Schema declarations for providers supporting real function calls."""
@@ -33,11 +43,15 @@ def function_schemas():
         "inspect_native": ({"capability_id": {"type": "string"}}, ["capability_id"]),
         "inspect_native_input": ({"input_path": {"type": "string"}}, ["input_path"]),
         "run_native": ({"capability_id": {"type": "string"}, "input_path": {"type": "string"}}, ["capability_id", "input_path"]),
+        "desktop_cli_status": ({"probe": {"type": "boolean"}}, []),
+        "desktop_cli": ({"tool": {"type": "string", "enum": ["openclaw", "peekaboo"]}, "prompt": {"type": "string"},
+                         "args": {"type": "array", "items": {"type": "string"}}, "agent": {"type": "string"},
+                         "session_id": {"type": "string"}, "timeout": {"type": "integer", "minimum": 1, "maximum": 600}}, ["tool"]),
     }
     return [{"type": "function", "function": {"name": tool["name"], "description": tool["description"],
              "parameters": {"type": "object", "properties": contracts[tool["name"]][0],
                             "required": contracts[tool["name"]][1], "additionalProperties": False}}}
-            for tool in NATIVE_TOOLS]
+            for tool in CHAT_TOOLS]
 
 CHAT_TOOL_PROMPT = """KURT_NATIVE_TOOLS_V1
 You can execute Kurt's complete native data library: 10,000 skills, 10,000
@@ -61,11 +75,19 @@ ONE tool, output only a fenced tool block and wait for its result:
 {"tool":"search_native","params":{"query":"shopee gross_sales","kind":"agent","limit":5}}
 ```
 After the result arrives you may call another tool or give the final answer.
-Only the native tools below execute in ordinary chat. Other computer/shell/MCP
-tools belong to their existing explicit commands/agent mode. Use only file paths
-the user provided in the conversation. For normal questions, simply answer.
+For user-requested desktop work, desktop_cli_status checks OpenClaw/Peekaboo
+readiness, and desktop_cli invokes them. Peekaboo direct commands use Kurt's AI:
+permissions status --json; see --app Safari --json; app launch Safari --foreground
+when the user requested opening it. Use fresh observed app/window targets for
+click/type/press, then observe again. OpenClaw uses Kurt's managed embedded
+profile when configured, or the user's existing agent/Gateway setup.
+Report missing setup or permissions honestly. Never enable outbound delivery
+unless the user asked to send something. A timeout has unknown action outcomes;
+observe state before deciding on another action. Shell/MCP tools remain in
+their explicit commands/agent mode. For native data reads, use only file paths
+the user supplied. For normal questions, simply answer.
 Available native tools:
-""" + json.dumps(NATIVE_TOOLS, ensure_ascii=False)
+""" + json.dumps(CHAT_TOOLS, ensure_ascii=False)
 
 
 def user_paths(messages):
@@ -98,6 +120,17 @@ def invoke_native(name, params, allowed_paths=None):
     """Shared tool dispatcher; ordinary chat restricts reads to supplied paths."""
     if not isinstance(params, dict):
         raise ValueError("Tool params must be an object.")
+    if name == "desktop_cli_status":
+        from kurt.core.cli_tools import cli_status
+        probe = params.get("probe", False)
+        if not isinstance(probe, bool):
+            raise ValueError("probe must be a boolean.")
+        return cli_status(probe)
+    if name == "desktop_cli":
+        from dataclasses import asdict
+        from kurt.core.cli_tools import delegate_desktop_cli
+        return asdict(delegate_desktop_cli(params.get("tool"), params.get("prompt", ""), args=params.get("args"),
+                      agent=params.get("agent", "main"), session_id=params.get("session_id"), timeout=params.get("timeout", 180)))
     if name == "search_native":
         limit = params.get("limit", 10)
         if type(limit) is not int or not 1 <= limit <= 20:
@@ -114,7 +147,7 @@ def invoke_native(name, params, allowed_paths=None):
                 "records_preview": rows[:3], "preview_rows": min(3, len(rows))}
     if name == "run_native":
         return runtime.run_capability(params.get("capability_id", ""), input_path=_file_path(params, allowed_paths))
-    raise ValueError("Only search_native, inspect_native, inspect_native_input and run_native execute through the native bridge.")
+    raise ValueError("Only search_native, inspect_native, inspect_native_input, run_native, desktop_cli_status and desktop_cli execute through this bridge.")
 
 
 def tool_text(value, limit=16000):

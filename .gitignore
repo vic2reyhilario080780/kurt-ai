@@ -4,6 +4,7 @@
 .env
 *.env
 .tito/
+.openclaw-kurt/
 
 # Node — nasa project folder pero hindi i-commit (malaki!)
 node_modules/
