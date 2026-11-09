@@ -73,9 +73,12 @@ def search_web(query: str, max_results: int = 5) -> SearchResult:
     No API key needed. Libre forever.
     """
     try:
-        # Try duckduckgo-search library first (best results)
+        # Try ddgs library first (best results) — duckduckgo_search was renamed to ddgs
         try:
-            from duckduckgo_search import DDGS
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
             with DDGS() as ddgs:
                 raw = list(ddgs.text(query, max_results=max_results))
             results = [

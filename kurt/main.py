@@ -59,7 +59,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_sports_skills, list_faith_skills, list_home_skills, list_travel_hospitality_skills, \
     list_books_skills, list_nonprofit_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
-from kurt.core.cli_orchestrator import handle_slash, SLASH_COMMANDS
+from kurt.core.cli_orchestrator import handle_slash, SLASH_COMMANDS, close_browser_session
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
     get_active_project_contexts,
@@ -521,6 +521,7 @@ def chat(
                         _proactive.stop()
                     except Exception:
                         pass
+                close_browser_session()
                 break
 
         if not prompt:
@@ -529,6 +530,7 @@ def chat(
         # Legacy text shortcuts
         if prompt.lower() in ["exit", "quit", "bye"]:
             console.print("[dim]👋 Bye! K.U.R.T. signing off.[/dim]")
+            close_browser_session()
             break
 
         if prompt.lower() == "clear":
@@ -551,6 +553,8 @@ def chat(
             if slash_result.model_override:
                 current_model = slash_result.model_override
                 console.print(f"[dim]Model set to: {current_model}[/dim]")
+            if slash_result.skill_override:
+                current_skill = slash_result.skill_override
             if not slash_result.continue_chat:
                 break
             continue
@@ -698,6 +702,35 @@ def chat(
             skill_prompt = get_skill_prompt(active_skill)
             if skill_prompt:
                 messages.append({"role": "system", "content": skill_prompt})
+
+        # ── Web auto-trigger ────────────────────────────────────────
+        # If the user dropped a URL or asked a research-y question,
+        # fetch real page/search content and hand it to the AI as context.
+        try:
+            import re as _re
+            url_match = _re.search(r"https?://\S+", prompt)
+            if url_match:
+                from kurt.core.web_browse import read_page
+                web_result = read_page(url_match.group(0).rstrip(".,)"))
+                if web_result.success:
+                    snippet = web_result.content[:3000]
+                    messages.append({
+                        "role": "system",
+                        "content": f"WEB PAGE CONTEXT — {web_result.title} ({web_result.url}):\n{snippet}",
+                    })
+            elif _re.search(
+                r"\b(search (the|for)|google|look up|latest news|what('|')s happening|current (price|weather|status))\b",
+                prompt, _re.IGNORECASE,
+            ):
+                from kurt.core.web_browse import search_web
+                search_result = search_web(prompt)
+                if search_result.success and search_result.results:
+                    messages.append({
+                        "role": "system",
+                        "content": f"WEB SEARCH RESULTS for '{prompt}':\n{search_result.summary()}",
+                    })
+        except Exception:
+            pass  # Web access is best-effort — never block the chat on a failed fetch
 
         history = get_history(session_id, limit=20)
         messages.extend(history)

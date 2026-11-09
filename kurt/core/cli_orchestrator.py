@@ -34,6 +34,7 @@ class SlashResult:
     output: str            # Output to display
     continue_chat: bool    # True = stay in chat, False = exit
     model_override: Optional[str] = None   # Override model for next turn
+    skill_override: Optional[str] = None   # Override active skill for next turn
 
 
 # ─────────────────────────────────────────
@@ -57,7 +58,36 @@ SLASH_COMMANDS = {
     "/save":      "Save last response as a file",
     "/info":      "Show KURT session info",
     "/mcp":       "MCP tools: /mcp list | /mcp tools | /mcp call server/tool",
+    "/computer":  "Desktop control: /computer screenshot | type <text> | click <x> <y>",
+    "/web":       "Fetch a page or search: /web <url> | /web search <query>",
+    "/browser":   "Playwright browser: /browser open <url> | screenshot | click <sel> | fill <sel> <val> | close",
 }
+
+
+# ─────────────────────────────────────────
+# Persistent Playwright browser session for /browser
+# ─────────────────────────────────────────
+_browser_session = None
+
+
+def close_browser_session():
+    """Tear down the persistent /browser session, if one was started."""
+    global _browser_session
+    if _browser_session is not None:
+        try:
+            _browser_session.close()
+        except Exception:
+            pass
+        _browser_session = None
+
+
+def _get_browser_session():
+    global _browser_session
+    if _browser_session is None:
+        from kurt.core.web_browse import KurtBrowser
+        _browser_session = KurtBrowser(headless=True)
+        _browser_session.start()
+    return _browser_session
 
 
 def _cmd_exists(cmd: str) -> bool:
@@ -122,6 +152,7 @@ def handle_slash(
 
     # ── /exit /quit ─────────────────────────────────────────────────
     if cmd in ("/exit", "/quit"):
+        close_browser_session()
         return SlashResult(handled=True, output="👋 Bye! K.U.R.T. signing off.", continue_chat=False)
 
     # ── /model ──────────────────────────────────────────────────────
@@ -132,7 +163,7 @@ def handle_slash(
                 output=(
                     f"Current model: {current_model}\n"
                     "Usage: /model <name>\n"
-                    "  Groq (libre, mabilis): /model llama-3.3-70b-versatile\n"
+                    "  Groq (libre, mabilis): /model openai/gpt-oss-120b\n"
                     "  Groq (pinakamabilis):  /model llama-3.1-8b-instant\n"
                     "  OpenRouter free:      /model google/gemma-3-27b-it:free\n"
                     "  Auto-route:           /model auto"
@@ -154,10 +185,18 @@ def handle_slash(
                 output="Usage: /skill <name>  e.g. /skill tiktok\nRun `kurt skill list` to see all skills.",
                 continue_chat=True,
             )
+        from kurt.skills.manager import get_skill_prompt
+        if not get_skill_prompt(args):
+            return SlashResult(
+                handled=True,
+                output=f"❌ Unknown skill: {args}\nRun `kurt skill list` to see all skills.",
+                continue_chat=True,
+            )
         return SlashResult(
             handled=True,
             output=f"✅ Skill activated: {args}  (will apply on next message)",
             continue_chat=True,
+            skill_override=args,
         )
 
     # ── /info ───────────────────────────────────────────────────────
@@ -196,7 +235,7 @@ def handle_slash(
             "🤖  Quick Model Reference",
             "─" * 42,
             "  FREE via Groq (sobrang bilis, 14,400 req/day)",
-            "    llama-3.3-70b-versatile    ← default",
+            "    openai/gpt-oss-120b    ← default",
             "    llama-3.1-8b-instant       ← fastest",
             "    gemma2-9b-it",
             "  FREE via OpenRouter (:free models)",
@@ -379,6 +418,126 @@ def handle_slash(
         return SlashResult(
             handled=True,
             output="Usage: /mcp list | /mcp tools | /mcp call server/tool {params}",
+            continue_chat=True,
+        )
+
+    # ── /computer ───────────────────────────────────────────────────
+    if cmd == "/computer":
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else ""
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+
+        if sub_cmd == "screenshot":
+            import time as _time
+            from kurt.core.computer_use import screenshot as _screenshot
+            shots_dir = Path.home() / ".kurt" / "screenshots"
+            shots_dir.mkdir(parents=True, exist_ok=True)
+            save_path = str(shots_dir / f"kurt_{int(_time.time())}.png")
+            result = _screenshot(save_path=save_path)
+            if result.success:
+                return SlashResult(handled=True, output=f"📸 {result.message}\nSaved: {save_path}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ Screenshot failed: {result.message}", continue_chat=True)
+
+        elif sub_cmd == "type":
+            if not sub_args:
+                return SlashResult(handled=True, output="Usage: /computer type <text>", continue_chat=True)
+            from kurt.core.computer_use import type_text as _type_text
+            result = _type_text(sub_args)
+            if result.success:
+                return SlashResult(handled=True, output=f"⌨️  {result.message}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ Type failed: {result.message}", continue_chat=True)
+
+        elif sub_cmd == "click":
+            coords = sub_args.split()
+            if len(coords) != 2 or not all(c.lstrip("-").isdigit() for c in coords):
+                return SlashResult(handled=True, output="Usage: /computer click <x> <y>", continue_chat=True)
+            from kurt.core.computer_use import click as _click
+            result = _click(int(coords[0]), int(coords[1]))
+            if result.success:
+                return SlashResult(handled=True, output=f"🖱️  {result.message}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ Click failed: {result.message}", continue_chat=True)
+
+        return SlashResult(
+            handled=True,
+            output="Usage: /computer screenshot | /computer type <text> | /computer click <x> <y>",
+            continue_chat=True,
+        )
+
+    # ── /web ────────────────────────────────────────────────────────
+    if cmd == "/web":
+        if not args:
+            return SlashResult(handled=True, output="Usage: /web <url>  |  /web search <query>", continue_chat=True)
+
+        sub = args.split(None, 1)
+        if sub[0].lower() == "search" and len(sub) > 1:
+            from kurt.core.web_browse import search_web
+            result = search_web(sub[1].strip())
+            if result.success:
+                return SlashResult(handled=True, output=f"🔎 Results for: {result.query}\n\n{result.summary()}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ Search failed: {result.error}", continue_chat=True)
+
+        from kurt.core.web_browse import read_page
+        result = read_page(args)
+        if result.success:
+            body = result.content[:2000] + ("…" if len(result.content) > 2000 else "")
+            return SlashResult(handled=True, output=f"🌐 {result.title}\n{result.url}\n\n{body}", continue_chat=True)
+        return SlashResult(handled=True, output=f"❌ Could not fetch {args}: {result.error}", continue_chat=True)
+
+    # ── /browser (Playwright) ──────────────────────────────────────
+    if cmd == "/browser":
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else ""
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+
+        if sub_cmd == "open":
+            if not sub_args:
+                return SlashResult(handled=True, output="Usage: /browser open <url>", continue_chat=True)
+            try:
+                session = _get_browser_session()
+                result = session.go(sub_args)
+            except ImportError as e:
+                return SlashResult(handled=True, output=f"❌ {e}", continue_chat=True)
+            if result.success:
+                return SlashResult(handled=True, output=f"🧭 Opened: {result.title}\n{result.url}", continue_chat=True)
+            return SlashResult(handled=True, output=f"❌ Navigation failed: {result.error}", continue_chat=True)
+
+        elif sub_cmd == "screenshot":
+            if _browser_session is None:
+                return SlashResult(handled=True, output="No open page yet. Run /browser open <url> first.", continue_chat=True)
+            import base64 as _b64, time as _time
+            shots_dir = Path.home() / ".kurt" / "browser_screenshots"
+            shots_dir.mkdir(parents=True, exist_ok=True)
+            b64 = _browser_session.screenshot_b64()
+            if not b64:
+                return SlashResult(handled=True, output="❌ Screenshot failed.", continue_chat=True)
+            save_path = shots_dir / f"kurt_browser_{int(_time.time())}.png"
+            save_path.write_bytes(_b64.b64decode(b64))
+            return SlashResult(handled=True, output=f"📸 Saved: {save_path}", continue_chat=True)
+
+        elif sub_cmd == "click":
+            if not sub_args:
+                return SlashResult(handled=True, output="Usage: /browser click <selector>", continue_chat=True)
+            if _browser_session is None:
+                return SlashResult(handled=True, output="No open page yet. Run /browser open <url> first.", continue_chat=True)
+            ok = _browser_session.click(selector=sub_args)
+            return SlashResult(handled=True, output=("🖱️  Clicked." if ok else f"❌ Could not click: {sub_args}"), continue_chat=True)
+
+        elif sub_cmd == "fill":
+            fill_parts = sub_args.split(None, 1)
+            if len(fill_parts) != 2:
+                return SlashResult(handled=True, output="Usage: /browser fill <selector> <value>", continue_chat=True)
+            if _browser_session is None:
+                return SlashResult(handled=True, output="No open page yet. Run /browser open <url> first.", continue_chat=True)
+            ok = _browser_session.type(fill_parts[0], fill_parts[1])
+            return SlashResult(handled=True, output=("✅ Filled." if ok else f"❌ Could not fill: {fill_parts[0]}"), continue_chat=True)
+
+        elif sub_cmd == "close":
+            close_browser_session()
+            return SlashResult(handled=True, output="🧭 Browser session closed.", continue_chat=True)
+
+        return SlashResult(
+            handled=True,
+            output="Usage: /browser open <url> | screenshot | click <selector> | fill <selector> <value> | close",
             continue_chat=True,
         )
 
