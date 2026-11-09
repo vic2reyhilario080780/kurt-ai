@@ -67,38 +67,100 @@ class SearchResult:
 # DuckDuckGo Search — libre, walang API key
 # ─────────────────────────────────────────────────────────────
 
+def _brave_search(query: str, max_results: int) -> list[dict]:
+    """Brave Search API — needs BRAVE_API_KEY. 2,000 free queries/month."""
+    import os, requests
+    key = os.getenv("BRAVE_API_KEY", "")
+    if not key:
+        raise RuntimeError("BRAVE_API_KEY not set")
+    resp = requests.get(
+        "https://api.search.brave.com/res/v1/web/search",
+        headers={"Accept": "application/json", "Accept-Encoding": "gzip", "X-Subscription-Token": key},
+        params={"q": query, "count": max_results},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    rows = resp.json().get("web", {}).get("results", [])
+    return [
+        {"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("description", "")}
+        for r in rows[:max_results]
+    ]
+
+
+def _serper_search(query: str, max_results: int) -> list[dict]:
+    """Serper (Google results as JSON) — needs SERPER_API_KEY. 2,500 free searches on signup."""
+    import os, requests
+    key = os.getenv("SERPER_API_KEY", "")
+    if not key:
+        raise RuntimeError("SERPER_API_KEY not set")
+    resp = requests.post(
+        "https://google.serper.dev/search",
+        headers={"X-API-KEY": key, "Content-Type": "application/json"},
+        json={"q": query, "num": max_results},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    rows = resp.json().get("organic", [])
+    return [
+        {"title": r.get("title", ""), "url": r.get("link", ""), "snippet": r.get("snippet", "")}
+        for r in rows[:max_results]
+    ]
+
+
 def search_web(query: str, max_results: int = 5) -> SearchResult:
     """
-    Search the web using DuckDuckGo.
-    No API key needed. Libre forever.
+    Search the web. Tries DuckDuckGo first (free, no key — but rate-limits under
+    heavy use), then Brave/Serper if a key is configured, then a raw HTML scrape
+    as a last resort. Order favors free-forever first, paid-tier fallback last.
     """
+    errors = []
+
+    # 1. ddgs library (free, no key — can rate-limit)
     try:
-        # Try ddgs library first (best results) — duckduckgo_search was renamed to ddgs
         try:
-            try:
-                from ddgs import DDGS
-            except ImportError:
-                from duckduckgo_search import DDGS
-            with DDGS() as ddgs:
-                raw = list(ddgs.text(query, max_results=max_results))
-            results = [
-                {
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                }
-                for r in raw
-            ]
-            return SearchResult(success=True, query=query, results=results)
+            from ddgs import DDGS
         except ImportError:
-            pass
-
-        # Fallback: scrape DuckDuckGo HTML
-        results = _ddg_scrape(query, max_results)
-        return SearchResult(success=True, query=query, results=results)
-
+            from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            raw = list(ddgs.text(query, max_results=max_results))
+        results = [
+            {"title": r.get("title", ""), "url": r.get("href", ""), "snippet": r.get("body", "")}
+            for r in raw
+        ]
+        if results:
+            return SearchResult(success=True, query=query, results=results)
+        errors.append("ddgs: no results")
+    except ImportError:
+        pass
     except Exception as e:
-        return SearchResult(success=False, query=query, error=str(e))
+        errors.append(f"ddgs: {e}")
+
+    # 2. Brave Search (needs BRAVE_API_KEY)
+    try:
+        results = _brave_search(query, max_results)
+        if results:
+            return SearchResult(success=True, query=query, results=results)
+    except Exception as e:
+        errors.append(f"brave: {e}")
+
+    # 3. Serper (needs SERPER_API_KEY)
+    try:
+        results = _serper_search(query, max_results)
+        if results:
+            return SearchResult(success=True, query=query, results=results)
+    except Exception as e:
+        errors.append(f"serper: {e}")
+
+    # 4. Last resort: scrape DuckDuckGo HTML directly
+    try:
+        results = _ddg_scrape(query, max_results)
+        if results:
+            return SearchResult(success=True, query=query, results=results)
+        errors.append("ddg_scrape: no results")
+    except Exception as e:
+        errors.append(f"ddg_scrape: {e}")
+
+    return SearchResult(success=False, query=query, error="; ".join(errors) or "No results found.")
 
 
 def _ddg_scrape(query: str, max_results: int = 5) -> list[dict]:
