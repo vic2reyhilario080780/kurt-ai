@@ -328,14 +328,6 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     """Stream AI response with real-time display"""
     router = ModelRouter()
 
-    # Show model info (compact)
-    if not verbose:
-        ai_badge = "⚡ hybrid" if get_ai_mode() == "hybrid" else get_ai_mode()
-        provider_tag = f" via {analysis.provider}" if analysis.provider not in ("openrouter",) else ""
-        console.print(
-            f"[dim]🤖 {analysis.model}{provider_tag} · {analysis.task_type.value}[/dim]"
-        )
-
     console.print()
 
     full_response = ""
@@ -392,7 +384,6 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     # Save to memory
     if not no_memory and full_response:
         save_message(session_id, "assistant", full_response, analysis.model)
-        console.print(f"[dim]💾 Session: {session_id[:8]}... (use --session {session_id[:8]}... to continue)[/dim]")
 
 
 # ══════════════════════════════════════
@@ -714,10 +705,7 @@ def chat(
 
         save_message(session_id, "user", prompt)
 
-        console.print(
-            f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}] "
-            f"[dim]({analysis.model} · {analysis.task_type.value})[/dim]"
-        )
+        console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]")
 
         asyncio.run(stream_response(
             analysis=analysis,
