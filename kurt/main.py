@@ -175,6 +175,8 @@ from kurt.core.mcp_commands import register_commands as register_mcp_commands
 register_mcp_commands(mcp_app, console)
 from kurt.capabilities.commands import register_commands as register_native_commands
 register_native_commands(app, skill_app, plugin_app, console)
+from kurt.core.cli_tools import register_commands as register_desktop_cli_commands
+register_desktop_cli_commands(app, console)
 app.add_typer(hub_app, name="hub", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(connect_app, name="connect", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(models_app, name="models", rich_help_panel="🧩 Extend Kurt")
@@ -183,51 +185,6 @@ app.add_typer(project_app, name="project", rich_help_panel="🎨 Personalize")
 app.add_typer(artifact_app, name="artifact", rich_help_panel="🎨 Personalize")
 app.add_typer(schedule_app, name="schedule", rich_help_panel="🎨 Personalize")
 
-KURT_ASCII = """
- ██╗  ██╗██╗   ██╗██████╗ ████████╗
- ██║ ██╔╝██║   ██║██╔══██╗╚══██╔══╝
- █████╔╝ ██║   ██║██████╔╝   ██║
- ██╔═██╗ ██║   ██║██╔══██╗   ██║
- ██║  ██╗╚██████╔╝██║  ██║   ██║
- ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
-"""
-
-
-def print_banner():
-    """Dynamic themed banner using persona settings"""
-    theme = get_theme()
-    persona = load_persona()
-    icon = get_icon()
-    kurt_name = persona.get("kurt_name", "KURT")
-    greeting = get_greeting()
-    lang = get_language()
-    projects = persona.get("active_projects", [])
-    ai_mode = persona.get("ai_mode", "hybrid")
-
-    color = theme["banner_color"]
-    border = theme["border"]
-
-    console.print(f"[{color}]{KURT_ASCII}[/{color}]")
-
-    # Subtitle line
-    mode_badge = {
-        "hybrid": "⚡ KURT × Claude",
-        "kurt_only": "🤖 KURT Engine",
-        "claude_only": "🧠 Claude Mode",
-    }.get(ai_mode, "⚡ KURT × Claude")
-
-    console.print(f"[{theme['secondary']}]  Kinetic Unified Response Terminal[/{theme['secondary']}]  [{theme['dim']}]{mode_badge}[/{theme['dim']}]")
-    console.print(f"[{theme['dim']}]  {lang['flag']} {lang['name']}  ·  v2.3[/{theme['dim']}]")
-
-    # Greeting
-    console.print(f"\n  {icon} [{color}]{greeting}[/{color}]")
-
-    # Active projects
-    if projects:
-        proj_str = "  ".join(f"[{theme['accent']}]{p}[/{theme['accent']}]" for p in projects)
-        console.print(f"\n  [{theme['dim']}]📁 Projects:[/{theme['dim']}] {proj_str}")
-
-    console.print(f"\n  [{theme['dim']}]Type [{theme['secondary']}]kurt --help[/{theme['secondary']}] for commands  ·  [{theme['secondary']}]kurt config[/{theme['secondary']}] to personalize[/{theme['dim']}]\n")
 
 
 @app.callback()
@@ -242,15 +199,11 @@ def main(
         raise typer.Exit()
 
     if ctx.invoked_subcommand is None:
-        print_banner()
-        console.print("[dim]Usage: kurt ask \"your task here\"[/dim]")
-        console.print("[dim]       kurt \"your task here\"  (shortcut via 'ask')[/dim]\n")
-        console.print("Examples:")
-        console.print('  [cyan]kurt ask "gumawa ng snake game"[/cyan]')
-        console.print('  [cyan]kurt ask "research viral products ngayon"[/cyan]')
-        console.print('  [cyan]kurt ask --skill tiktok "gumawa ng script"[/cyan]')
-        console.print('\nRun [cyan]kurt setup[/cyan] to configure API keys')
-        console.print('Run [cyan]kurt --help[/cyan] to see all commands')
+        # Bare `kurt` with no subcommand drops straight into chat — no need to
+        # type `kurt chat` first, same spirit as `claude`/`gemini`/`codex` CLIs.
+        # The command list stays out of the way until the user asks for it
+        # (/help or /).
+        chat(skill=None, model=None, session=None)
 
 
 @app.command(rich_help_panel="💬 Talk to Kurt")
@@ -553,15 +506,16 @@ def chat(
     current_skill = skill
     last_response = ""
 
-    # ── Welcome banner ──────────────────────────────────────────────
+    # ── Welcome banner — Kurt's own startup screen ───────────────────
+    from kurt import __version__ as _kurt_version
+    _dim_style = _theme.get("dim", "dim")
     console.print(Panel(
-        f"[bold cyan]{_icon} {_kurt_name} — Interactive Chat Mode[/bold cyan]\n"
-        "[dim]Type [bold]/help[/bold] for slash commands  ·  [bold]/exit[/bold] to quit[/dim]\n"
-        f"[dim]Session: {session_id[:8]}  ·  Model: {current_model}  ·  Skill: {current_skill or 'none'}[/dim]",
+        f"[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]  [dim]v{_kurt_version} · {session_id[:8]}[/dim]\n\n"
+        f"[dim]Model:[/dim] {current_model}   [dim]Skill:[/dim] {current_skill or 'none'}\n\n"
+        f"[{_dim_style}]Type your message to start · /help for commands · /exit to quit[/{_dim_style}]",
         box=box.ROUNDED,
-        border_style="cyan",
+        border_style=_theme.get("border", "cyan"),
     ))
-    console.print("[dim]💡 Slash commands: /claude  /gemini  /gh  /run  /model  /skill  /save  /help[/dim]\n")
 
     # ── Voice mode (Hey Kurt) ────────────────────────────────────────
     # Wire in background voice listener — injects voice commands as if typed
