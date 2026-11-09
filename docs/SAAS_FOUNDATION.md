@@ -40,6 +40,34 @@ kurt cloud --help
 
 The tests use synthetic credentials and an in-process ASGI transport. A real native recipe also runs in a dependency-free worker subprocess (`python -S`). That subprocess test verifies the worker implementation, **not container isolation**. Docker and gVisor are unavailable on the current development machine, so live Linux container escape/resource/network tests have not run.
 
+### Smoke-testing the real server and CLI (not just the test suite)
+
+The commands above never actually open a socket — `create_app()` is untested
+by them. A real run exposed a gap the in-process tests structurally cannot
+catch: `create_app()` defaults `require_https=True`, and a bare `uvicorn`
+process with no reverse proxy in front always reports a plain-HTTP scheme,
+so every real request gets refused with `400 https_required` — including
+from localhost. This is correct for production (HTTPS is terminated by the
+proxy in `deploy/saas/kurt-api.service`), but it means you cannot smoke-test
+the real server without one unless you opt out explicitly:
+
+```sh
+export KURT_SAAS_STATE_DIR=/tmp/kurt-saas-dev
+export KURT_SAAS_DEV_INSECURE_HTTP=1   # local-only; never set this in production
+python3 -m uvicorn kurt.saas.app:create_app --factory --host 127.0.0.1 --port 8099 &
+
+python3 -m kurt.saas.admin --state-dir "$KURT_SAAS_STATE_DIR" grant --plan starter --token-file /tmp/dev.kurt-token
+
+export KURT_CLOUD_URL=http://127.0.0.1:8099
+export KURT_CLOUD_TOKEN=$(cat /tmp/dev.kurt-token)
+kurt cloud status   # should return the real tenant/plan/expiry
+kurt cloud ask 'hi'  # 503 until KURT_SAAS_GROQ_KEY is also set
+```
+
+Verified by running exactly this sequence: `/health`, admin token issuance,
+and `kurt cloud status`/`ask` all behaved as documented against a real
+running process, not just the ASGI test transport.
+
 ## Provisioning outline — operator only
 
 Use separate identities/hosts for public web/mobile backend, provider-key custody and the worker runtime. The supplied API and runner are a single-host prototype boundary; do not mount a Docker socket into a public web frontend. Access to a container daemon is privileged. Split the runner into a private authenticated job service before multi-host deployment.

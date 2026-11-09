@@ -187,6 +187,35 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('tools',payload)
 
 
+class CreateAppTests(unittest.TestCase):
+    """create_app() is the real uvicorn entrypoint (deploy/saas/kurt-api.service
+    runs it directly) and had zero coverage; APITests only exercises App()
+    built by hand with a synthetic https scheme, which would never have
+    caught require_https defaulting to True with no documented way off it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.env = {"KURT_SAAS_STATE_DIR": self.tmp.name}
+
+    def test_defaults_to_requiring_https(self):
+        with patch.dict(os.environ, self.env, clear=True):
+            from kurt.saas.app import create_app
+            app = create_app()
+        self.assertTrue(app.require_https)
+
+    def test_dev_opt_out_disables_https_requirement(self):
+        with patch.dict(os.environ, {**self.env, "KURT_SAAS_DEV_INSECURE_HTTP": "1"}, clear=True):
+            from kurt.saas.app import create_app
+            app = create_app()
+        self.assertFalse(app.require_https)
+
+    def test_missing_state_dir_fails_closed(self):
+        with patch.dict(os.environ, {}, clear=True):
+            from kurt.saas.app import create_app
+            with self.assertRaises(RuntimeError):
+                create_app()
+
+
 class RunnerTests(unittest.TestCase):
     def test_image_must_be_digest_pinned(self):
         for image in ('image:latest','image; cat /etc/passwd',''):

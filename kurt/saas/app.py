@@ -130,7 +130,14 @@ class App:
 
 
 def create_app():
-    """Uvicorn factory; reads server settings only, never ~/.kurt/.env."""
+    """Uvicorn factory; reads server settings only, never ~/.kurt/.env.
+
+    HTTPS is required by default — production puts this behind a TLS proxy
+    (see deploy/saas/kurt-api.service's --proxy-headers). The only way off
+    that default is the explicit KURT_SAAS_DEV_INSECURE_HTTP=1 opt-in below,
+    for running a real local smoke test without a proxy in front. Never set
+    it outside local development.
+    """
     root = os.environ.get("KURT_SAAS_STATE_DIR")
     if not root or not Path(root).is_absolute():
         raise RuntimeError("Set an absolute KURT_SAAS_STATE_DIR for the server")
@@ -140,4 +147,9 @@ def create_app():
     runner = None
     if os.environ.get("KURT_SAAS_WORKER_IMAGE"):
         runner = IsolatedRunner(os.environ["KURT_SAAS_WORKER_IMAGE"], os.environ.get("KURT_SAAS_DOCKER_SOCKET", "unix:///run/user/1000/docker.sock"))
-    return App(Store(root), gateway, runner)
+    require_https = os.environ.get("KURT_SAAS_DEV_INSECURE_HTTP") != "1"
+    if not require_https:
+        import sys
+        print("WARNING: KURT_SAAS_DEV_INSECURE_HTTP=1 — HTTPS enforcement is OFF. "
+              "Local development only; never set this in production.", file=sys.stderr)
+    return App(Store(root), gateway, runner, require_https=require_https)
