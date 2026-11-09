@@ -91,8 +91,7 @@ app = typer.Typer(
         "  kurt chat                           Open an interactive conversation\n"
         "  kurt do \"open Spotify and play lofi\"    Let Kurt control the computer\n"
         "  kurt skill list                     See what skills Kurt has loaded\n"
-        "  kurt mcp list                       See connected MCP tool servers\n"
-        "  kurt setup                          First-time setup — add your API keys\n\n"
+        "  kurt mcp list                       See connected MCP tool servers\n\n"
         "Tagalog tip: hindi mo kailangan gamitin lahat ng commands — \"kurt chat\" lang, sapat na iyon."
     ),
 )
@@ -150,8 +149,7 @@ def hello():
         f"🧠 [bold]{skill_count}[/bold] skills loaded (`kurt skill list` to browse)\n"
         f"🤖 [bold]{len(model_names)}[/bold] models wired up: {', '.join(model_names)}\n"
         f"🔌 [bold]{mcp_count}[/bold] MCP server(s) connected: {mcp_names}\n\n"
-        "[dim]First time? Run `kurt setup` para ilagay ang API keys mo. "
-        "Tapos, `kurt chat` na lang![/dim]",
+        "[dim]Type `kurt chat` to get started.[/dim]",
         title=f"🤖 {_kurt_name}",
         box=box.ROUNDED,
         border_style="cyan",
@@ -427,7 +425,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
 # SETUP COMMAND
 # ══════════════════════════════════════
 
-@app.command(rich_help_panel="⚙️  Setup")
+@app.command(hidden=True)
 def setup():
     """⚙️  First-time setup — add your API keys (Groq, OpenRouter, etc.) and preferences.
 
