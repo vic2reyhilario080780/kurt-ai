@@ -1,0 +1,62 @@
+{
+  "tested_at": "2026-11-10T15:29:19.634233+00:00",
+  "model": "openai/gpt-oss-120b",
+  "scope": "Actual installed chat, implicit goals without app names, follow-up using session context with disk memory off, and question-only non-action; fresh independent foreground observations.",
+  "passed": true,
+  "results": [
+    {
+      "prompt": "May kukuwentahin akong simpleng arithmetic. Ihanda mo sa harap ko ang built-in na pang-compute ng iMac. App lang muna, wala pang ita-type.",
+      "expected_app": "Calculator",
+      "tools": [
+        "set_task_goal",
+        "list_apps",
+        "open_application"
+      ],
+      "foreground": {
+        "app": "Calculator",
+        "pid": 28553
+      },
+      "passed": true,
+      "transcript": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 \ud83e\udd16 KURT  v2.3.0 \u00b7 12c93ea1                                                   \u2502\n\u2502 Hoy Boss! Ano'ng kailangan mo ngayon?                                        \u2502\n\u2502                                                                              \u2502\n\u2502 Model: openai/gpt-oss-120b   Skill: none                                     \u2502\n\u2502                                                                              \u2502\n\u2502 Type your message to start \u00b7 /help for commands \u00b7 /exit to quit              \u2502\n\u2502 kurt config to personalize \u2014 theme, name, greeting                           \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\nYou \u203a \n\ud83e\udd16 KURT\n\n\ud83d\udd27 set_task_goal\nDesktop set_task_goal: planned\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\n\ud83d\udd27 open_application\nDesktop open_application: completed\nNasa harap na ang Calculator; na-verify ang foreground process.\nYou \u203a "
+    },
+    {
+      "prompt": "May susulatin akong plain text. Ihanda mo naman ang built-in plain-text editor dito sa Mac. App lang muna, huwag mag-save o gumawa ng file.",
+      "expected_app": "TextEdit",
+      "tools": [
+        "set_task_goal",
+        "open_application"
+      ],
+      "foreground": {
+        "app": "TextEdit",
+        "pid": 77223
+      },
+      "passed": true,
+      "transcript": "\n\ud83e\udd16 KURT\n\n\ud83d\udd27 set_task_goal\nDesktop set_task_goal: planned\n\ud83d\udd27 open_application\nDesktop open_application: completed\nNasa harap na ang TextEdit; na-verify ang foreground process.\nYou \u203a "
+    },
+    {
+      "prompt": "Balik tayo sa una mong inihanda para sa akin; iyon ulit ang gusto kong nasa harap.",
+      "expected_app": "Calculator",
+      "tools": [
+        "set_task_goal",
+        "open_application"
+      ],
+      "foreground": {
+        "app": "Calculator",
+        "pid": 28553
+      },
+      "passed": true,
+      "transcript": "\n\ud83e\udd16 KURT\n\n\ud83d\udd27 set_task_goal\nDesktop set_task_goal: planned\n\ud83d\udd27 open_application\nDesktop open_application: completed\nNasa harap na ang Calculator; na-verify ang foreground process.\nYou \u203a "
+    },
+    {
+      "prompt": "Tanong lang: ano ang pagkakaiba ng Notes at plain-text editor? Huwag kang gumalaw ng app para dito.",
+      "expected_app": null,
+      "tools": [],
+      "foreground": {
+        "app": "Calculator",
+        "pid": 28553
+      },
+      "passed": true,
+      "transcript": "\n\ud83e\udd16 KURT\n\n**Notes** at **plain\u2011text editor** (e.g., TextEdit) ay magkaiba sa ilang aspeto:\n\n| Aspeto | Notes | Plain\u2011text editor (TextEdit) |\n|--------|-------|------------------------------|\n| **Layunin** | Quick\u2011capture ng mga tala, listahan, larawan, checklist, at \nkahit voice memo. Madalas ginagamit para sa personal o collaborative na \nnote\u2011taking. | Simple na editor para magsulat, mag\u2011edit, at mag\u2011format ng plain \ntext o rich text documents. Ideal para sa code, scripts, o kahit anong text \nfile. |\n| **Format** | Supports rich content: formatted text, tables, checklists, \nsketches, attachments, at iCloud sync. | Sa \u201cplain\u2011text\u201d mode, puro plain \ncharacters lang (walang formatting). Sa \u201crich\u2011text\u201d mode, pwede kang mag\u2011bold, \nitalic, etc., pero hindi kasing maraming features ng Notes. |\n| **Sync/Cloud** | Sync sa iCloud (kasama ang mga folder, tags, at cross\u2011device \naccess). | May iCloud Drive support, pero hindi automatic syncing ng notes \nhierarchy; kailangan mong manually i\u2011save sa iCloud folder. |\n| **Organisasyon** | May folders, pin, at searchable na tags. | Walang built\u2011in \nfolder system; nag\u2011rely ka sa Finder/Files para mag\u2011organisa ng mga .txt o .rtf \nfiles. |\n| **Search** | Powerful Spotlight search, kasama ang text sa loob ng notes, \nattachments, at handwriting. | Search ay depende sa Finder/Spotlight; \nmakakahanap ka lang sa mismong file content, hindi sa loob ng notes hierarchy. |\n| **Collaboration** | Pwedeng mag\u2011share ng notes o buong folder sa ibang Apple \nID; real\u2011time updates. | Walang native real\u2011time collaboration; kailangan mong \ni\u2011share ang file via iCloud Drive o ibang service. |\n| **Integrasyon** | May shortcuts, widgets, at integration sa Siri (\u201cHey Siri, \ntake a note\u201d). | Limited integration; pwede mo lang buksan via URL scheme o \ngawing default app para sa .txt/.rtf. |\n| **Keyboard shortcuts** | Basic (\u2318N, \u2318D, etc.) pero wala pang advanced \ncode\u2011editing shortcuts. | Supports typical editor shortcuts (\u2318S, \u2318Z, \u2325\u2318F for \nfind, etc.) at pwede mong i\u2011customize para sa programming. |\n\nSa buod, **Notes** ay mas \u201call\u2011in\u2011one\u201d na note\u2011taking app na focus sa \npag\u2011capture at sync ng iba't\u2011ibang media, habang ang **plain\u2011text editor** \n(TextEdit) ay simple at flexible na tool para magsulat at mag\u2011edit ng raw text \nfiles o basic documents.\nYou \u203a "
+    }
+  ]
+}

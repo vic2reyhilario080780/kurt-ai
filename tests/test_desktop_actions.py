@@ -170,7 +170,7 @@ class DesktopActionTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, f'{result.output}\n{result.exception!r}')
         detect.assert_not_called()
         stream.assert_awaited_once()
-        self.assertEqual(stream.call_args.kwargs['analysis'].task_type, TaskType.DESKTOP)
+        self.assertEqual(stream.call_args.kwargs['analysis'].task_type, TaskType.CHAT)
         self.assertEqual(stream.call_args.kwargs['messages'][-1]['content'], prompt)
 
     def test_indeterminate_typing_is_read_back_and_never_repeated(self):
@@ -253,7 +253,8 @@ class DesktopActionTests(unittest.TestCase):
         self.assertIn('Desktop execution history', final['messages'][1]['content'])
         self.assertEqual(final['messages'][1]['content'].count('"action": "observe"'), 4)
         self.assertIn('do not touch other apps', final['messages'][2]['content'])
-        self.assertEqual([s['function']['name'] for s in final['native_tools']], ['desktop_action'])
+        names = {s['function']['name'] for s in final['native_tools']}
+        self.assertTrue({'press_key', 'list_apps', 'open_application', 'search_web'} <= names)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,85 @@
+{
+  "tested_at": "2026-11-10T15:13:05.410250+00:00",
+  "model": "openai/gpt-oss-120b",
+  "scope": "Actual installed chat, implicit goals without app names, follow-up using session context with disk memory off, and question-only non-action; fresh independent foreground observations.",
+  "passed": false,
+  "results": [
+    {
+      "prompt": "May kukuwentahin akong simpleng arithmetic. Ihanda mo sa harap ko ang built-in na pang-compute ng iMac. App lang muna, wala pang ita-type.",
+      "expected_app": "Calculator",
+      "tools": [
+        "list_apps",
+        "open_application",
+        "observe_application",
+        "click_element",
+        "click_element"
+      ],
+      "foreground": {
+        "app": "Calculator",
+        "pid": 28553
+      },
+      "passed": true,
+      "transcript": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 \ud83e\udd16 KURT  v2.3.0 \u00b7 a4cdf6c0                                                   \u2502\n\u2502 Kumusta Boss! What can I do for you?                                         \u2502\n\u2502                                                                              \u2502\n\u2502 Model: openai/gpt-oss-120b   Skill: none                                     \u2502\n\u2502                                                                              \u2502\n\u2502 Type your message to start \u00b7 /help for commands \u00b7 /exit to quit              \u2502\n\u2502 kurt config to personalize \u2014 theme, name, greeting                           \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\nYou \u203a \n\ud83e\udd16 KURT\n\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\n\ud83d\udd27 open_application\nDesktop open_application: completed\n\ud83d\udd27 observe_application\nDesktop observe_application: completed\n\ud83d\udd27 click_element\nDesktop click_element: observed_after_action\n\ud83d\udd27 click_element\nDesktop click_element: observed_after_action\nReady na ang Calculator app sa iMac mo\u2014nakabukas, naka\u2011base\u202f10, at nakaclear na \n(display shows\u202f0). I-type mo na lang ang gusto mong arithmetic kapag handa ka!\nYou \u203a "
+    },
+    {
+      "prompt": "May susulatin akong plain text. Ihanda mo naman ang built-in plain-text editor dito sa Mac. App lang muna, huwag mag-save o gumawa ng file.",
+      "expected_app": "TextEdit",
+      "tools": [
+        "list_apps",
+        "open_application",
+        "observe_application",
+        "click_element",
+        "click_element",
+        "press_key",
+        "click_element",
+        "press_key",
+        "click_element",
+        "list_apps",
+        "observe_application",
+        "click_element",
+        "click_element",
+        "press_key",
+        "observe_application",
+        "press_key",
+        "click_element",
+        "press_key",
+        "list_apps",
+        "click_element",
+        "click_element",
+        "press_key",
+        "open_application",
+        "observe_application"
+      ],
+      "foreground": {
+        "app": "TextEdit",
+        "pid": 77223
+      },
+      "passed": true,
+      "transcript": "\n\ud83e\udd16 KURT\n\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\n\ud83d\udd27 open_application\nDesktop open_application: completed\n\ud83d\udd27 observe_application\nDesktop observe_application: completed\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\n\ud83d\udd27 observe_application\nDesktop observe_application: completed\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 observe_application\nDesktop observe_application: completed\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 click_element\nDesktop click_element: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 press_key\nDesktop press_key: blocked \u2014 A fresh exact non-dialog window is required.\n\ud83d\udd27 open_application\nDesktop open_application: completed\n\ud83d\udd27 observe_application\nDesktop observe_application: completed\nNative workflow incomplete: the tool-step limit was reached. No further tools \nwere executed.\nYou \u203a "
+    },
+    {
+      "prompt": "Balik tayo sa una mong inihanda para sa akin; iyon ulit ang gusto kong nasa harap.",
+      "expected_app": "Calculator",
+      "tools": [
+        "list_apps"
+      ],
+      "foreground": {
+        "app": "TextEdit",
+        "pid": 77223
+      },
+      "passed": false,
+      "transcript": "\n\ud83e\udd16 KURT\n\n\ud83d\udd27 list_apps\nDesktop list_apps: completed\nNandiyan na! Ang TextEdit app ay already nasa foreground ng iyong iMac, \nnaka\u2011open at ready na para mag\u2011type ka ng plain\u2011text. Walang file na naka\u2011save \npa\u2014just type ka na kung anong gusto mo. Happy writing!\nYou \u203a "
+    },
+    {
+      "prompt": "Tanong lang: ano ang pagkakaiba ng Notes at plain-text editor? Huwag kang gumalaw ng app para dito.",
+      "expected_app": null,
+      "tools": [],
+      "foreground": {
+        "app": "Terminal",
+        "pid": 631
+      },
+      "passed": true,
+      "transcript": "\n\ud83e\udd16 KURT\n\n**Notes vs. plain\u2011text editor (TextEdit) sa macOS**\n\n| Aspeto | **Notes** | **Plain\u2011text editor (TextEdit) \u2013 \u201cplain\u2011text mode\u201d** |\n|--------|-----------|-----------------------------------------------------|\n| **Primary purpose** | Quick memos, checklists, voice notes, sketches, at \npag\u2011sync sa iCloud para ma\u2011access sa iPhone, iPad, at Mac. | Simple word \nprocessor para magsulat ng puro text (walang rich\u2011formatting) o RTF kung gusto \nmo. |\n| **File type / storage** | Mga nota ay naka\u2011store bilang bahagi ng Notes app \ndatabase (walang .txt o .rtf file na makikita mo directly). | Maaari kang \nmag\u2011save ng .txt (plain) o .rtf files na makikita at mabuksan ng iba pang \neditor. |\n| **Formatting** | Limited \u2013 bullet points, headings, tables, images, drawings, \nattachments, pero hindi full\u2011blown formatting gaya ng fonts/size (hindi tulad ng\nWord). | Sa plain\u2011text mode, **walang** formatting (walang bold, italics, \nfonts). Sa RTF mode, meron kang basic formatting. |\n| **Sync / iCloud** | Auto\u2011sync sa iCloud across devices; kung naka\u2011on ang \niCloud Notes, makikita mo agad ang notes sa lahat ng Apple device. | Sync only \nkung manu\u2011man mong i\u2011save ang file sa iCloud Drive or another cloud folder. |\n| **Search & organization** | May folders, tags (sa newer macOS), at mabilis na \nsearch sa loob ng app. | Search ay depende sa Finder (or Spotlight) at folder \norganization mo. |\n| **Integration** | Madaling i\u2011share to Messages, Mail, Safari \u201cAdd to Notes,\u201d \nat \u201cCopy Link to Note.\u201d | Export / import as plain text; walang built\u2011in sharing\nshortcuts like Notes. |\n| **Quick capture** | pwede mong buksan gamit ang **Control\u2011Space \u2192 \u201cNotes\u201d** o \ngamit ang **Command\u2011N** sa widget; even Siri can create a note. | Kailangan mong\nbuksan TextEdit o gumamit ng Spotlight (\u2318\u2011Space \u2192 \u201cTextEdit\u201d) para magsimula. |\n| **Multimedia** | Support sa images, sketches, checklists, mga attachment, at \nvoice recordings. | Plain\u2011text mode: **walang** media support; RTF mode may \nembed images pero hindi as seamlessly as Notes. |\n| **Versioning / Undo** | May simple undo, pero walang built\u2011in version history.\n| TextEdit also has undo; kung i\u2011save as file, macOS may file\u2011level versioning \n(via Time Machine/Versions). |\n\n**Bottom line:**  \n- **Notes** ay para sa mabilis, synced, multimedia\u2011friendly na pag\u2011tala na \naccessible sa lahat ng Apple device.  \n- **Plain\u2011text editor** (TextEdit in plain\u2011text mode) ay para sa simpleng, \nwalang\u2011format na text files na madaling i\u2011share, i\u2011store, at i\u2011edit sa kahit \nanong editor o command\u2011line tool.  \n\nKung gusto mo lang mag\u2011type ng simpleng dokumento at balak i\u2011save later as .txt,\nTextEdit ang gamitin. Kung gusto mo ng mabilis na note na awtomatikong sync at \nmay support sa images o checklists, go with **Notes**.\nYou \u203a "
+    }
+  ]
+}

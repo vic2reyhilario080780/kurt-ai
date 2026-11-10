@@ -31,7 +31,7 @@ from rich.prompt import Confirm
 from rich import box
 
 from kurt.utils.env_loader import load_env, check_setup
-from kurt.core.orchestrator import analyze_task, classify_task, TaskType
+from kurt.core.orchestrator import analyze_task, classify_task, conversation_analysis, TaskType
 from kurt.core.router import ModelRouter
 from kurt.core.memory import init_db, save_message, get_history
 from kurt.core.persona import (
@@ -477,6 +477,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     # Save to memory
     if not no_memory and full_response:
         save_message(session_id, "assistant", full_response, analysis.model)
+    return full_response
 
 
 # ══════════════════════════════════════
@@ -583,6 +584,7 @@ def chat(
     current_model = model or "auto"
     current_skill = skill
     last_response = ""
+    conversation = []  # Session context is retained even when disk memory is off.
 
     # ── Welcome banner — Kurt's own startup screen ───────────────────
     from kurt import __version__ as _kurt_version
@@ -692,127 +694,19 @@ def chat(
                     save_message(session_id, "user", prompt)
                     save_message(session_id, "assistant", slash_result.output)
                 last_response = slash_result.output
+                conversation.extend([{'role': 'user', 'content': prompt},
+                                     {'role': 'assistant', 'content': slash_result.output}])
             if slash_result.new_session_id:
                 session_id = slash_result.new_session_id
                 last_response = ""
+                conversation.clear()
             if not slash_result.continue_chat:
                 break
             continue
 
-        direct_action = _try_local_request(prompt, session_id, no_memory)
-        if direct_action is not None:
-            last_response = direct_action['message']
-            continue
-
-        # ── Intent Detection ─────────────────────────────────────────
-        # Detect if the user typed a task/command (Taglish supported)
-        # e.g. "buksan ang spotify", "open spotify", "screenshot"
-        try:
-            from kurt.core.intent import detect_intent, route_intent
-            from kurt.core.intent import INTENT_TASK, INTENT_SEARCH, INTENT_MEMORY, INTENT_CHAT
-
-            # Layer 1+2: keywords+regex (instant).
-            # Desktop requests need the complete observed action loop. A direct
-            # "open app" shortcut otherwise consumes a multi-step request and
-            # skips the requested typing/clicking/verification.
-            intent = None if classify_task(prompt) == TaskType.DESKTOP else detect_intent(prompt, use_llm=False)
-
-            if intent is not None and intent.type == INTENT_TASK and intent.confidence >= 0.75:
-                # Execute computer/browser action directly — no LLM call needed
-                routed = route_intent(intent)
-                handler = routed.get("handler", "")
-                kwargs = routed.get("kwargs", {})
-
-                console.print(
-                    f"\n[bold green]🤖 Kurt[/bold green] [dim](intent: {intent.action} · {intent.confidence:.0%})[/dim]"
-                )
-
-                try:
-                    if handler == "computer.open_app":
-                        from kurt.core.behavior import smart_open_app
-                        import re as _re
-                        # If LLM detected the intent, trust its target directly (already clean)
-                        if intent.detected_by == "llm":
-                            clean_name = intent.target.strip()
-                        else:
-                            # Regex/keyword path: clean up particles manually
-                            raw_name = kwargs.get("app_name", intent.target or "")
-                            clean_name = raw_name
-                            for _ in range(2):
-                                clean_name = _re.sub(
-                                    r'^(?:naman|po|nga|daw|raw|pala|na|lang|ang|ng|si|mo|ko)\s+',
-                                    '', clean_name, flags=_re.IGNORECASE
-                                ).strip()
-                            clean_name = _re.sub(
-                                r'\s+(?:sa\s+(?:aking|iyong|browser|phone|pc|laptop|computer|imac|mac)|'
-                                r'in\s+my|on\s+my|using|via|please|pls|na|ngayon|now)\b.*$',
-                                '', clean_name, flags=_re.IGNORECASE
-                            ).strip()
-                        # Use smart_open_app — multi-layer diskarte ni Kurt
-                        result = smart_open_app(clean_name)
-                        if result.success:
-                            method_note = f" [dim]({result.method_used})[/dim]" if result.method_used not in ("open -a", "cached") else ""
-                            console.print(f"[green]✓[/green] {result.message}{method_note}")
-                        else:
-                            console.print(f"[yellow]⚠[/yellow] {result.message}")
-
-                    elif handler == "browser.navigate":
-                        from kurt.core.computer_use import open_url
-                        result = open_url(kwargs.get("url", ""))
-                        if result.success:
-                            console.print(f"[green]✓[/green] Binuksan ang URL: [bold]{kwargs.get('url')}[/bold]")
-                        else:
-                            console.print(f"[yellow]⚠[/yellow] {result.message}")
-
-                    elif handler == "browser.search_web":
-                        from kurt.core.computer_use import open_url
-                        import urllib.parse
-                        query = kwargs.get("query", prompt)
-                        url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
-                        result = open_url(url)
-                        if result.success:
-                            console.print(f"[green]✓[/green] Naghanap: [bold]{query}[/bold]")
-                        else:
-                            console.print(f"[yellow]⚠[/yellow] {result.message}")
-
-                    elif handler == "computer.screenshot":
-                        from kurt.core.computer_use import screenshot
-                        result = screenshot()
-                        if result.success:
-                            console.print(f"[green]✓[/green] Screenshot saved: [dim]{result.data}[/dim]")
-                        else:
-                            console.print(f"[yellow]⚠[/yellow] {result.message}")
-
-                    elif handler == "computer.type_text":
-                        from kurt.core.computer_use import type_text
-                        result = type_text(kwargs.get("text", ""))
-                        if result.success:
-                            console.print(f"[green]✓[/green] Na-type ang text.")
-                        else:
-                            console.print(f"[yellow]⚠[/yellow] {result.message}")
-
-                    else:
-                        # Unknown handler — fall through to LLM
-                        raise ValueError(f"Unknown handler: {handler}")
-
-                    # Log to habit memory
-                    try:
-                        from kurt.core.habit_memory import log_interaction
-                        log_interaction(prompt, handler, True)
-                    except Exception:
-                        pass
-
-                    continue  # Skip LLM call
-
-                except Exception as e:
-                    # Action failed — tell user and fall through to LLM
-                    console.print(f"[dim]⚡ Direct action failed ({e}), asking AI instead...[/dim]")
-
-        except ImportError:
-            pass  # Intent module not available — skip silently
-
-        # ── AI Chat ──────────────────────────────────────────────────
-        analysis = analyze_task(prompt)
+        # Every ordinary conversation reaches the same semantic planner. App
+        # discovery/actions are tools; no prompt keyword/regex chooses a handler.
+        analysis = conversation_analysis()
         if current_model != "auto":
             analysis.model = current_model
             # Auto-detect provider from model name
@@ -827,11 +721,16 @@ def chat(
         messages = []
 
         # System prompt: KURT persona
+        from datetime import datetime as _dt
         kurt_system = (
             f"You are {_kurt_name}, a smart, friendly AI assistant built by Daddy Tito. "
+            f"Today's date is {_dt.now().strftime('%Y-%m-%d (%A)')}. "
             "You communicate in Taglish (Tagalog-English mix) unless asked otherwise. "
             "You are helpful, honest, and efficient. "
             "You are running as a CLI tool called KURT — Kinetic Unified Response Terminal. "
+            "The user speaks in pure natural language (no slash commands needed). "
+            "Whenever asked about events, news, leaders, prices, weather, or developments from June 2024 to the present, "
+            "always use the `search_web` (and `read_webpage`) tool automatically so your knowledge is completely up to date. "
             "Keep responses concise and practical."
         )
         messages.append({"role": "system", "content": kurt_system})
@@ -851,36 +750,9 @@ def chat(
             if skill_prompt:
                 messages.append({"role": "system", "content": skill_prompt})
 
-        # ── Web auto-trigger ────────────────────────────────────────
-        # If the user dropped a URL or asked a research-y question,
-        # fetch real page/search content and hand it to the AI as context.
-        try:
-            import re as _re
-            url_match = _re.search(r"https?://\S+", prompt) if analysis.task_type != TaskType.DESKTOP else None
-            if url_match:
-                from kurt.core.web_browse import read_page
-                web_result = read_page(url_match.group(0).rstrip(".,)"))
-                if web_result.success:
-                    snippet = web_result.content[:3000]
-                    messages.append({
-                        "role": "system",
-                        "content": f"WEB PAGE CONTEXT — {web_result.title} ({web_result.url}):\n{snippet}",
-                    })
-            elif analysis.task_type != TaskType.DESKTOP and _re.search(
-                r"\b(search (the|for)|google|look up|latest news|what('|')s happening|current (price|weather|status))\b",
-                prompt, _re.IGNORECASE,
-            ):
-                from kurt.core.web_browse import search_web
-                search_result = search_web(prompt)
-                if search_result.success and search_result.results:
-                    messages.append({
-                        "role": "system",
-                        "content": f"WEB SEARCH RESULTS for '{prompt}':\n{search_result.summary()}",
-                    })
-        except Exception:
-            pass  # Web access is best-effort — never block the chat on a failed fetch
-
-        history = get_history(session_id, limit=20) if not no_memory else []
+        # The planner chooses search/navigation from meaning; do not pre-fetch
+        # URLs or trigger search from a regex before it has understood the goal.
+        history = get_history(session_id, limit=20) if not no_memory else conversation[-20:]
         messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
@@ -889,7 +761,7 @@ def chat(
 
         console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]")
 
-        asyncio.run(stream_response(
+        response = asyncio.run(stream_response(
             analysis=analysis,
             messages=messages,
             session_id=session_id,
@@ -897,6 +769,10 @@ def chat(
             verbose=False,
             prompt=prompt,
         ))
+        if isinstance(response, str) and response:
+            conversation.extend([{'role': 'user', 'content': prompt},
+                                 {'role': 'assistant', 'content': response}])
+            last_response = response
 
         # Store last response for /save
         from kurt.core.memory import get_history as _gh
@@ -958,36 +834,14 @@ def voice(
 
         console.print(f"\n[bold cyan]You[/bold cyan] [dim](voice)[/dim]: {text}")
 
-        # Detect if it's a computer action (open app, etc.)
-        try:
-            from kurt.core.intent import detect_intent, route_intent, INTENT_TASK
-            intent = detect_intent(text, use_llm=True)
+        direct_action = _try_local_request(text, session_id)
+        if direct_action is not None:
+            if speak:
+                kurt_speak(direct_action['message'], blocking=False)
+            return
 
-            if intent.type == INTENT_TASK and intent.confidence >= 0.75:
-                routed = route_intent(intent)
-                handler = routed.get("handler", "")
-                kwargs = routed.get("kwargs", {})
-
-                from kurt.core.agent_loop import execute_tool
-                tool_map = {
-                    "computer.open_app": ("open_app", {"app_name": kwargs.get("app_name", intent.target)}),
-                    "browser.navigate": ("open_url", {"url": kwargs.get("url", "")}),
-                    "computer.screenshot": ("screenshot", {}),
-                }
-
-                if handler in tool_map:
-                    tool_name, tool_params = tool_map[handler]
-                    result = execute_tool(tool_name, tool_params)
-                    reply = result.replace("✓ ", "").replace("❌ ", "")
-                    console.print(f"[bold green]🤖 {_kurt_name}[/bold green]: {reply}")
-                    if speak:
-                        kurt_speak(reply, blocking=False)
-                    return
-        except Exception:
-            pass
-
-        # Send to AI for natural response
-        analysis = analyze_task(text)
+        # Unmatched speech uses the same goal-directed tool planner as chat.
+        analysis = conversation_analysis()
         if model:
             analysis.model = model
 
@@ -1006,7 +860,8 @@ def voice(
 
         async def _get_response():
             nonlocal full_response
-            router = ModelRouter()
+            from kurt.capabilities.bridge import NativeToolRouter
+            router = NativeToolRouter(ModelRouter(), on_status=lambda message: console.print(message, markup=False))
             async for chunk in router.route(
                 provider=analysis.provider,
                 model=analysis.model,
@@ -1067,6 +922,11 @@ def do(
     Halimbawa (example): kurt do "open Safari and search for weather in Manila"
     """
     load_env()
+    direct_action = _try_local_request(task, str(uuid.uuid4()))
+    if direct_action is not None:
+        if direct_action['status'] != 'completed':
+            raise typer.Exit(1)
+        return
     init_db()
 
     console.print(Panel(
@@ -2664,9 +2524,11 @@ def schedule_run_cmd(task_id: str = typer.Argument(..., help="Task ID to run now
         # Execute the prompt via ask
         analysis = analyze_task(task_prompt)
         ai_mode = get_ai_mode()
-        if ai_mode in ("hybrid", "claude_only"):
+        if ai_mode == "claude_only":
             analysis.provider = "anthropic"
             analysis.model = "claude-3-5-haiku-20241022"
+            analysis.fallback_provider = "groq"
+            analysis.fallback_model = "openai/gpt-oss-120b"
         messages = []
         lang_prompt = get_language_system_prompt()
         if lang_prompt:

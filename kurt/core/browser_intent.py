@@ -26,8 +26,8 @@ def opening_pattern(target_pattern):
         rf'^(?:(?:hey\s+)?kurt[,!:\s]+)?'
         rf'(?:(?:can|could|would|will)\s+you\s+|(?:pwede|puwede)(?:ng)?\s+(?:mo\s+)?(?:ba(?:ng)?\s+)?|please\s+)?'
         rf'(?:please\s+)?(?:paki\s+)?'
-        rf'(?:open|launch|start|activate|buksan|magbukas|mag-open|magopen|pakibukas|paki-open|i-open|iopen|pa-open)\s+'
-        rf'(?:{_PARTICLE}\s+)*(?P<target>{target_pattern})'
+        rf'(?:open|launch|start|activate|buksan|bukas|magbukas|mag[ -]open|magopen|pakibukas|paki-open|i-open|iopen|pa-open)\s+'
+        rf'(?:{_PARTICLE}\s+)*(?:(?:app|application)\s+(?:na\s+)?)?(?P<target>{target_pattern})'
         rf'(?:\s+browser)?(?:\s+(?:ko|mo|natin))?'
         rf'(?P<tail>.*?)$', re.IGNORECASE,
     )

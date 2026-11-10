@@ -64,6 +64,9 @@ class LocalActionTests(unittest.TestCase):
 
     def test_common_requests_route_to_actual_actions(self):
         cases = {'buksan mo nga yung Calculator': 'open_app', 'open Notes': 'open_app',
+                 'buksan mo yung app na Calculator': 'open_app',
+                 'mag open ka ng Calculator': 'open_app', 'paki bukas ng Calculator': 'open_app',
+                 'buksan mo ang Calculator sa imac ko': 'open_app', 'open the Calculator app': 'open_app',
                  'check my email': 'check_mail', 'i-check mo ang email ko': 'check_mail',
                  'play music': 'play_music', 'magpatugtog ka ng musika': 'play_music',
                  'pause music': 'pause_music', 'i-download mo ito': 'download'}
@@ -121,15 +124,64 @@ class LocalActionTests(unittest.TestCase):
         self.assertEqual(result['status'], 'needs_input')
         client.assert_not_called()
 
-    def test_chat_opens_named_app_without_model_or_memory_route(self):
+    def test_quick_ask_opens_named_app_without_model_or_memory_route(self):
         from kurt import main
         with patch.object(main, 'load_env'), patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
              patch.object(local, 'installed_apps', return_value={'notes': 'Notes'}), \
-             patch.object(local, 'desktop_action', return_value={'status': 'completed'}) as action:
-            result = CliRunner().invoke(main.app, ['chat', '--no-memory'], input='open Notes\nexit\n')
+             patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': True}) as action:
+            result = CliRunner().invoke(main.app, ['ask', 'open Notes', '--no-memory'])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn('Nabuksan at na-verify ang Notes', result.output)
-        action.assert_called_once_with('open_app', app='Notes')
+        action.assert_called_once_with('Notes')
+
+    def test_do_simple_open_skips_model_and_agent(self):
+        from kurt import main
+        with patch.object(main, 'load_env'), patch.object(main, 'init_db'), patch.object(main, 'save_message'), \
+             patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
+             patch.object(local, 'installed_apps', return_value={'notes': 'Notes'}), \
+             patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': True}) as action:
+            result = CliRunner().invoke(main.app, ['do', 'buksan mo yung app na Notes'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        action.assert_called_once_with('Notes')
+
+    def test_app_dispatch_without_foreground_verification_is_not_success(self):
+        with patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': False}):
+            result = local.execute_local_request(local.LocalRequest('open_app', app='Notes'))
+        self.assertEqual(result['status'], 'failed')
+
+    def test_voice_simple_open_uses_same_local_executor(self):
+        from kurt import main
+        def listen(callback):
+            callback(SimpleNamespace(text='mag open ka ng Notes'))
+            raise KeyboardInterrupt
+        voice = SimpleNamespace(check_dependencies=lambda: {'can_record': True, 'can_transcribe': True},
+                                start_listening=listen, speak=lambda *args, **kwargs: None)
+        with patch.object(main, 'load_env'), patch.object(main, 'init_db'), patch.object(main, 'save_message'), \
+             patch.object(main, 'load_persona', return_value={}), \
+             patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
+             patch.dict(sys.modules, {'kurt.core.wake_word': voice}), \
+             patch.object(local, 'installed_apps', return_value={'notes': 'Notes'}), \
+             patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': True}) as action:
+            main.voice(model=None, speak=False, hotkey_only=True)
+        action.assert_called_once_with('Notes')
+
+    def test_native_launch_does_not_accept_another_foreground_process(self):
+        from kurt.core import app_launcher
+        path = Path('/Applications/Notes.app')
+        running = SimpleNamespace(bundleURL=lambda: SimpleNamespace(path=lambda: str(path)),
+                                  processIdentifier=lambda: 123, activateWithOptions_=lambda _: True)
+        workspace = SimpleNamespace(launchApplication_=lambda _: True, runningApplications=lambda: [running],
+                                    frontmostApplication=lambda: SimpleNamespace(processIdentifier=lambda: 456))
+        appkit = SimpleNamespace(NSWorkspace=SimpleNamespace(sharedWorkspace=lambda: workspace),
+                                 NSApplicationActivateIgnoringOtherApps=2)
+        foundation = SimpleNamespace(NSRunLoop=SimpleNamespace(currentRunLoop=lambda: SimpleNamespace(runUntilDate_=lambda _: None)),
+                                     NSDate=SimpleNamespace(dateWithTimeIntervalSinceNow_=lambda _: None))
+        with patch.dict(sys.modules, {'AppKit': appkit, 'Foundation': foundation}), \
+             patch.object(app_launcher, 'application_paths', return_value={'notes': path}), \
+             patch.object(app_launcher.time, 'monotonic', side_effect=[0, 0, 9]):
+            result = app_launcher._open_native('Notes')
+        self.assertEqual(result['status'], 'unverified')
+        self.assertFalse(result['foreground_verified'])
 
 
 if __name__ == '__main__':

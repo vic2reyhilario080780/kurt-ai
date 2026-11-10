@@ -287,3 +287,11 @@ def analyze_task(prompt: str) -> TaskAnalysis:
         fallback_model=routing["fallback_model"],
         fallback_provider=routing["fallback_provider"],
     )
+
+
+def conversation_analysis() -> TaskAnalysis:
+    """Start chat with a tool-capable planner, irrespective of prompt wording."""
+    routing = ROUTING_TABLE[TaskType.CHAT]
+    return TaskAnalysis(TaskType.CHAT, routing['model'], routing['provider'],
+                        'Goal understanding and tool selection by the conversational model',
+                        'openai/gpt-oss-120b', 'openrouter')

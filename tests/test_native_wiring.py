@@ -292,6 +292,38 @@ class WiringTests(unittest.TestCase):
         self.assertIn('"sum": 1160.0', history[1]["content"])
         self.assertTrue(any('"sum": 1160.0' in m["content"] for m in replies.calls[0]["messages"] if m["role"] == "assistant"))
 
+    def test_natural_language_live_web_search_executes_without_commands(self):
+        from kurt.core.intent import detect_intent, INTENT_SEARCH
+        from kurt.core.web_browse import SearchResult
+
+        for q in (
+            "tingnan mo nga kung ano ang balita ngayon",
+            "hanapin mo kung sino ang nanalo",
+            "ano ang panahon bukas?",
+            "anong nangyari noong 2025 at 2026?",
+        ):
+            with self.subTest(query=q):
+                intent = detect_intent(q, use_llm=False)
+                self.assertEqual(intent.type, INTENT_SEARCH)
+
+        fake_search = SearchResult(
+            success=True,
+            query="Philippines news 2026",
+            results=[{"title": "2026 Headline", "url": "https://example.org/news", "snippet": "Latest 2026 event details"}],
+        )
+        replies = Replies([
+            request("search_web", query="Philippines news 2026", max_results=5),
+            "Narito ang pinakabagong balita ngayong 2026.",
+        ])
+        with patch("kurt.core.web_browse.search_web", return_value=fake_search):
+            text = self.collect(
+                NativeToolRouter(replies),
+                [{"role": "user", "content": "ano na ang mga balita ngayong 2026?"}],
+            )
+        self.assertEqual(text, "Narito ang pinakabagong balita ngayong 2026.")
+        self.assertIn("2026 Headline", replies.calls[-1]["messages"][-1]["content"])
+        self.assertIn("Current local date:", replies.calls[0]["messages"][0]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,10 @@
 # Kurt desktop execution
 
+The current [semantic assistant architecture](SEMANTIC_ASSISTANT.md) supersedes
+the keyword-routed chat flow and ambiguous desktop function schema discussed
+below. Its semantic-goal and Safari workflow reports document the newer behavior;
+older failure reports remain as historical evidence.
+
 Kurt does not contain copies of Claude, Gemini or Codex model weights or private
 agent implementations. It implements a local observe → act → observe loop using
 the configured model for decisions and Peekaboo for macOS interaction.

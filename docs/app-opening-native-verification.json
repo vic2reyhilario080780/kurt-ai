@@ -1,0 +1,67 @@
+{
+  "tested_at": "2026-11-10T13:01:24.894467+00:00",
+  "scope": "One persistent installed kurt chat with invalid AI model; independent fresh-process foreground observation after each app switch; no screen/AX inspection.",
+  "passed": true,
+  "results": [
+    {
+      "prompt": "buksan mo yung app na Calculator",
+      "expected_app": "Calculator",
+      "foreground": {
+        "app": "Calculator",
+        "pid": 8639
+      },
+      "passed": true,
+      "transcript": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 \ud83e\udd16 KURT  v2.3.0 \u00b7 ceb8fec7                                                   \u2502\n\u2502 Kumusta Boss! What can I do for you?                                         \u2502\n\u2502                                                                              \u2502\n\u2502 Model: offline/local-smoke   Skill: none                                     \u2502\n\u2502                                                                              \u2502\n\u2502 Type your message to start \u00b7 /help for commands \u00b7 /exit to quit              \u2502\n\u2502 kurt config to personalize \u2014 theme, name, greeting                           \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\nYou \u203a Nabuksan at na-verify ang Calculator.\nYou \u203a "
+    },
+    {
+      "prompt": "mag open ka ng TextEdit",
+      "expected_app": "TextEdit",
+      "foreground": {
+        "app": "TextEdit",
+        "pid": 77223
+      },
+      "passed": true,
+      "transcript": "Nabuksan at na-verify ang TextEdit.\nYou \u203a "
+    },
+    {
+      "prompt": "buksan mo ang Notes sa imac ko",
+      "expected_app": "Notes",
+      "foreground": {
+        "app": "Notes",
+        "pid": 8650
+      },
+      "passed": true,
+      "transcript": "Nabuksan at na-verify ang Notes.\nYou \u203a "
+    },
+    {
+      "prompt": "open the Calculator app",
+      "expected_app": "Calculator",
+      "foreground": {
+        "app": "Calculator",
+        "pid": 8639
+      },
+      "passed": true,
+      "transcript": "Nabuksan at na-verify ang Calculator.\nYou \u203a "
+    },
+    {
+      "prompt": "paki bukas ng TextEdit",
+      "expected_app": "TextEdit",
+      "foreground": {
+        "app": "TextEdit",
+        "pid": 77223
+      },
+      "passed": true,
+      "transcript": "Nabuksan at na-verify ang TextEdit.\nYou \u203a "
+    },
+    {
+      "prompt": "buksan mo ang Notes",
+      "expected_app": "Notes",
+      "foreground": {
+        "app": "Notes",
+        "pid": 8650
+      },
+      "passed": true,
+      "transcript": "Nabuksan at na-verify ang Notes.\nYou \u203a "
+    }
+  ]
+}

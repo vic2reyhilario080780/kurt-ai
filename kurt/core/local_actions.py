@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 
 from kurt.core.browser_intent import opening_pattern
-from kurt.core.desktop_actions import desktop_action
+from kurt.core.app_launcher import application_paths, open_installed_app
 from kurt.utils.security import require_public_file, redact
 
 
@@ -25,12 +25,10 @@ class LocalRequest:
 
 
 def installed_apps():
-    apps = {}
-    for root in ('/Applications', '/Applications/Utilities', '/System/Applications',
-                 '/System/Applications/Utilities', str(Path.home() / 'Applications')):
-        for path in Path(root).glob('*.app'):
-            apps[path.stem.casefold()] = path.stem
-    for alias, name in {'apple mail': 'Mail', 'apple music': 'Music', 'settings': 'System Settings'}.items():
+    apps = {name: path.stem for name, path in application_paths().items()}
+    for alias, name in {'apple mail': 'Mail', 'apple music': 'Music', 'settings': 'System Settings',
+                        'system preferences': 'System Settings', 'vs code': 'Visual Studio Code',
+                        'vscode': 'Visual Studio Code'}.items():
         if name.casefold() in apps:
             apps[alias] = name
     return apps
@@ -46,7 +44,10 @@ def parse_local_request(prompt):
     if apps:
         names = '|'.join(re.escape(name) for name in sorted(apps, key=len, reverse=True))
         match = opening_pattern(rf'(?:{names})').fullmatch(prompt.strip())
-        if match and re.fullmatch(r'\s*(?:please|pls|po|naman|nga|ngayon|now)?[.!?]*', match['tail'], re.I):
+        suffix = (r'\s*(?:(?:app|application)\s*)?'
+                  r'(?:(?:sa|on)\s+(?:(?:aking|my|the)\s+)?(?:imac|mac|computer)(?:\s+ko)?\s*)?'
+                  r'(?:(?:please|pls|po|naman|nga|ngayon|now)\s*)*[.!?]*')
+        if match and re.fullmatch(suffix, match['tail'], re.I):
             return LocalRequest('open_app', app=apps[match['target'].casefold()])
     if re.fullmatch(r'(?:please\s+)?(?:check|i-check|icheck|tingnan|tignan)\s+'
                     r'(?:(?:mo|nga|po|ang|yung|aking|my|the|unread|new)\s+)*'
@@ -216,8 +217,8 @@ def download_file(url, output=None, max_bytes=10 * 1024 * 1024):
 def execute_local_request(request):
     try:
         if request.action == 'open_app':
-            result = desktop_action('open_app', app=request.app)
-            if result.get('status') != 'completed':
+            result = open_installed_app(request.app)
+            if result.get('status') != 'completed' or not result.get('foreground_verified'):
                 return {'status': 'failed', 'message': f'Hindi ma-verify ang pagbukas ng {request.app}: {result.get("error") or "app/window unavailable"}'}
             return {'status': 'completed', 'message': f'Nabuksan at na-verify ang {request.app}.', 'app': request.app}
         if request.action == 'check_mail':

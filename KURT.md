@@ -29,6 +29,17 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 ---
 
+## Behavior ni Kurt — permanenteng gabay
+
+- Sa ordinary chat, unawain ang goal at conversation context gamit ang AI. Huwag ibalik ang keyword/regex matching bilang kailangang gate para makagamit ng app o tools; dapat gumana ang bagong paraphrase at implicit goal kahit walang app name o “open.”
+- Mag-discover ng available apps/tools, ideklara ang buong goal at completion condition, saka mag-initiate ng kinakailangang actions. Gamitin ang loop na **understand → plan → act → observe → adjust**, hindi fixed na bilang ng response layers. Ang kasalukuyang budget ay hanggang 24 tool calls bawat task.
+- Para sa app-only goal, huminto kapag verified na ang eksaktong foreground process. Huwag magdagdag ng clicks, bagong dokumento o pagbabago sa content para lang magpakitang kumikilos. Sa workflow, ituloy ang mga kinakailangang hakbang hanggang ma-observe ang requested result o may tunay na blocker.
+- Magtanong ng isang focused question kung mahalagang detalye ang kulang. Maaaring magmungkahi ng isang kapaki-pakinabang na susunod na hakbang, pero ang suggestion ay hindi pahintulot na gawin ito. Manatili sa goal na ibinigay ng user.
+- Ibase ang success sa actual tool receipts at observed effects. Huwag mag-claim ng document readiness, typing, saving o buong task completion dahil lang nabuksan ang app. Obserbahan muna ang indeterminate action bago mag-adjust; huwag basta ulitin ito.
+- Panatilihin ang recent session context kahit naka-off ang disk memory. I-test ang implicit goals, contextual follow-ups, tanong na hindi dapat mag-trigger ng action, at multi-step workflows—hindi puro mga linyang kabisado ng parser.
+
+Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
+
 ## graphify
 
 Ang codebase na ito ay me-queryable knowledge graph via [graphify](https://github.com/safishamsi/graphify)
@@ -57,6 +68,21 @@ module.
 ## Log
 
 <!-- Bagong entries dito, pinakabago sa pinakataas. -->
+
+## 2026-11-10 — Semantic chat goals at observed workflow execution (Codex)
+- Ano: Ordinary chat always reaches a tool-capable conversational planner; removed keyword intent execution, regex web triggers and prompt-word-dependent tool gating. AI discovers apps and declares the full goal before acting through required-field tools.
+- Ano: Runtime app-only completion stops at an exact foreground receipt and returns a receipt-based status; optional proposals are not executed. Workflow goals can continue through observation/action. RAM context supports follow-ups with disk memory off, and Cocoa helpers avoid stale activation in worker threads.
+- Validation: 4/4 live implicit-goal/context/read-only chat cases, plus a multi-step Safari `INPUT_OK` workflow. 216 tests and 318 subtests passed. Reports, historical failures and limitations are in `docs/SEMANTIC_ASSISTANT.md`.
+
+## 2026-11-10 — Live natural-language web knowledge sa chat at ask (Antigravity)
+- Ano: Inayos ang `search_web()` sa `kurt/core/web_browse.py` gamit ang DuckDuckGo HTML POST + Google News RSS para sa real-time 2024–2026+ facts at dated news nang walang kailangang slash command o bayad na API key.
+- Ano: Idinagdag ang `search_web` at `read_webpage` bilang native function tools sa `CHAT_TOOLS` (`kurt/capabilities/bridge.py`), nilagyan ng current local date ang system prompt, at inayos ang `intent.py` / `main.py` para kusang mag-search at sumagot si Kurt sa Tagalog/Taglish/English natural language.
+- Bakit: June 2024 ang pre-training cutoff ng `openai/gpt-oss-120b` at sira ang dating `ddgs` / GET scraper kaya hindi updated ang sagot ni Kurt sa mga pangyayari pagkatapos ng June 2024.
+
+## 2026-11-10 — Native app opening at mas natural na phrasing (Codex)
+- Ano: Kinilala ang “mag open,” “paki bukas,” “app na Calculator,” suffix na “sa iMac ko,” at “Calculator app.” Simple installed-app launches use LaunchServices and exact foreground-process verification, without screen/Accessibility inspection.
+- Ano: Kinabit ang direct local executor sa standalone voice at `do`, bukod sa chat/ask. Kasama ang activation notification processing para sa tuloy-tuloy na chat; compound tasks remain in the AI flow.
+- Validation: 6/6 actual requests passed in one installed Kurt chat with an invalid AI model, independently verifying Calculator/TextEdit/Notes foreground after each switch. 203 tests and 314 subtests passed. Evidence: `docs/app-opening-native-verification.json`.
 
 ## 2026-11-10 — Observed mouse/keyboard execution at provider continuity (Codex)
 - Ano: Dinugtong ang exact-window keyboard chords, mouse hover/movement sa observed elements, at bounded scrolling sa normal chat tools. Keyboard delivery para sa text filling ay sinubok laban sa totoong browser Enter handler.

@@ -51,7 +51,7 @@ class BrowserIntentTests(unittest.TestCase):
             result = execute_browser_request(BrowserRequest('Safari'))
         self.assertEqual(result['status'], 'failed')
 
-    def test_real_chat_dispatches_natural_request_without_model_or_intent_fallback(self):
+    def test_quick_ask_dispatches_literal_request_without_model_or_intent_fallback(self):
         from kurt import main
         with patch.object(main, 'load_env'), \
              patch.object(main, 'ModelRouter', side_effect=AssertionError('AI must not be needed')), \
@@ -59,7 +59,7 @@ class BrowserIntentTests(unittest.TestCase):
              patch('kurt.core.browser_intent.default_browser', return_value='Safari'), \
              patch('kurt.core.browser_intent.desktop_action', return_value={
                  'status': 'completed', 'observation': {'status': 'completed', 'window_id': 42}}) as action:
-            result = CliRunner().invoke(main.app, ['chat', '--no-memory'], input='magbukas ka ng browser\nexit\n')
+            result = CliRunner().invoke(main.app, ['ask', 'magbukas ka ng browser', '--no-memory'])
         self.assertEqual(result.exit_code, 0, f'{result.output}\n{result.exception!r}')
         self.assertIn('Nabuksan at na-verify ang Safari', result.output)
         self.assertEqual(action.call_count, 1)

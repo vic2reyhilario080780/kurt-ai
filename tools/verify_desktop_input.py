@@ -31,7 +31,7 @@ onscroll=()=>{if(hovered){scrolled=scrollY>hoverY;show()}};</script>'''.replace(
     prompt = (f'Open {browser} at {page.as_uri()}. Fill "Test message" with "{token}". '
               'Press Return on the keyboard to submit it. Move the mouse onto "Hover target" without clicking. '
               'Scroll down in this browser window. Verify the page title says INPUT_OK and report the observed result. '
-              'Do all steps yourself using desktop_action, and only interact with this local test page.')
+              'Do all steps yourself using the available app/browser interaction tools, and only interact with this local test page.')
     if direct:
         trace = []
         for action, options in [('open_url', {'url': page.as_uri()}),
@@ -70,7 +70,7 @@ onscroll=()=>{if(hovered){scrolled=scrollY>hoverY;show()}};</script>'''.replace(
                     chunk = os.read(ready.fileobj.fileno(), 8192)
                     if chunk:
                         captured.extend(chunk)
-                        count = captured.decode(errors='replace').count('🔧 desktop_action')
+                        count = captured.decode(errors='replace').count('🔧 ')
                         if count != tool_count:
                             tool_count = count
                             print(f'{browser}: {tool_count} desktop tool calls', flush=True)
