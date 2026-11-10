@@ -171,6 +171,55 @@ class DesktopCLITests(unittest.TestCase):
         self.assertIn("/peekaboo", help_text)
 
 
+class DesktopContextTests(unittest.TestCase):
+    def test_desktop_request_keeps_tool_route_despite_page_and_text_keywords(self):
+        from kurt.core.orchestrator import analyze_task, TaskType
+        for browser in ('Safari', 'Google Chrome', 'Microsoft Edge', 'Firefox', 'Brave Browser', 'Opera', 'Vivaldi', 'Arc', 'Zen Browser'):
+            with self.subTest(browser=browser):
+                analysis = analyze_task(f'Kurt, buksan mo ang {browser} at pumunta sa file:///tmp/control.html. Ilagay ang test code sa message.')
+                self.assertEqual(analysis.task_type, TaskType.DESKTOP)
+                self.assertEqual(analysis.provider, 'groq')
+                self.assertEqual(analysis.fallback_provider, 'openrouter')
+
+    def test_observation_keeps_receipt_focus_and_elements_without_duplicate_logs(self):
+        from kurt.capabilities.bridge import compact_desktop_result, tool_text
+        data = {"success": True, "target_receipt": {"window_id": 42},
+                "debug_logs": ["diagnostic" * 5000], "data": {
+                    "snapshot_id": "fresh-receipt", "window_title": "Test",
+                    "focused_element": {"role": "AXTextField"},
+                    "ui_elements": [{"id": "elem_1", "role": "textField",
+                                     "value": "typed", "is_actionable": True,
+                                     "bounds": {"x": 10, "y": 20},
+                                     "redundant_detail": "x" * 20000}],
+                    "observation": {"spans": ["diagnostic" * 5000]}}}
+        result = compact_desktop_result({"tool": "peekaboo", "status": "completed",
+                                         "stdout": json.dumps(data), "data": data})
+        encoded = json.loads(tool_text(result))
+        self.assertNotIn("truncated", encoded)
+        self.assertEqual(encoded["data"]["target_receipt"]["window_id"], 42)
+        self.assertEqual(encoded["data"]["data"]["snapshot_id"], "fresh-receipt")
+        self.assertEqual(encoded["data"]["data"]["ui_elements"][0]["value"], "typed")
+        self.assertNotIn("stdout", encoded)
+        self.assertNotIn("debug_logs", encoded["data"])
+
+    def test_default_loop_allows_desktop_observation_after_eight_actions(self):
+        class Router:
+            calls = 0
+            async def route(self, **kwargs):
+                self.calls += 1
+                if self.calls <= 10:
+                    yield json.dumps({"tool": "desktop_cli", "params": {
+                        "tool": "peekaboo", "args": ["see", "--json"]}})
+                else:
+                    yield "Verified the final desktop result."
+        async def run():
+            return ''.join([chunk async for chunk in NativeToolRouter(Router()).route(
+                "test", "test", [{"role": "user", "content": "Test desktop control"}])])
+        with patch('kurt.capabilities.bridge.invoke_native', return_value={"status": "completed"}) as invoke:
+            self.assertIn("Verified the final desktop result", asyncio.run(run()))
+            self.assertEqual(invoke.call_count, 10)
+
+
 class CLIResolutionTests(unittest.TestCase):
     def test_local_bin_precedes_global_and_node_is_first_on_path(self):
         with tempfile.TemporaryDirectory() as tmp:

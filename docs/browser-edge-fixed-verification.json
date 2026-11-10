@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-11-10T06:05:18.000533+00:00",
+  "browser": "Microsoft Edge",
+  "status": "passed",
+  "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+  "prompt": "Kurt, buksan mo ang Microsoft Edge at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-_wwplaac/control.html. Ilagay ang \"KURT_AUTO_C7D2EA55\" sa \"Test message\", pindutin ang \"Verify control\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Microsoft Edge. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+  "cli_exit_code": 0,
+  "expected_result": "AUTONOMOUS_OK: KURT_AUTO_C7D2EA55",
+  "page_result_verified": true,
+  "observed_window": "Kurt Autonomous Browser Test - Microsoft Edge",
+  "observed_result": [
+    "AUTONOMOUS_OK: KURT_AUTO_C7D2EA55"
+  ],
+  "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-_wwplaac/result.png",
+  "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\n🔧 desktop_action\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n✅ Nagkaroon ng tamang AUTONOMOUS_OK result: “AUTONOMOUS_OK: \nKURT_AUTO_C7D2EA55”. Task complete.\n",
+  "verification": "Independent read-only desktop observation; no task actions by verifier."
+}

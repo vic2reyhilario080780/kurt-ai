@@ -163,7 +163,7 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [
             "to a different model to rewrite or summarize."
         ),
         "parameters": {
-            "provider": "string — 'groq', 'openrouter', 'anthropic', or 'ollama'",
+            "provider": "string — 'groq', 'openrouter', 'anthropic', 'ollama', 'fal' (image models), or 'replicate'",
             "model": "string — model id for that provider, e.g. 'openai/gpt-oss-120b', 'google/gemma-3-27b-it:free'",
             "prompt": "string — the task/prompt to send to that model",
         },

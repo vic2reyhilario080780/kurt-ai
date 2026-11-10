@@ -1,0 +1,97 @@
+{
+  "tested_at": "2026-11-10T10:45:49.446121+00:00",
+  "entrypoint": "/opt/homebrew/bin/kurt",
+  "mode": "actual installed kurt chat --no-memory with a deliberately invalid model selection",
+  "verification": "Independent window, foreground app, and unique page title checks; no model replies mocked.",
+  "status": "passed",
+  "results": [
+    {
+      "prompt": "magbukas ka ng browser",
+      "browser": "Safari",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser 80748899",
+      "window_id": 7748,
+      "foreground_app": "Safari",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-0.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 3a1de65e                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Safari.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "Can you open a browser?",
+      "browser": "Safari",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser 80748899",
+      "window_id": 7748,
+      "foreground_app": "Safari",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-1.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · edacda79                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Safari.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "buksan mo nga yung Chrome",
+      "browser": "Google Chrome",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Who's using Chrome?",
+      "window_id": 7757,
+      "foreground_app": "Google Chrome",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-2.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · fc50150b                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Google Chrome.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "please open Microsoft Edge",
+      "browser": "Microsoft Edge",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser ecd3c932 - Microsoft Edge",
+      "window_id": 7759,
+      "foreground_app": "Microsoft Edge",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-3.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 3296067a                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Microsoft Edge.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "paki open naman ng Safari",
+      "browser": "Safari",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser 80748899",
+      "window_id": 7748,
+      "foreground_app": "Safari",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-4.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 0110bfbe                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Safari.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "Kurt, buksan mo nga yung Chrome sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/Kurt-Chat-Browser-3e260bde.html",
+      "browser": "Google Chrome",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser 3e260bde - Google Chrome (Guest)",
+      "window_id": 7766,
+      "foreground_app": "Google Chrome",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-5.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · c08d9901                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Google Chrome: \nfile:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfd\nie/Kurt-Chat-Browser-3e260bde.html\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "Could you please open the Microsoft Edge browser to file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/Kurt-Chat-Browser-a0b68002.html",
+      "browser": "Microsoft Edge",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser a0b68002 - Microsoft Edge",
+      "window_id": 7759,
+      "foreground_app": "Microsoft Edge",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-6.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · f6739858                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Microsoft Edge: \nfile:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfd\nie/Kurt-Chat-Browser-a0b68002.html\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "prompt": "magbukas ka ng Safari at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/Kurt-Chat-Browser-d27ef20f.html",
+      "browser": "Safari",
+      "status": "passed",
+      "cli_exit_code": 0,
+      "observed_window": "Kurt Chat Browser d27ef20f",
+      "window_id": 7748,
+      "foreground_app": "Safari",
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfdie/result-7.png",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · e6e430b2                                                   │\n│ Kumusta Boss! What can I do for you?                                         │\n│                                                                              │\n│ Model: offline/browser-smoke   Skill: none                                   │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Safari: \nfile:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-chat-browser-xzgvfd\nie/Kurt-Chat-Browser-d27ef20f.html\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    }
+  ]
+}

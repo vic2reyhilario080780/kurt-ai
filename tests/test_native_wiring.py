@@ -227,6 +227,17 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(text, "Computed total: 1160.")
         self.assertEqual(len(requests), 2)
 
+        # The cross-provider fallback must carry real function schemas and
+        # preserve matching tool call/result IDs, including streamed fragments.
+        requests.clear()
+        router.openrouter_key = "test-openrouter-key"
+        with patch("kurt.core.router.httpx.AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler))):
+            async def run_openrouter():
+                return ''.join([c async for c in NativeToolRouter(router).route("openrouter", "test-model", self.messages())])
+            text = asyncio.run(run_openrouter())
+        self.assertEqual(text, "Computed total: 1160.")
+        self.assertEqual(len(requests), 2)
+
     def test_groq_rejects_undeclared_and_malformed_function_calls(self):
         from kurt.core.router import ModelRouter
         real_client = httpx.AsyncClient

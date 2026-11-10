@@ -116,6 +116,57 @@ monitoring always stays local. See [security audit](API_KEY_SECURITY_AUDIT.md).
 
 ## Verification
 
+Simple natural-language browser opening is now separately verified through the
+actual installed chat command: **8/8 live cases** without model calls. See
+[natural-language chat fix and evidence](BROWSER_NATURAL_LANGUAGE.md).
+
+### Autonomous natural-language test (2026-11-10)
+
+**Two live end-to-end tests passed.** Each submitted one natural-language
+request through the actual `kurt ask` CLI. Kurt opened a fresh local Safari
+page, entered a unique code, clicked the requested button, and reported the
+result. The verifier independently read the actual page afterward; it performed
+none of the task actions. The second run used different input/button labels
+and completed in three `desktop_action` calls on the primary model.
+
+Evidence: [first live report](desktop-autonomy-live-verification.json) and
+[second live report and screenshot path](desktop-autonomy-second-verification.json).
+The first run recovered from a primary model failure using its fallback; the
+second run completed on the default desktop model without that failure.
+
+Latest regression suite: **167 tests and 264 subtests passed**.
+The subsequent [installed-browser audit](BROWSER_AUTONOMY.md) records verified
+autonomous completion in Safari, Chrome, and Edge after the Chromium AX fix.
+
+Earlier runs failed from routing, oversized context, low-level tool overhead,
+and repeated provider rate limits. The observed desktop actions now handle
+`open_url`, `observe`, `fill`, and `click` locally. Each mutation gets fresh exact
+window/element targeting and a subsequent observation. Fill additionally checks
+the focused receiver and reads back the entered value, even when upstream typing
+returns an indeterminate status. Ambiguous labels stop execution, and dispatched
+actions are never automatically repeated. Literal typing rejects control
+characters and escapes Peekaboo's backslash sequences.
+
+Desktop requests use a concise prompt and one structured tool schema. Original
+user instructions and the latest two complete tool exchanges are sent for the
+next decision; stale observations stay out of model context. A pre-response
+rate limit can switch the pending model decision to the alternate desktop model
+without replaying any desktop action. This reduces quota pressure but cannot
+guarantee service availability. Interactive chat routes desktop requests through
+the same action loop, bypassing the old single-action app-opening shortcut.
+
+These tests verify local Safari opening, targeted typing, clicking, and observed
+completion. Other apps, complex websites, secure fields, and arbitrary desktop
+workflows still need their own validation. High-level actions currently require
+unique accessible element labels; they stop when a target is ambiguous.
+
+Reproduce explicitly (makes model requests and controls Safari):
+
+```sh
+python3 tools/verify_desktop_autonomy.py --live --output /tmp/kurt-autonomy-report.json
+python3 tools/verify_desktop_autonomy.py --live --input-label 'Confirmation code' --button-label 'Check result' --output /tmp/kurt-autonomy-second-report.json
+```
+
 Recorded evidence: [desktop CLI smoke-test report](desktop-cli-verification.json).
 
 - Real OpenClaw delegated reply returned `KURT_OPENCLAW_OK` through Kurt.

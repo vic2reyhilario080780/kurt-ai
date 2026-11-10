@@ -59,44 +59,34 @@ class Intent:
 # Task trigger words (Filipino + English)
 TASK_TRIGGERS = [
     # Open / launch
-    "buksan", "bukas", "open", "launch", "start", "i-open", "palakasin",
+    "buksan", "open", "launch", "i-open", "palakasin",
     "i-start", "patakbuhin", "i-launch",
     # Close
     "isara", "close", "quit", "exit", "i-close", "isara mo",
     # Navigate / browse
-    "punta", "pumunta", "go to", "navigate", "browse", "buksan ang browser",
-    "i-browse", "tingnan", "bisitahin",
+    "pumunta", "go to", "navigate", "buksan ang browser",
+    "i-browse", "bisitahin",
     # Play / media
-    "i-play", "play", "i-pause", "pause", "stop", "next", "previous",
-    "i-next", "i-pause", "volume", "louder", "softer", "mute",
+    "i-play", "i-pause", "pause", "mute",
     # Screenshot / screen
     "screenshot", "kunan ng screenshot", "i-screenshot", "i-capture",
     # Type / write
-    "i-type", "type", "isulat", "i-paste", "paste", "i-copy", "copy",
+    "i-type", "isulat", "i-paste", "i-copy",
     # Click
-    "i-click", "click", "pindutin", "press",
+    "i-click", "pindutin",
     # Scroll
-    "i-scroll", "scroll", "pababa", "pataas",
-    # Search (as action)
-    "hanapin", "i-search", "maghanap",
-    # Create / make
-    "gumawa", "lumikha", "create", "make", "baguhin", "i-create",
+    "i-scroll",
     # Download
-    "i-download", "download", "i-save", "save",
-    # Send
-    "i-send", "send", "ipadala", "magpadala",
-    # Set / change
-    "baguhin", "palitan", "i-set", "set", "i-change", "change",
-    # Volume / brightness
-    "volume", "brightness", "liwanag", "lakas",
+    "i-download",
 ]
 
 # Search trigger words
 SEARCH_TRIGGERS = [
-    "ano", "anong", "paano", "bakit", "kailan", "saan", "sino", "ilan",
+    "ano", "anong", "paano", "bakit", "kailan", "saan", "sino", "ilan", "magkano",
     "what", "how", "why", "when", "where", "who", "which",
     "what is", "what are", "how to", "tell me", "explain",
     "weather", "panahon", "balita", "news", "presyo", "price",
+    "maghanap", "hanapin", "i-search", "tingnan", "tignan",
     "maghanap ng", "search for", "look up", "find info",
     "i-google", "google mo", "i-check",
 ]
@@ -136,9 +126,9 @@ def _keyword_detect(text: str) -> Optional[Intent]:
     t = text.lower().strip()
     words = t.split()
 
-    # Check system first (highest priority)
+    # Check system first (highest priority, short commands only)
     for trigger in SYSTEM_TRIGGERS:
-        if trigger in t and len(words) <= 4:
+        if re.search(rf"(?<!\w){re.escape(trigger)}(?!\w)", t) and len(words) <= 4:
             return Intent(
                 type=INTENT_SYSTEM,
                 confidence=0.85,
@@ -147,9 +137,31 @@ def _keyword_detect(text: str) -> Optional[Intent]:
                 detected_by="keywords",
             )
 
+    # Search / Question check BEFORE task triggers so questions ("ano ang panahon bukas?",
+    # "tingnan mo kung...", "hanapin mo kung...") are never hijacked as desktop app tasks.
+    if t.endswith("?"):
+        return Intent(
+            type=INTENT_SEARCH,
+            confidence=0.85,
+            action="search",
+            target=text,
+            raw_input=text,
+            detected_by="keywords",
+        )
+    for trigger in SEARCH_TRIGGERS:
+        if re.search(rf"(?<!\w){re.escape(trigger)}(?!\w)", t):
+            return Intent(
+                type=INTENT_SEARCH,
+                confidence=0.84,
+                action="search",
+                target=text,
+                raw_input=text,
+                detected_by="keywords",
+            )
+
     # Memory check
     for trigger in MEMORY_TRIGGERS:
-        if trigger in t:
+        if re.search(rf"(?<!\w){re.escape(trigger)}(?!\w)", t):
             return Intent(
                 type=INTENT_MEMORY,
                 confidence=0.80,
@@ -158,10 +170,9 @@ def _keyword_detect(text: str) -> Optional[Intent]:
                 detected_by="keywords",
             )
 
-    # Task check — look for action verbs
+    # Task check — look for explicit imperative action verbs
     for trigger in TASK_TRIGGERS:
-        if trigger in t:
-            # Try to extract target
+        if re.search(rf"(?<!\w){re.escape(trigger)}(?!\w)", t):
             target = _extract_target_after(t, trigger)
             action = _map_trigger_to_action(trigger)
             return Intent(
@@ -173,21 +184,9 @@ def _keyword_detect(text: str) -> Optional[Intent]:
                 detected_by="keywords",
             )
 
-    # Search check — question words
-    for trigger in SEARCH_TRIGGERS:
-        if t.startswith(trigger) or f" {trigger} " in t:
-            return Intent(
-                type=INTENT_SEARCH,
-                confidence=0.82,
-                action="search",
-                target=text,
-                raw_input=text,
-                detected_by="keywords",
-            )
-
     # Chat indicators
     for trigger in CHAT_INDICATORS:
-        if trigger in t:
+        if re.search(rf"(?<!\w){re.escape(trigger)}(?!\w)", t):
             return Intent(
                 type=INTENT_CHAT,
                 confidence=0.80,
@@ -218,9 +217,9 @@ PATTERNS = [
     (r"(?:i-play|play|palarugin|words)\s+(?:ang\s+|mo\s+)?(.+)",
      INTENT_TASK, "play", 1),
 
-    # Search web: "i-search ang lofi music", "hanapin ang weather sa Manila"
+    # Search web: "i-search ang lofi music", "hanapin ang weather sa Manila" -> route to AI search
     (r"(?:i-search|hanapin|maghanap|search for|look up)\s+(?:ang\s+|ng\s+)?(.+)",
-     INTENT_TASK, "search_web", 1),
+     INTENT_SEARCH, "search", 1),
 
     # Screenshot: "kunan ng screenshot", "screenshot ng screen"
     (r"(?:kunan ng screenshot|take screenshot|i-screenshot|screenshot)",

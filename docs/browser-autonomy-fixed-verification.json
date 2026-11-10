@@ -1,0 +1,58 @@
+{
+  "tested_at": "2026-11-10T06:01:50.502986+00:00",
+  "installed_browsers": [
+    "Google Chrome",
+    "Microsoft Edge",
+    "Safari"
+  ],
+  "status": "failed",
+  "results": [
+    {
+      "tested_at": "2026-11-10T06:01:38.961616+00:00",
+      "browser": "Google Chrome",
+      "status": "passed",
+      "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+      "prompt": "Kurt, buksan mo ang Google Chrome at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-svtf4kni/control.html. Ilagay ang \"KURT_AUTO_1317EC38\" sa \"Test message\", pindutin ang \"Verify control\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Google Chrome. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+      "cli_exit_code": 0,
+      "expected_result": "AUTONOMOUS_OK: KURT_AUTO_1317EC38",
+      "page_result_verified": true,
+      "observed_window": "Kurt Autonomous Browser Test - Google Chrome - Victor Rey",
+      "observed_result": [
+        "AUTONOMOUS_OK: KURT_AUTO_1317EC38"
+      ],
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-svtf4kni/result.png",
+      "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\n🔧 desktop_action\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n✅ Result verified: “AUTONOMOUS_OK: KURT_AUTO_1317EC38” appears as expected. All\ndone!\n",
+      "verification": "Independent read-only desktop observation; no task actions by verifier."
+    },
+    {
+      "tested_at": "2026-11-10T06:01:45.426100+00:00",
+      "browser": "Microsoft Edge",
+      "status": "failed",
+      "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+      "prompt": "Kurt, buksan mo ang Microsoft Edge at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-w0303qj4/control.html. Ilagay ang \"KURT_AUTO_38E46C96\" sa \"Test message\", pindutin ang \"Verify control\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Microsoft Edge. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+      "cli_exit_code": 0,
+      "expected_result": "AUTONOMOUS_OK: KURT_AUTO_38E46C96",
+      "page_result_verified": false,
+      "observed_window": "Kurt Autonomous Browser Test - Microsoft Edge",
+      "observed_result": [],
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-w0303qj4/result.png",
+      "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n\n❌ Error: Client error '429 Too Many Requests' for url \n'https://api.groq.com/openai/v1/chat/completions'\nFor more information check: \nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\n↩ Trying fallback: openai/gpt-oss-20b\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n❌ Fallback also failed: Client error '429 Too Many Requests' for url \n'https://api.groq.com/openai/v1/chat/completions'\nFor more information check: \nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\n╭─────────────────────────────── Setup Required ───────────────────────────────╮\n│ ⚠️  Walang gumaganang API key!                                               │\n│                                                                              │\n│ I-edit ang ~/.kurt/.env at lagyan ng KAHIT ISA sa mga ito:                   │\n│                                                                              │\n│ Option 1 — Groq (PINAKA-LIBRE, 14,400 req/day):                              │\n│   1. Pumunta sa: https://console.groq.com/keys                               │\n│   2. Mag-sign up / log in                                                    │\n│   3. Gumawa ng API key                                                       │\n│   4. I-paste sa ~/.kurt/.env:                                                │\n│      GROQ_API_KEY=gsk_xxxx...                                                │\n│                                                                              │\n│ Option 2 — OpenRouter (libre din ang ilang models):                          │\n│   1. Pumunta sa: https://openrouter.ai/keys                                  │\n│   2. Gumawa ng API key                                                       │\n│   3. I-paste sa ~/.kurt/.env:                                                │\n│      OPENROUTER_API_KEY=sk-or-v1-xxxx...                                     │\n│                                                                              │\n│ Pagkatapos: kurt setup o i-restart ang kurt chat                             │\n╰──────────────────────────────────────────────────────────────────────────────╯\n",
+      "verification": "Independent read-only desktop observation; no task actions by verifier."
+    },
+    {
+      "tested_at": "2026-11-10T06:01:50.502616+00:00",
+      "browser": "Safari",
+      "status": "failed",
+      "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+      "prompt": "Kurt, buksan mo ang Safari at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-wqpi77y_/control.html. Ilagay ang \"KURT_AUTO_E1C67FE4\" sa \"Test message\", pindutin ang \"Verify control\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Safari. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+      "cli_exit_code": 0,
+      "expected_result": "AUTONOMOUS_OK: KURT_AUTO_E1C67FE4",
+      "page_result_verified": false,
+      "observed_window": "Kurt Autonomous Browser Test",
+      "observed_result": [],
+      "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-wqpi77y_/result.png",
+      "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n\n❌ Error: Client error '429 Too Many Requests' for url \n'https://api.groq.com/openai/v1/chat/completions'\nFor more information check: \nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\n↩ Trying fallback: openai/gpt-oss-20b\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n❌ Fallback also failed: Client error '429 Too Many Requests' for url \n'https://api.groq.com/openai/v1/chat/completions'\nFor more information check: \nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429\n╭─────────────────────────────── Setup Required ───────────────────────────────╮\n│ ⚠️  Walang gumaganang API key!                                               │\n│                                                                              │\n│ I-edit ang ~/.kurt/.env at lagyan ng KAHIT ISA sa mga ito:                   │\n│                                                                              │\n│ Option 1 — Groq (PINAKA-LIBRE, 14,400 req/day):                              │\n│   1. Pumunta sa: https://console.groq.com/keys                               │\n│   2. Mag-sign up / log in                                                    │\n│   3. Gumawa ng API key                                                       │\n│   4. I-paste sa ~/.kurt/.env:                                                │\n│      GROQ_API_KEY=gsk_xxxx...                                                │\n│                                                                              │\n│ Option 2 — OpenRouter (libre din ang ilang models):                          │\n│   1. Pumunta sa: https://openrouter.ai/keys                                  │\n│   2. Gumawa ng API key                                                       │\n│   3. I-paste sa ~/.kurt/.env:                                                │\n│      OPENROUTER_API_KEY=sk-or-v1-xxxx...                                     │\n│                                                                              │\n│ Pagkatapos: kurt setup o i-restart ang kurt chat                             │\n╰──────────────────────────────────────────────────────────────────────────────╯\n",
+      "verification": "Independent read-only desktop observation; no task actions by verifier."
+    }
+  ]
+}

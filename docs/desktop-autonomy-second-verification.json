@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-11-10T05:44:54.316202+00:00",
+  "status": "passed",
+  "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+  "prompt": "Kurt, buksan mo ang Safari at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-huej9fxj/control.html. Ilagay ang \"KURT_AUTO_11DAD1B0\" sa \"Confirmation code\", pindutin ang \"Check result\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Safari. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+  "cli_exit_code": 0,
+  "expected_result": "AUTONOMOUS_OK: KURT_AUTO_11DAD1B0",
+  "page_result_verified": true,
+  "observed_window": "Kurt Autonomous Browser Test",
+  "observed_result": [
+    "AUTONOMOUS_OK: KURT_AUTO_11DAD1B0",
+    "AUTONOMOUS_OK: KURT_AUTO_11DAD1B0"
+  ],
+  "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-huej9fxj/result.png",
+  "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\n🔧 desktop_action\n🔧 desktop_action\nDone! Na‑fill ko na ang **Confirmation code** ng “KURT_AUTO_11DAD1B0”, napindot \nko ang **Check result**, at nakita ko na sa page ang text na **“AUTONOMOUS_OK: \nKURT_AUTO_11DAD1B0”**. ✅\n",
+  "verification": "Independent read-only desktop observation; no task actions by verifier."
+}

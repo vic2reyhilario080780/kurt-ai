@@ -8,6 +8,7 @@ from kurt.utils.security import redact, child_env
 from kurt.utils.execution import restricted_run, service_argv
 import shlex
 import os
+import json
 import subprocess
 import shutil
 import uuid
@@ -132,13 +133,49 @@ def _cmd_exists(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
 
+def _ai_cli_env(cmd):
+    """Keep CLI login usable and translate Kurt's Google key name explicitly."""
+    name = Path(cmd).name
+    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("GH_TOKEN", "GITHUB_TOKEN")
+    env = child_env(allow=allowed)
+    if name == "gemini" and not env.get("GEMINI_API_KEY") and not env.get("GOOGLE_API_KEY"):
+        if os.getenv("GOOGLE_AI_KEY"):
+            env["GEMINI_API_KEY"] = os.environ["GOOGLE_AI_KEY"]
+    if name == "claude" and env.get("ANTHROPIC_API_KEY"):
+        mode = os.getenv("KURT_CLAUDE_AUTH", "auto")
+        if mode not in {"auto", "api", "login"}:
+            raise ValueError("KURT_CLAUDE_AUTH must be auto, api, or login.")
+        if mode == "login":
+            env.pop("ANTHROPIC_API_KEY", None)
+        elif mode == "auto":
+            try:
+                status = subprocess.run(service_argv([cmd, "auth", "status"], "claude"),
+                                        env=child_env(), capture_output=True, text=True, timeout=10)
+                data = json.loads(status.stdout) if status.returncode == 0 else {}
+                if data.get("loggedIn") is True and data.get("authMethod") == "claude.ai":
+                    env.pop("ANTHROPIC_API_KEY", None)
+            except (OSError, ValueError, subprocess.TimeoutExpired):
+                pass
+    return env
+
+
 def _run_shell(cmd: str, args: str) -> str:
     """Run a shell command and return output"""
     full_cmd = f"{cmd} {args}".strip()
     try:
         trusted = Path(cmd).name in {"claude", "gemini", "gh"}
         runner = subprocess.run if trusted else restricted_run
-        options = {"env": child_env(allow=("ANTHROPIC_API_KEY",) if Path(cmd).name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY") if Path(cmd).name == "gemini" else ("GH_TOKEN", "GITHUB_TOKEN"))} if trusted else {}
+        from kurt.utils.workspace import current_workspace
+        options = {"env": _ai_cli_env(cmd), "cwd": str(current_workspace())} if trusted else {}
+        if trusted and Path(cmd).name in {"claude", "gemini"}:
+            from kurt.utils.process import run_bounded
+            result = run_bounded(service_argv([cmd, *shlex.split(args)], Path(cmd).name),
+                                 env=options['env'], cwd=options['cwd'], timeout=120, max_output=65536)
+            out, err = redact(result['stdout'].strip()), redact(result['stderr'].strip())
+            if result['status'] != 'completed':
+                detail = err or f"CLI status: {result['status']}; exit code: {result['exit_code']}."
+                return f"❌ Error:\n{detail}\n[stdout]\n{out}" if out else f"❌ Error:\n{detail}"
+            return out or '(no output)'
         result = runner(
             service_argv([cmd, *shlex.split(args)], Path(cmd).name) if trusted else full_cmd,
             shell=not trusted,
@@ -149,8 +186,9 @@ def _run_shell(cmd: str, args: str) -> str:
         )
         out = redact(result.stdout.strip())
         err = redact(result.stderr.strip())
-        if result.returncode != 0 and err:
-            return f"[stderr]\n{err}\n[stdout]\n{out}" if out else f"❌ Error:\n{err}"
+        if result.returncode != 0:
+            detail = err or f"Command exited with code {result.returncode}."
+            return f"❌ Error:\n{detail}\n[stdout]\n{out}" if out else f"❌ Error:\n{detail}"
         return out if out else "(no output)"
     except subprocess.TimeoutExpired:
         return "❌ Command timed out (30s)"

@@ -1,0 +1,21 @@
+{
+  "tested_at": "2026-11-10T04:33:45.193077+00:00",
+  "adapter": "kurt.core.cli_tools.run_cli / kurt cli run peekaboo",
+  "browser": "Safari",
+  "window_title": "Kurt Desktop Control Test",
+  "browser_launched": true,
+  "local_test_page_opened": true,
+  "typed_value_observed": true,
+  "button_result_observed": true,
+  "observed_result": [
+    "KURT_CONTROL_OK: KURT_IMAC_TEST_OK",
+    "KURT_CONTROL_OK: KURT_IMAC_TEST_OK"
+  ],
+  "screenshot": "/private/tmp/kurt-browser-control-result.png",
+  "notes": [
+    "Background typing refused by exact-window focus guard.",
+    "Foreground typing reported indeterminate; fresh observation confirmed the exact expected text.",
+    "Click delivery was unverified until fresh observation confirmed the page result.",
+    "Direct desktop adapter tested; autonomous natural-language model planning was not tested."
+  ]
+}

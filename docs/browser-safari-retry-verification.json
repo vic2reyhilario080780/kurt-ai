@@ -1,0 +1,18 @@
+{
+  "tested_at": "2026-11-10T05:56:34.987193+00:00",
+  "browser": "Safari",
+  "status": "passed",
+  "entrypoint": "python -m kurt.main ask <natural-language request> --no-memory --verbose",
+  "prompt": "Kurt, buksan mo ang Safari at pumunta sa file:///var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-tr2kqucp/control.html. Ilagay ang \"KURT_AUTO_AB694F24\" sa \"Test message\", pindutin ang \"Verify control\", at i-check kung lumabas ang tamang AUTONOMOUS_OK result. Ikaw na ang gumawa sa desktop, huwag instructions lang. Local test page lang ito; puwede mong i-focus ang Safari. Huwag galawin ang ibang apps, accounts o files. Kapag may unverified action, tingnan muna ang kasalukuyang resulta bago umulit.",
+  "cli_exit_code": 0,
+  "expected_result": "AUTONOMOUS_OK: KURT_AUTO_AB694F24",
+  "page_result_verified": true,
+  "observed_window": "Kurt Autonomous Browser Test",
+  "observed_result": [
+    "AUTONOMOUS_OK: KURT_AUTO_AB694F24",
+    "AUTONOMOUS_OK: KURT_AUTO_AB694F24"
+  ],
+  "screenshot": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-autonomy-tr2kqucp/result.png",
+  "transcript": "╭────────────────────────────── 🔍 Routing Info ───────────────────────────────╮\n│ Task Type: desktop                                                           │\n│ Model: openai/gpt-oss-120b                                                   │\n│ Provider: groq                                                               │\n│ Reason: Desktop control via Groq function tools and verified Peekaboo        │\n│ observations                                                                 │\n╰──────────────────────────────────────────────────────────────────────────────╯\n\n🔧 desktop_action\n🔧 desktop_action\n🔧 desktop_action\nModel rate limit; continuing the pending decision with the alternate desktop \nmodel.\n✅ Nagsagawa na ako ng mga hakbang: na-fill ko ang \"Test message\" field ng \n**KURT_AUTO_AB694F24**, pinindot ang \"Verify control\", at nakita ko ang \n**AUTONOMOUS_OK: KURT_AUTO_AB694F24** na lumabas sa page—na nangangahulugang \ntama ang resulta. Tamang trabaho!\n",
+  "verification": "Independent read-only desktop observation; no task actions by verifier."
+}

@@ -18,9 +18,10 @@ import asyncio
 import os
 import sys
 import uuid
-from typing import Optional
+from typing import Optional, Annotated
 
 import typer
+from typer.core import TyperGroup
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -30,7 +31,7 @@ from rich.prompt import Confirm
 from rich import box
 
 from kurt.utils.env_loader import load_env, check_setup
-from kurt.core.orchestrator import analyze_task, TaskType
+from kurt.core.orchestrator import analyze_task, classify_task, TaskType
 from kurt.core.router import ModelRouter
 from kurt.core.memory import init_db, save_message, get_history
 from kurt.core.persona import (
@@ -80,7 +81,35 @@ from kurt.core.codebase import (
     parse_diff_stats, build_diff_review_prompt, get_codebase_context
 )
 
+class KurtGroup(TyperGroup):
+    """Route the documented one-off prompt shorthand through the ask command."""
+
+    def parse_args(self, ctx, args):
+        value_options = {"--model", "-m", "--skill", "-s", "--session"}
+        flag_options = {"--no-memory", "--verbose", "-v"}
+        index = 0
+        while index < len(args):
+            token = args[index]
+            if token in value_options:
+                index += 2
+            elif token in flag_options or any(
+                token.startswith(option + "=") for option in value_options
+            ):
+                index += 1
+            elif token == "--" and index + 1 < len(args):
+                args = ["ask", *args]
+                break
+            elif token.startswith("-"):
+                break
+            else:
+                if token not in self.commands:
+                    args = ["ask", *args]
+                break
+        return super().parse_args(ctx, args)
+
+
 app = typer.Typer(
+    cls=KurtGroup,
     name="kurt",
     help="🤖 KURT — Kinetic Unified Response Terminal, Daddy Tito's personal AI assistant",
     no_args_is_help=False,
@@ -208,7 +237,7 @@ def main(
         # type `kurt chat` first, same spirit as `claude`/`gemini`/`codex` CLIs.
         # The command list stays out of the way until the user asks for it
         # (/help or /).
-        chat(skill=None, model=None, session=None)
+        chat(skill=None, model=None, session=None, no_memory=False)
 
 
 @app.command(rich_help_panel="💬 Talk to Kurt")
@@ -232,6 +261,13 @@ def ask(
     # Load env
     load_env()
 
+    current_session = session or str(uuid.uuid4())
+    direct_action = _try_local_request(prompt, current_session, no_memory)
+    if direct_action is not None:
+        if direct_action['status'] != 'completed':
+            raise typer.Exit(1)
+        return
+
     # Check setup
     status = check_setup()
     if not status.get("openrouter") and not status.get("groq") and not status.get("ollama"):
@@ -242,9 +278,6 @@ def ask(
     # Init DB
     if not no_memory:
         init_db()
-
-    # Session management
-    current_session = session or str(uuid.uuid4())
 
     # Analyze the task
     analysis = analyze_task(prompt)
@@ -266,24 +299,16 @@ def ask(
             border_style="dim",
         ))
 
-    # Hybrid mode: override provider based on ai_mode
+    # AI mode routing: hybrid uses KURT's own fast tool-capable routing (Groq + live web search)
     ai_mode = get_ai_mode()
-    if ai_mode == "hybrid":
-        # KURT classifies (already done), Claude handles generation for text tasks
-        text_tasks = {TaskType.CODE, TaskType.CHAT, TaskType.WRITE, TaskType.RESEARCH,
-                      TaskType.MATH, TaskType.TRANSLATE, TaskType.DESIGN, TaskType.ARTIFACT,
-                      TaskType.GAME, TaskType.UNKNOWN}
-        if analysis.task_type in text_tasks:
-            analysis.provider = "anthropic"
-            analysis.model = "claude-3-5-haiku-20241022"
-            if verbose:
-                console.print(f"[dim]⚡ Hybrid mode: routing to Claude Anthropic[/dim]")
-    elif ai_mode == "claude_only":
+    if ai_mode == "claude_only":
         analysis.provider = "anthropic"
         analysis.model = "claude-3-5-sonnet-20241022"
+        analysis.fallback_provider = "groq"
+        analysis.fallback_model = "openai/gpt-oss-120b"
         if verbose:
             console.print(f"[dim]🧠 Claude-only mode[/dim]")
-    # kurt_only: no override, use ROUTING_TABLE as-is
+    # hybrid / kurt_only: use ROUTING_TABLE (Groq with native tools + fallback)
 
     # Build messages
     messages = []
@@ -337,6 +362,26 @@ def ask(
         verbose=verbose,
         prompt=prompt,
     ))
+
+
+def _try_local_request(prompt, session_id, no_memory=False):
+    from kurt.core.browser_intent import parse_browser_request, execute_browser_request
+    request = parse_browser_request(prompt)
+    if request is not None:
+        result = execute_browser_request(request)
+    else:
+        from kurt.core.local_actions import parse_local_request, execute_local_request
+        request = parse_local_request(prompt)
+        if request is None:
+            return None
+        result = execute_local_request(request)
+    result['message'] = redact(result['message'])
+    console.print(result['message'], markup=False)
+    if not no_memory:
+        init_db()
+        save_message(session_id, 'user', prompt)
+        save_message(session_id, 'assistant', result['message'])
+    return result
 
 
 def _show_no_key_help():
@@ -395,7 +440,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         # Skip fallback if primary already failed due to auth — same key won't help
         skip_same_provider_fallback = is_auth_error and analysis.provider == analysis.fallback_provider
 
-        if analysis.fallback_model != analysis.model and not skip_same_provider_fallback:
+        if (analysis.fallback_model != analysis.model or analysis.fallback_provider != analysis.provider) and not skip_same_provider_fallback:
             console.print(f"[yellow]↩ Trying fallback: {analysis.fallback_model}[/yellow]")
             try:
                 full_response = ""
@@ -410,10 +455,16 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 console.print()
             except Exception as e2:
                 console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
-                _show_no_key_help()
+                if "429" in str(e2):
+                    console.print("AI provider rate limit reached. The desktop task is incomplete; keep the current app state and resume after the limit resets.", markup=False)
+                else:
+                    _show_no_key_help()
                 return
         else:
-            _show_no_key_help()
+            if "429" in err_str:
+                console.print("AI provider rate limit reached. The desktop task is incomplete; keep the current app state and resume after the limit resets.", markup=False)
+            else:
+                _show_no_key_help()
             return
 
     # Auto-save code artifacts for CODE/DESIGN/ARTIFACT tasks
@@ -510,6 +561,7 @@ def chat(
     skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Start with a skill active, e.g. tiktok, seo, trading"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
+    no_memory: Annotated[bool, typer.Option("--no-memory", help="Do not read or save conversation history")] = False,
 ):
     """💬 Open an ongoing conversation with Kurt — mag-usap kayo, aalala siya sa sinabi mo.
 
@@ -519,7 +571,8 @@ def chat(
     Halimbawa (example): kurt chat
     """
     load_env()
-    init_db()
+    if not no_memory:
+        init_db()
 
     _persona = load_persona()
     _kurt_name = _persona.get("kurt_name", "KURT")
@@ -556,7 +609,7 @@ def chat(
         def _voice_callback(event):
             _voice_queue.append(event.text.strip())
 
-        _deps = _voice_deps()
+        _deps = _voice_deps() if sys.stdin.isatty() else {}
         if _deps.get("can_record") and _deps.get("can_transcribe"):
             start_listening(callback=_voice_callback)
             _voice_active = True
@@ -567,8 +620,9 @@ def chat(
     # ── Screen watcher (proactive mode) ─────────────────────────────
     try:
         from kurt.core.screen_watcher import KURTProactive
-        _proactive = KURTProactive()
-        _proactive.start()
+        _proactive = KURTProactive() if sys.stdin.isatty() else None
+        if _proactive:
+            _proactive.start()
     except Exception:
         _proactive = None
 
@@ -634,14 +688,20 @@ def chat(
                 current_skill = slash_result.skill_override
             if slash_result.feed_to_ai and slash_result.output:
                 # Keep the request and computed results available to follow-up turns.
-                save_message(session_id, "user", prompt)
-                save_message(session_id, "assistant", slash_result.output)
+                if not no_memory:
+                    save_message(session_id, "user", prompt)
+                    save_message(session_id, "assistant", slash_result.output)
                 last_response = slash_result.output
             if slash_result.new_session_id:
                 session_id = slash_result.new_session_id
                 last_response = ""
             if not slash_result.continue_chat:
                 break
+            continue
+
+        direct_action = _try_local_request(prompt, session_id, no_memory)
+        if direct_action is not None:
+            last_response = direct_action['message']
             continue
 
         # ── Intent Detection ─────────────────────────────────────────
@@ -651,10 +711,13 @@ def chat(
             from kurt.core.intent import detect_intent, route_intent
             from kurt.core.intent import INTENT_TASK, INTENT_SEARCH, INTENT_MEMORY, INTENT_CHAT
 
-            # Layer 1+2: keywords+regex (instant). Layer 3: Ollama LLM if ambiguous.
-            intent = detect_intent(prompt, use_llm=True)
+            # Layer 1+2: keywords+regex (instant).
+            # Desktop requests need the complete observed action loop. A direct
+            # "open app" shortcut otherwise consumes a multi-step request and
+            # skips the requested typing/clicking/verification.
+            intent = None if classify_task(prompt) == TaskType.DESKTOP else detect_intent(prompt, use_llm=False)
 
-            if intent.type == INTENT_TASK and intent.confidence >= 0.75:
+            if intent is not None and intent.type == INTENT_TASK and intent.confidence >= 0.75:
                 # Execute computer/browser action directly — no LLM call needed
                 routed = route_intent(intent)
                 handler = routed.get("handler", "")
@@ -793,7 +856,7 @@ def chat(
         # fetch real page/search content and hand it to the AI as context.
         try:
             import re as _re
-            url_match = _re.search(r"https?://\S+", prompt)
+            url_match = _re.search(r"https?://\S+", prompt) if analysis.task_type != TaskType.DESKTOP else None
             if url_match:
                 from kurt.core.web_browse import read_page
                 web_result = read_page(url_match.group(0).rstrip(".,)"))
@@ -803,7 +866,7 @@ def chat(
                         "role": "system",
                         "content": f"WEB PAGE CONTEXT — {web_result.title} ({web_result.url}):\n{snippet}",
                     })
-            elif _re.search(
+            elif analysis.task_type != TaskType.DESKTOP and _re.search(
                 r"\b(search (the|for)|google|look up|latest news|what('|')s happening|current (price|weather|status))\b",
                 prompt, _re.IGNORECASE,
             ):
@@ -817,11 +880,12 @@ def chat(
         except Exception:
             pass  # Web access is best-effort — never block the chat on a failed fetch
 
-        history = get_history(session_id, limit=20)
+        history = get_history(session_id, limit=20) if not no_memory else []
         messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
-        save_message(session_id, "user", prompt)
+        if not no_memory:
+            save_message(session_id, "user", prompt)
 
         console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]")
 
@@ -829,14 +893,14 @@ def chat(
             analysis=analysis,
             messages=messages,
             session_id=session_id,
-            no_memory=False,
+            no_memory=no_memory,
             verbose=False,
             prompt=prompt,
         ))
 
         # Store last response for /save
         from kurt.core.memory import get_history as _gh
-        _hist = _gh(session_id, limit=1)
+        _hist = _gh(session_id, limit=1) if not no_memory else []
         if _hist and _hist[-1]["role"] == "assistant":
             last_response = _hist[-1]["content"]
 

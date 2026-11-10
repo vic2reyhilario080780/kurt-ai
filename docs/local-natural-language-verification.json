@@ -1,0 +1,60 @@
+{
+  "tested_at": "2026-11-10T11:31:09.232849+00:00",
+  "entrypoint": "installed kurt chat --no-memory --model offline/local-smoke",
+  "status": "passed",
+  "scope": "Calculator/TextEdit; Apple Mail unread counts; existing Music playback; synthetic local HTTP download.",
+  "results": [
+    {
+      "kind": "open_app",
+      "app": "Calculator",
+      "prompt": "buksan mo nga yung Calculator",
+      "status": "passed",
+      "window": "Calculator",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 5e50c829                                                   │\n│ Kumusta Boss! What can I do for you?                                         │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang Calculator.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "open_app",
+      "app": "TextEdit",
+      "prompt": "Can you open TextEdit?",
+      "status": "passed",
+      "window": "Open",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 938c8eec                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Nabuksan at na-verify ang TextEdit.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "check_mail",
+      "prompt": "i-check mo ang email ko",
+      "status": "passed",
+      "verification": "Read-only account/unread counts; no message bodies read or read flags changed.",
+      "observed": {
+        "accounts": 1,
+        "unread": 0
+      },
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 82a117c1                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Na-check ang Apple Mail: 0 unread email sa inbox.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "play_music",
+      "prompt": "magpatugtog ka ng musika",
+      "status": "passed",
+      "observed_state": "playing",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 3e3931d7                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Tumutugtog na ang Music; na-verify ang player state.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "download",
+      "prompt": "i-download mo ang http://127.0.0.1:54560/sample.txt sa \"/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-local-actions-o3c_imjc/downloaded.txt\"",
+      "status": "passed",
+      "file": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-local-actions-o3c_imjc/downloaded.txt",
+      "sha256": "52a759f7a2ab79463727bbf0c771a7f409a5f8d77a378d9583f4f904826decc7",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 1eb36dcc                                                   │\n│ Hey Boss, musta! Anong task natin today?                                     │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Na-download at na-verify ang 27 bytes: \n/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-local-actions-o3c_imjc/dow\nnloaded.txt\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "download_no_overwrite",
+      "status": "passed",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 12238e02                                                   │\n│ Hoy Boss! Ano'ng kailangan mo ngayon?                                        │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Hindi natapos ang action: The destination already exists; choose another \nfilename.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    },
+    {
+      "kind": "download_missing_source",
+      "status": "passed",
+      "transcript": "╭──────────────────────────────────────────────────────────────────────────────╮\n│ 🤖 KURT  v2.3.0 · 0491c51b                                                   │\n│ Kumusta Boss! What can I do for you?                                         │\n│                                                                              │\n│ Model: offline/local-smoke   Skill: none                                     │\n│                                                                              │\n│ Type your message to start · /help for commands · /exit to quit              │\n│ kurt config to personalize — theme, name, greeting                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nYou › Ibigay ang direct HTTP(S) download link at, kung kailangan, ang filename o save \nfolder.\nYou › 👋 Bye! K.U.R.T. signing off.\n"
+    }
+  ]
+}

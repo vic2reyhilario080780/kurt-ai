@@ -1,0 +1,26 @@
+{
+  "tested_at": "2026-11-10T10:22:29.259481+00:00",
+  "scope": "Individual live provider/CLI calls through real Kurt agent tools; not an autonomous five-service planning run.",
+  "status": "partial",
+  "results": [
+    {
+      "name": "claude",
+      "tested_at": "2026-11-10T10:21:55.994962+00:00",
+      "tool": "delegate_cli",
+      "installed": true,
+      "executable": "/Users/vic2rey/Downloads/kurt-ai/node_modules/.bin/claude",
+      "status": "passed",
+      "output": "KURT_CLAUDE_OK"
+    },
+    {
+      "name": "gemini",
+      "tested_at": "2026-11-10T10:21:59.239479+00:00",
+      "tool": "delegate_cli",
+      "installed": true,
+      "executable": "/Users/vic2rey/Downloads/kurt-ai/node_modules/.bin/gemini",
+      "workspace_trust": "Disposable synthetic Git repository; process-scoped, no saved trust changes.",
+      "status": "failed",
+      "output": "❌ Command timed out (30s)"
+    }
+  ]
+}

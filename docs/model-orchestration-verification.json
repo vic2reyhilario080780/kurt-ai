@@ -1,0 +1,52 @@
+{
+  "tested_at": "2026-11-10T10:20:25.790811+00:00",
+  "scope": "Individual live provider/CLI calls through real Kurt agent tools; not an autonomous five-service planning run.",
+  "status": "partial",
+  "results": [
+    {
+      "name": "openrouter",
+      "tested_at": "2026-11-10T10:20:16.713862+00:00",
+      "configured": true,
+      "tool": "call_model",
+      "model": "openai/gpt-oss-120b",
+      "status": "passed",
+      "output": "KURT_OPENROUTER_OK"
+    },
+    {
+      "name": "fal",
+      "tested_at": "2026-11-10T10:20:18.763431+00:00",
+      "configured": true,
+      "tool": "call_model",
+      "model": "fal-ai/flux/schnell",
+      "status": "failed",
+      "output": "❌ call_model failed: Client error '403 Forbidden' for url 'https://fal.run/fal-ai/flux/schnell'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403"
+    },
+    {
+      "name": "claude",
+      "tested_at": "2026-11-10T10:20:19.379348+00:00",
+      "tool": "delegate_cli",
+      "installed": true,
+      "executable": "/Users/vic2rey/Downloads/kurt-ai/node_modules/.bin/claude",
+      "status": "failed",
+      "output": "❌ Failed to run: name 'json' is not defined"
+    },
+    {
+      "name": "gemini",
+      "tested_at": "2026-11-10T10:20:19.699955+00:00",
+      "tool": "delegate_cli",
+      "installed": true,
+      "executable": "/Users/vic2rey/Downloads/kurt-ai/node_modules/.bin/gemini",
+      "status": "failed",
+      "output": "❌ Error:\nGemini CLI is not running in a trusted directory. To proceed, either use `--skip-trust`, set the `GEMINI_CLI_TRUST_WORKSPACE=true` environment variable, or trust this directory in interactive mode. For more details, see https://geminicli.com/docs/cli/trusted-folders/#headless-and-automated-environments"
+    },
+    {
+      "name": "codex",
+      "tested_at": "2026-11-10T10:20:20.412659+00:00",
+      "tool": "delegate_cli",
+      "installed": true,
+      "executable": "/Users/vic2rey/.nvm/versions/node/v22.23.3/bin/codex",
+      "status": "passed",
+      "output": "{\"status\": \"completed\", \"exit_code\": 0, \"stderr\": \"\", \"truncated\": false, \"backend\": \"codex\", \"mode\": \"read-only\", \"workspace\": \"/private/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-orchestration-aiovlqcp\", \"final_text\": \"KURT_CODEX_OK\", \"reported_files_changed\": [], \"events\": [{\"type\": \"thread.started\", \"item_type\": null, \"exit_code\": null}, {\"type\": \"turn.started\", \"item_type\": null, \"exit_code\": null}, {\"type\": \"item.completed\", \"item_type\": \"agent_message\", \"exit_code\": null}, {\"type\": \"turn.completed\", \"item_type\": null, \"exit_code\": null}], \"changes_verified\": false, \"hint\": \"Inspect the diff and check results. A timeout/output limit can leave partial edits; do not retry automatically.\"}"
+    }
+  ]
+}

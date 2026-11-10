@@ -10,6 +10,7 @@ from enum import Enum
 
 class TaskType(Enum):
     CHAT = "chat"
+    DESKTOP = "desktop"
     CODE = "code"
     IMAGE = "image"
     MUSIC = "music"
@@ -38,47 +39,54 @@ class TaskAnalysis:
 
 # Model routing table - libre muna, paid as fallback
 ROUTING_TABLE = {
+    TaskType.DESKTOP: {
+        "model": "openai/gpt-oss-120b",
+        "provider": "groq",
+        "reason": "Desktop control via Groq function tools and verified Peekaboo observations",
+        "fallback_model": "openai/gpt-oss-120b",
+        "fallback_provider": "openrouter",
+    },
     TaskType.CODE: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — mabilis sa code, libre pa!",
-        "fallback_model": "nvidia/nemotron-3.5-lightning:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.GAME: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — perfect for game development, libre!",
-        "fallback_model": "nvidia/nemotron-3.5-lightning:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.RESEARCH: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
-        "reason": "GPT-OSS-120B via Groq — libre, mabilis, 14,400 req/day!",
-        "fallback_model": "google/gemma-4-31b-it:free",
-        "fallback_provider": "openrouter",
+        "reason": "GPT-OSS-120B via Groq + live web search — libre, mabilis, 14,400 req/day!",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.MATH: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — magaling sa reasoning at math, libre!",
-        "fallback_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.WRITE: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — libre, magaling sa writing",
-        "fallback_model": "anthropic/claude-3.5-haiku",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.TRANSLATE: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — magaling sa multilingual, libre!",
-        "fallback_model": "google/gemma-4-31b-it:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.TRANSCRIBE: {
         "model": "whisper-large-v3",
@@ -111,37 +119,37 @@ ROUTING_TABLE = {
     TaskType.CHAT: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
-        "reason": "GPT-OSS-120B via Groq — libre, 14,400 req/day, sobrang bilis!",
-        "fallback_model": "google/gemma-4-31b-it:free",
-        "fallback_provider": "openrouter",
+        "reason": "GPT-OSS-120B via Groq + live web search — libre, 14,400 req/day, sobrang bilis!",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.DESIGN: {
-        "model": "claude-3-5-sonnet-20241022",
-        "provider": "anthropic",
-        "reason": "Claude Sonnet — pinaka-creative sa design tasks!",
-        "fallback_model": "openai/gpt-oss-120b",
+        "model": "openai/gpt-oss-120b",
+        "provider": "groq",
+        "reason": "GPT-OSS-120B via Groq — creative sa design tasks, libre!",
+        "fallback_model": "openai/gpt-oss-20b",
         "fallback_provider": "groq",
     },
     TaskType.ARTIFACT: {
-        "model": "claude-3-5-sonnet-20241022",
-        "provider": "anthropic",
-        "reason": "Claude Sonnet — best sa generating structured artifacts!",
-        "fallback_model": "deepseek/deepseek-coder",
-        "fallback_provider": "openrouter",
+        "model": "openai/gpt-oss-120b",
+        "provider": "groq",
+        "reason": "GPT-OSS-120B via Groq — best sa generating structured artifacts!",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.SCHEDULE: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — handling schedule queries, libre!",
-        "fallback_model": "google/gemma-4-31b-it:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
     TaskType.UNKNOWN: {
         "model": "openai/gpt-oss-120b",
         "provider": "groq",
         "reason": "GPT-OSS-120B via Groq — magaling sa general tasks, libre!",
-        "fallback_model": "google/gemma-4-31b-it:free",
-        "fallback_provider": "openrouter",
+        "fallback_model": "openai/gpt-oss-20b",
+        "fallback_provider": "groq",
     },
 }
 
@@ -216,6 +224,36 @@ TASK_KEYWORDS = {
 def classify_task(prompt: str) -> TaskType:
     """Nag-aanalyze ng prompt at nagre-return ng TaskType"""
     prompt_lower = prompt.lower()
+    from kurt.core.browser_intent import parse_browser_request
+    if parse_browser_request(prompt) is not None:
+        return TaskType.DESKTOP
+
+    # Compound requests for installed apps must keep the tool loop rather than
+    # falling into prose generation (or the old single-action intent handler).
+    from kurt.core.local_actions import installed_apps
+    apps = sorted(installed_apps(), key=len, reverse=True)
+    if apps and re.search(
+        r"\b(?:open|launch|activate|focus|buksan|i-open|i-focus)\s+"
+        r"(?:(?:mo|ang|yung|nga|please|the|my|aking)\s+)*"
+        r"(?:" + '|'.join(re.escape(app) for app in apps) + r")\b", prompt_lower, re.IGNORECASE
+    ):
+        return TaskType.DESKTOP
+    if re.search(r"\b(?:press|pindutin|i-press|scroll|i-scroll|click|i-click|hover)\b", prompt_lower) and re.search(
+        r"\b(?:window|browser|mouse|keyboard|screen|safari|chrome|edge|textedit)\b", prompt_lower
+    ):
+        return TaskType.DESKTOP
+
+    # Explicit desktop actions take priority over incidental words in a URL or
+    # page (e.g. control.html, 'message', 'code'). Hybrid text generation must
+    # not replace the tool-capable desktop route.
+    if re.search(
+        r"\b(?:open|launch|activate|focus|buksan|magbukas|mag-open|magopen|pakibukas|pa-open|i-open|iopen|i-focus)\s+"
+        r"(?:(?:mo|ka|ang|ng|yung|nga|naman|po|the|a|an|my|aking|iyong)\s+)*"
+        r"(?:safari|(?:google\s+)?chrome|(?:microsoft\s+)?edge|firefox|"
+        r"brave(?:\s+browser)?|opera|vivaldi|arc|zen(?:\s+browser)?|browser|finder|textedit)\b",
+        prompt_lower,
+    ):
+        return TaskType.DESKTOP
 
     scores = {task_type: 0 for task_type in TaskType}
 

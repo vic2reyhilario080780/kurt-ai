@@ -1,0 +1,66 @@
+{
+  "browser": "Safari",
+  "passed": true,
+  "window_title": "Kurt Input INPUT_2d245fb3 INPUT_OK",
+  "trace": [
+    {
+      "status": "failed",
+      "action": "open_url",
+      "focus_verified": false,
+      "url_verified": true,
+      "error": {
+        "mutation_dispatched": true,
+        "message": "Window focus was dispatched, but post-dispatch processing failed.",
+        "details": "Window focus verification failed",
+        "code": "INTERACTION_FAILED",
+        "retry_safe": false,
+        "hint": "Observe the target before retrying; replaying may repeat the completed action."
+      },
+      "window_title": "Kurt Input INPUT_2d245fb3",
+      "page_result": []
+    },
+    {
+      "status": "verified",
+      "action": "fill",
+      "dispatch_status": "failed",
+      "note": "Text sent at most once; use observed value before deciding on another action.",
+      "window_title": "Kurt Input INPUT_2d245fb3",
+      "page_result": []
+    },
+    {
+      "status": "observed_after_action",
+      "action": "press",
+      "dispatch_status": "completed",
+      "error": "",
+      "note": "Sent once. Verify the requested effect; dispatch alone is not success.",
+      "window_title": "Kurt Input INPUT_2d245fb3 WAITING",
+      "page_result": [
+        "KEYBOARD:INPUT_2d245fb3 HOVER:false SCROLL:false"
+      ]
+    },
+    {
+      "status": "observed_after_action",
+      "action": "move",
+      "dispatch_status": "completed",
+      "error": "",
+      "note": "Pointer moved once to the observed element; inspect any hover effect before continuing.",
+      "window_title": "Kurt Input INPUT_2d245fb3 WAITING",
+      "page_result": [
+        "KEYBOARD:INPUT_2d245fb3 HOVER:true SCROLL:false"
+      ]
+    },
+    {
+      "status": "observed_after_action",
+      "action": "scroll",
+      "dispatch_status": "completed",
+      "error": "",
+      "note": "Sent once. Verify the requested effect; dispatch alone is not success.",
+      "window_title": "Kurt Input INPUT_2d245fb3 INPUT_OK",
+      "page_result": [
+        "KEYBOARD:INPUT_2d245fb3 HOVER:true SCROLL:true"
+      ]
+    }
+  ],
+  "fixture": "/var/folders/sz/glb3_pbn5blbwqgzpnkl0dv80000gn/T/kurt-input-8zlv1_gr/input.html",
+  "mode": "direct tools"
+}

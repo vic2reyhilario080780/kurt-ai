@@ -54,7 +54,8 @@ class ModelRouter:
         self,
         model: str,
         messages: list,
-        stream: bool = True
+        stream: bool = True,
+        native_tools: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
         """Call any model via OpenRouter"""
         headers = {
@@ -63,6 +64,12 @@ class ModelRouter:
             "X-Title": "KURT",
             "Content-Type": "application/json",
         }
+
+        if native_tools:
+            async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
+                                                    "https://openrouter.ai/api/v1/chat/completions", headers):
+                yield chunk
+            return
 
         payload = {
             "model": model,
@@ -103,6 +110,12 @@ class ModelRouter:
             "Authorization": f"Bearer {self.groq_key}",
             "Content-Type": "application/json",
         }
+        async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
+                                                "https://api.groq.com/openai/v1/chat/completions", headers):
+            yield chunk
+
+    async def _call_tool_chat(self, model, messages, stream, native_tools, endpoint, headers):
+        """Shared SSE function-call transport for compatible model providers."""
 
         payload = {
             "model": model,
@@ -122,7 +135,7 @@ class ModelRouter:
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
-                "https://api.groq.com/openai/v1/chat/completions",
+                endpoint,
                 headers=headers,
                 json=payload,
             ) as response:
@@ -145,7 +158,7 @@ class ModelRouter:
                         if "error" in chunk:
                             err = chunk["error"]
                             msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                            raise RuntimeError(f"Groq API error: {msg}")
+                            raise RuntimeError(f"Model provider API error: {msg}")
                         try:
                             delta = chunk["choices"][0]["delta"]
                             if native_tools:
@@ -167,13 +180,13 @@ class ModelRouter:
             call = next(iter(calls.values()))
             allowed_names = {t["function"]["name"] for t in native_tools}
             if call["name"] not in allowed_names:
-                raise RuntimeError("Groq returned an undeclared native tool.")
+                raise RuntimeError("Model provider returned an undeclared native tool.")
             try:
                 arguments = json.loads(call["arguments"])
                 if not isinstance(arguments, dict):
                     raise ValueError("Expected object arguments.")
             except ValueError as exc:
-                raise RuntimeError("Groq returned invalid native tool arguments.") from exc
+                raise RuntimeError("Model provider returned invalid native tool arguments.") from exc
             yield "```tool\n" + json.dumps({"tool": call["name"], "params": arguments, "call_id": call["id"]}) + "\n```"
             yielded_any = True
         elif native_tools and collected_text:
@@ -223,7 +236,14 @@ class ModelRouter:
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                try:
+                    detail = response.json().get('detail', 'Request rejected')
+                except (ValueError, AttributeError):
+                    detail = 'Request rejected'
+                raise RuntimeError(f"fal.ai HTTP {response.status_code}: {redact(str(detail))[:1000]}") from exc
             data = response.json()
             images = data.get("images", [])
             if not images:
@@ -397,7 +417,7 @@ class ModelRouter:
                 model = "llama3"
 
         if provider == "openrouter":
-            async for chunk in self.call_openrouter(model, messages, stream):
+            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools):
                 yield chunk
         elif provider == "anthropic":
             # Try direct Anthropic API, fallback to OpenRouter
@@ -407,7 +427,7 @@ class ModelRouter:
             elif self._has_key("openrouter"):
                 # Route Claude via OpenRouter
                 or_model = model if "/" in model else f"anthropic/{model}"
-                async for chunk in self.call_openrouter(or_model, messages, stream):
+                async for chunk in self.call_openrouter(or_model, messages, stream, native_tools=native_tools):
                     yield chunk
             else:
                 raise RuntimeError("No Anthropic API key and no OpenRouter key — cannot call Claude!")
@@ -435,5 +455,5 @@ class ModelRouter:
                 yield chunk
         else:
             # Default fallback: openrouter
-            async for chunk in self.call_openrouter(model, messages, stream):
+            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools):
                 yield chunk
