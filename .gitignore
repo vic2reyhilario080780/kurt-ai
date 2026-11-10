@@ -58,3 +58,6 @@ build/
 *.kurt-token
 control.db
 control.db-*
+
+# graphify knowledge-graph output — generated, regenerate with `/graphify .`
+graphify-out/
