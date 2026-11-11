@@ -114,6 +114,27 @@ def _best_vision_model() -> str:
     return available[0] if available else DEFAULT_VISION_MODEL
 
 
+def _vision_call(image_b64: str, prompt: str, model: Optional[str] = None) -> tuple[str, str]:
+    """Shared entry point every mode function below calls instead of
+    `_ollama_vision` directly: try local Ollama first, and if it isn't
+    running (or fails), fall back to Claude — still gated behind
+    KURT_ALLOW_CLOUD_VISION=1 inside `describe_screen_claude`, so a user
+    who hasn't opted into cloud vision gets the same clear refusal as
+    before, just one level deeper instead of an opaque local-only failure.
+    Returns (response_text, model_actually_used)."""
+    local_error = "Ollama is not running locally."
+    if _ollama_available():
+        chosen = model or _best_vision_model()
+        try:
+            return _ollama_vision(image_b64, prompt, chosen), chosen
+        except Exception as exc:
+            local_error = str(exc)
+    cloud = describe_screen_claude(image_b64, prompt)
+    if cloud.success:
+        return cloud.description, cloud.model_used
+    raise RuntimeError(f"Local vision unavailable ({local_error}); cloud fallback: {cloud.error}")
+
+
 # ─────────────────────────────────────────────────────────────
 # Core vision functions
 # ─────────────────────────────────────────────────────────────
@@ -123,7 +144,6 @@ def describe_screen(image_b64: str, model: Optional[str] = None) -> VisionResult
     Get a general description of what's on screen.
     Good for: understanding current context before acting.
     """
-    model = model or _best_vision_model()
     prompt = (
         "Describe what you see on this computer screen. "
         "Include: what application is open, what content is visible, "
@@ -131,12 +151,12 @@ def describe_screen(image_b64: str, model: Optional[str] = None) -> VisionResult
         "Be specific and concise."
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
         return VisionResult(
             success=True,
             description=response,
             raw=response,
-            model_used=model,
+            model_used=used_model,
         )
     except Exception as e:
         return VisionResult(success=False, error=str(e))
@@ -147,7 +167,6 @@ def find_element(image_b64: str, element_description: str, model: Optional[str] 
     Find a UI element on screen and get its approximate coordinates.
     element_description: e.g. "New Playlist button", "search bar", "close button"
     """
-    model = model or _best_vision_model()
     prompt = (
         f"I need to find: '{element_description}' on this screen.\n"
         "If you can see it, tell me:\n"
@@ -159,7 +178,7 @@ def find_element(image_b64: str, element_description: str, model: Optional[str] 
         "Format: FOUND: yes/no | POSITION: <position> | COORDS: x,y (if estimable) | NOTES: <details>"
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
 
         # Parse structured response
         elements = []
@@ -181,7 +200,7 @@ def find_element(image_b64: str, element_description: str, model: Optional[str] 
             description=response,
             elements=elements,
             raw=response,
-            model_used=model,
+            model_used=used_model,
         )
     except Exception as e:
         return VisionResult(success=False, error=str(e))
@@ -192,19 +211,18 @@ def read_text_on_screen(image_b64: str, region_hint: str = "", model: Optional[s
     Read and extract text visible on screen.
     region_hint: optional hint like "top bar", "notification area", "dialog box"
     """
-    model = model or _best_vision_model()
     region_part = f" Focus on the {region_hint}." if region_hint else ""
     prompt = (
         f"Read and extract all visible text from this screen.{region_part} "
         "List the text exactly as it appears, maintaining structure where possible."
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
         return VisionResult(
             success=True,
             description=response,
             raw=response,
-            model_used=model,
+            model_used=used_model,
         )
     except Exception as e:
         return VisionResult(success=False, error=str(e))
@@ -215,7 +233,6 @@ def understand_context(image_b64: str, task: str, model: Optional[str] = None) -
     Understand screen context relative to a task Kurt is trying to perform.
     task: what Kurt is trying to do, e.g. "create a Spotify playlist"
     """
-    model = model or _best_vision_model()
     prompt = (
         f"I'm trying to: {task}\n\n"
         "Looking at this screen:\n"
@@ -226,12 +243,12 @@ def understand_context(image_b64: str, task: str, model: Optional[str] = None) -
         "Be direct and actionable. Format: STATE: <state> | NEXT_ACTION: <action> | BLOCKING: yes/no | DETAILS: <details>"
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
         return VisionResult(
             success=True,
             description=response,
             raw=response,
-            model_used=model,
+            model_used=used_model,
         )
     except Exception as e:
         return VisionResult(success=False, error=str(e))
@@ -242,7 +259,6 @@ def verify_action_done(image_b64: str, expected_result: str, model: Optional[str
     After performing an action, verify it worked by looking at the screen.
     expected_result: e.g. "Spotify playlist was created", "browser navigated to google.com"
     """
-    model = model or _best_vision_model()
     prompt = (
         f"I just performed an action. The expected result was: '{expected_result}'\n"
         "Looking at this screen:\n"
@@ -252,14 +268,14 @@ def verify_action_done(image_b64: str, expected_result: str, model: Optional[str
         "Format: SUCCESS: yes/no/partial | EVIDENCE: <what you see> | ISSUE: <if any>"
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
         success_indicators = ["success: yes", "succeeded", "completed", "created", "done"]
         verified = any(ind in response.lower() for ind in success_indicators)
         return VisionResult(
             success=True,
             description=response,
             raw=response,
-            model_used=model,
+            model_used=used_model,
             elements=[{"verified": verified}],
         )
     except Exception as e:
@@ -271,7 +287,6 @@ def detect_ui_state(image_b64: str, model: Optional[str] = None) -> VisionResult
     Detect the current UI state — useful for decision making in loops.
     Returns structured state info.
     """
-    model = model or _best_vision_model()
     prompt = (
         "Analyze this screen and return a structured state report:\n"
         "APP: <name of main application visible>\n"
@@ -282,7 +297,7 @@ def detect_ui_state(image_b64: str, model: Optional[str] = None) -> VisionResult
         "Be brief. Each field on its own line."
     )
     try:
-        response = _ollama_vision(image_b64, prompt, model)
+        response, used_model = _vision_call(image_b64, prompt, model)
 
         # Parse key fields
         state = {}
@@ -296,7 +311,7 @@ def detect_ui_state(image_b64: str, model: Optional[str] = None) -> VisionResult
             description=response,
             elements=[state],
             raw=response,
-            model_used=model,
+            model_used=used_model,
         )
     except Exception as e:
         return VisionResult(success=False, error=str(e))
@@ -313,11 +328,10 @@ def answer_about_image(image_b64: str, question: str, model: Optional[str] = Non
     Answer an arbitrary free-form question about an existing image (not a live
     screen capture) — e.g. a saved screenshot, a photo, a downloaded picture.
     """
-    model = model or _best_vision_model()
     prompt = question.strip() or "Describe what you see in this image."
     try:
-        response = _ollama_vision(image_b64, prompt, model)
-        return VisionResult(success=True, description=response, raw=response, model_used=model)
+        response, used_model = _vision_call(image_b64, prompt, model)
+        return VisionResult(success=True, description=response, raw=response, model_used=used_model)
     except Exception as e:
         return VisionResult(success=False, error=str(e))
 

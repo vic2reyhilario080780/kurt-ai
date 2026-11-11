@@ -140,6 +140,16 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn('disabled', result.error)
 
+    def test_mode_functions_attempt_cloud_fallback_but_stay_gated_by_default(self):
+        from kurt.core.vision import answer_about_image
+        with patch('kurt.core.vision._ollama_available', return_value=False), \
+             patch.dict(os.environ, {}, clear=True):
+            result = answer_about_image('synthetic-image', 'What is this?')
+        self.assertFalse(result.success)
+        # Reaches the cloud-gate message (fallback was attempted), not a
+        # bare "Ollama not running" dead end.
+        self.assertIn('Cloud vision is disabled', result.error)
+
     def test_background_cannot_use_cloud_even_when_opted_in(self):
         from kurt.core.vision import smart_vision
         with patch('kurt.core.vision._ollama_available', return_value=False), patch('kurt.core.vision.describe_screen_claude', side_effect=AssertionError('must not send screenshot')):

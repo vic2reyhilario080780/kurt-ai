@@ -63,6 +63,7 @@ from kurt.skills.manager import list_skills, install_skill, remove_skill, \
     list_books_skills, list_nonprofit_skills
 from kurt.plugins.manager import list_plugins, enable_plugin, disable_plugin
 from kurt.core.cli_orchestrator import handle_slash, SLASH_COMMANDS, close_browser_session
+from kurt.core.command_palette import read_chat_input
 from kurt.core.projects import (
     list_projects, add_project, remove_project, note_project,
     get_active_project_contexts,
@@ -646,7 +647,7 @@ def chat(
         # ── Input ────────────────────────────────────────────────────
         if not _from_voice:
             try:
-                prompt = console.input(f"[bold cyan]You[/bold cyan] [dim]›[/dim] ").strip()
+                prompt = read_chat_input(console).strip()
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[dim]👋 Bye![/dim]")
                 if _proactive:
@@ -708,15 +709,21 @@ def chat(
         # discovery/actions are tools; no prompt keyword/regex chooses a handler.
         analysis = conversation_analysis()
         if current_model != "auto":
-            analysis.model = current_model
-            # Auto-detect provider from model name
-            if "/" not in current_model:
-                # No slash = likely a Groq model (e.g. llama-3.3-70b-versatile)
-                analysis.provider = "groq"
-            elif current_model.startswith("anthropic/") or current_model.startswith("claude-"):
-                analysis.provider = "anthropic"
+            if "|" in current_model:
+                # Explicit "<id>|<provider>" tag from /model <id> <provider> —
+                # fal.ai and OpenRouter ids can look identical, so this skips
+                # the guess entirely when the provider was stated outright.
+                analysis.model, analysis.provider = current_model.rsplit("|", 1)
             else:
-                analysis.provider = "openrouter"
+                analysis.model = current_model
+                # Auto-detect provider from model name
+                if "/" not in current_model:
+                    # No slash = likely a Groq model (e.g. llama-3.3-70b-versatile)
+                    analysis.provider = "groq"
+                elif current_model.startswith("anthropic/") or current_model.startswith("claude-"):
+                    analysis.provider = "anthropic"
+                else:
+                    analysis.provider = "openrouter"
 
         messages = []
 

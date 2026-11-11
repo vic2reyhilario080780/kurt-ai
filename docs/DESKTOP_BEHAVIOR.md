@@ -15,7 +15,7 @@ In `kurt chat`, ask for the outcome in ordinary Tagalog or English. For example:
 > ang Return, at tingnan kung lumabas ang hinahanap ko.
 
 Simple browser/app opening still executes locally without model credits.
-Compound desktop tasks use the model loop, bounded to 24 tool calls. Each input
+Compound desktop tasks use the model loop, bounded to 100 tool calls. Each input
 uses a fresh non-dialog observation and an exact app/window. Available structured
 actions are app/URL opening, observation, filling a uniquely labelled input,
 clicking or moving the pointer to a uniquely labelled element, one keyboard

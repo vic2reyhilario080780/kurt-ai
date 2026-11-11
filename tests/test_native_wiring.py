@@ -81,6 +81,24 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(text, "Hello! How can I help?")
         self.assertEqual(len(replies.calls), 1)
 
+    def test_declared_goal_suggestion_is_appended_to_the_final_answer(self):
+        replies = Replies([
+            request("set_task_goal", objective="Answer a question", goal_type="workflow",
+                     target_app="", suggestion="Subukan din hanapin ang kaugnay na paksa."),
+            "Narito ang sagot sa tanong mo.",
+        ])
+        text = self.collect(NativeToolRouter(replies), [{"role": "user", "content": "tanong"}])
+        self.assertEqual(text, "Narito ang sagot sa tanong mo.\n\nPuwedeng susunod: "
+                               "Subukan din hanapin ang kaugnay na paksa.")
+
+    def test_no_suggestion_appended_when_goal_omits_it(self):
+        replies = Replies([
+            request("set_task_goal", objective="Answer a question", goal_type="workflow", target_app=""),
+            "Sagot dito.",
+        ])
+        text = self.collect(NativeToolRouter(replies), [{"role": "user", "content": "tanong"}])
+        self.assertEqual(text, "Sagot dito.")
+
     def test_json_answers_are_preserved_when_not_tool_requests(self):
         text = self.collect(NativeToolRouter(Replies(['```json\n{"total":1160}\n```'])), self.messages())
         self.assertEqual(text, '```json\n{"total":1160}\n```')

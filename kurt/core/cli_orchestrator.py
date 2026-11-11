@@ -89,12 +89,13 @@ SLASH_COMMANDS = {
     "/web":       "Fetch a page or search the web  e.g. /web https://example.com",
     "/browser":   "Control a real (Playwright) browser  e.g. /browser open https://example.com",
     "/computer":  "Control the Mac desktop  e.g. /computer screenshot | analyze [image_path] | open <folder>",
+    "/zip":       "Export a folder to .zip or import a .zip into a folder  e.g. /zip export ~/Projects/myapp",
 }
 
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config"]),
     ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
-    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/doctor", "/grep", "/find", "/tasks"]),
+    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -261,6 +262,18 @@ def handle_slash(
                     "  Then: /model <id-from-that-list>"
                 ),
                 continue_chat=True,
+            )
+        parts = args.split()
+        # "/model <id> <provider>" — explicit provider tag, needed because fal.ai
+        # and OpenRouter model ids can look identical (both "vendor/name" style)
+        # and auto-detection by id shape alone would guess wrong for fal models.
+        if len(parts) == 2 and parts[1] in ("openrouter", "fal", "groq", "anthropic", "replicate", "kling", "suno", "openai"):
+            model_id, explicit_provider = parts
+            return SlashResult(
+                handled=True,
+                output=f"✅ Switched to model: {model_id}  [{explicit_provider}]",
+                continue_chat=True,
+                model_override=f"{model_id}|{explicit_provider}",
             )
         return SlashResult(
             handled=True,
@@ -530,6 +543,15 @@ def handle_slash(
                 output = f"MCP: {exc}"
             return SlashResult(handled=True, output=output, continue_chat=True)
 
+        if sub_cmd == "connect-preset":
+            from kurt.core.mcp_client import get_preset, add_connection
+            conn = get_preset(sub_args)
+            if not conn:
+                return SlashResult(handled=True, output=f"❌ Unknown preset: {sub_args}", continue_chat=True)
+            conn.name = sub_args
+            result = add_connection(conn)
+            return SlashResult(handled=True, output=result, continue_chat=True)
+
         if sub_cmd == "list":
             from kurt.core.mcp_client import load_registry
             registry = load_registry()
@@ -650,6 +672,40 @@ def handle_slash(
         return SlashResult(
             handled=True,
             output="Usage: /computer screenshot | analyze [image_path] [question] | type <text> | click <x> <y> | open <folder>",
+            continue_chat=True,
+        )
+
+    # ── /zip (export/import a project folder) ────────────────────────
+    if cmd == "/zip":
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else ""
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+
+        if sub_cmd == "export":
+            parts = sub_args.split()
+            if not parts:
+                return SlashResult(handled=True, output="Usage: /zip export <folder> [output.zip]", continue_chat=True)
+            from kurt.core.archive import export_folder
+            try:
+                output_path = export_folder(parts[0], parts[1] if len(parts) > 1 else None)
+                return SlashResult(handled=True, output=f"✅ Exported: {output_path}", continue_chat=True)
+            except (ValueError, OSError) as exc:
+                return SlashResult(handled=True, output=f"❌ Export failed: {exc}", continue_chat=True)
+
+        if sub_cmd == "import":
+            parts = sub_args.split()
+            if not parts:
+                return SlashResult(handled=True, output="Usage: /zip import <file.zip> [destination_folder]", continue_chat=True)
+            from kurt.core.archive import import_zip
+            try:
+                output_dir = import_zip(parts[0], parts[1] if len(parts) > 1 else None)
+                return SlashResult(handled=True, output=f"✅ Imported to: {output_dir}", continue_chat=True)
+            except (ValueError, OSError) as exc:
+                return SlashResult(handled=True, output=f"❌ Import failed: {exc}", continue_chat=True)
+
+        return SlashResult(
+            handled=True,
+            output="Usage: /zip export <folder> [output.zip]  |  /zip import <file.zip> [destination_folder]",
             continue_chat=True,
         )
 

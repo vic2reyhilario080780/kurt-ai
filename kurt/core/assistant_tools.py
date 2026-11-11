@@ -32,6 +32,21 @@ ASSISTANT_TOOLS = [
     spec('scroll_window', 'Scroll an observed app/window, then inspect the returned state.',
          {**WINDOW, 'direction': {'type': 'string', 'enum': ['up', 'down', 'left', 'right']},
           'amount': {'type': 'integer', 'minimum': 1, 'maximum': 20}}, ['app', 'direction']),
+    spec('analyze_screen', 'See the current screen (or an existing image file) using vision. Use when '
+         'observe_application repeatedly fails to read a target app\'s accessibility tree, or to inspect a '
+         'photo/screenshot the user referenced. mode=find also estimates pixel coordinates for a later '
+         'click_at_coordinates call.',
+         {'mode': {'type': 'string', 'enum': ['describe', 'ocr', 'find', 'context', 'answer']},
+          'path': {'type': 'string', 'description': 'Path to an existing image file; omit to capture the current screen.'},
+          'query': STRING},
+         ['mode']),
+    spec('click_at_coordinates', 'LAST-RESORT mouse click by raw pixel position when observe_application/'
+         'click_element repeatedly fail for the same app. Use coordinates estimated by analyze_screen '
+         '(mode=find) on a current screenshot of that app — never guess coordinates blindly. Brings the '
+         'named app forward first; does not itself verify the click hit the intended control — inspect the '
+         'result with analyze_screen or observe_application afterward.',
+         {**APP, 'x': {'type': 'integer', 'minimum': 0}, 'y': {'type': 'integer', 'minimum': 0}},
+         ['app', 'x', 'y']),
     spec('check_email', 'Read Apple Mail account/unread counts. Does not read email bodies or send messages.', {}),
     spec('play_library_music', 'Play available Music library audio and verify actual playback. Does not search for a named song.', {}),
     spec('pause_library_music', 'Pause Music and verify playback state.', {}),
@@ -43,7 +58,8 @@ ASSISTANT_TOOLS = [
 ASSISTANT_NAMES = {tool['name'] for tool in ASSISTANT_TOOLS}
 DESKTOP_NAMES = ASSISTANT_NAMES - {'download_url', 'check_email', 'play_library_music', 'pause_library_music', 'generate_media'}
 ACTION_NAMES = {'open_application', 'open_browser_url', 'fill_field', 'click_element', 'move_pointer',
-                'press_key', 'scroll_window', 'play_library_music', 'pause_library_music', 'download_url', 'generate_media'}
+                'press_key', 'scroll_window', 'play_library_music', 'pause_library_music', 'download_url',
+                'generate_media', 'click_at_coordinates'}
 
 
 def invoke_assistant(name, params):
@@ -92,6 +108,53 @@ def invoke_assistant(name, params):
     if name in actions:
         from .desktop_actions import desktop_action
         return desktop_action(actions[name], **params)
+    if name == 'analyze_screen':
+        from pathlib import Path
+        from . import vision
+        mode = params.get('mode', 'describe')
+        query = params.get('query', '')
+        path = (params.get('path') or '').strip()
+        if path:
+            img_file = Path(path).expanduser()
+            if not img_file.is_file():
+                return {'status': 'error', 'reason': f'Image file not found: {path}'}
+            try:
+                img_b64 = vision.load_image_b64(str(img_file))
+            except OSError as e:
+                return {'status': 'error', 'reason': f'Could not read image file: {e}'}
+        else:
+            from .computer_use import screenshot as _shot
+            shot = _shot()
+            if not shot.success:
+                return {'status': 'error', 'reason': f'Screenshot failed: {shot.message}'}
+            img_b64 = shot.data.get('image_b64', '')
+        if mode == 'ocr':
+            result = vision.read_text_on_screen(img_b64, region_hint=query)
+        elif mode == 'find':
+            result = vision.find_element(img_b64, element_description=query or 'button')
+        elif mode == 'context':
+            result = vision.understand_context(img_b64, task=query or 'current task')
+        elif mode == 'answer' or query:
+            result = vision.answer_about_image(img_b64, query)
+        else:
+            result = vision.describe_screen(img_b64)
+        if not result.success:
+            return {'status': 'error', 'reason': result.error}
+        return {'status': 'completed', 'description': result.description,
+                'model_used': result.model_used, 'elements': result.elements}
+    if name == 'click_at_coordinates':
+        from . import computer_use
+        x, y = int(params['x']), int(params['y'])
+        width, height = computer_use.get_screen_size()
+        if not (0 <= x < width and 0 <= y < height):
+            raise ValueError(f'Coordinates ({x},{y}) are outside the screen bounds ({width}x{height}).')
+        focus = computer_use.focus_window(params['app'])
+        clicked = computer_use.click(x, y)
+        return {'status': 'dispatched' if clicked.success else 'error',
+                'focus_verified': focus.success,
+                'reason': None if clicked.success else clicked.message,
+                'note': 'Sent once at a raw pixel position — not AX-verified. Use analyze_screen or '
+                        'observe_application next to confirm the intended effect before continuing.'}
     from .local_actions import LocalRequest, execute_local_request
     local = {'check_email': 'check_mail', 'play_library_music': 'play_music',
              'pause_library_music': 'pause_music', 'download_url': 'download'}
@@ -113,6 +176,13 @@ interaction use observe_application, then the dedicated fill_field/click_element
 press_key/move_pointer/scroll_window tools with their REQUIRED arguments.
 Use open_browser_url for navigation. Use generate_media for new media creation;
 use playback tools for existing music. Do not confuse these goals.
+If observe_application fails or times out more than once in a row for the same
+app/window, stop repeating it: call analyze_screen (mode=find for a specific
+control, otherwise describe/context) to see the screen visually instead. Only
+if analyze_screen still cannot be acted on through fill_field/click_element,
+use click_at_coordinates with the coordinates analyze_screen estimated — never
+with guessed coordinates — then re-observe or re-analyze to confirm the effect;
+do not declare a new set_task_goal just because observation failed.
 Plan a small next step, execute it, inspect the actual result, then choose the
 next step. Continue until the requested final state is verified. A launch receipt
 proves only app activation, not document creation, typing or the whole goal.

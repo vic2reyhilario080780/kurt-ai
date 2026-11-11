@@ -319,7 +319,7 @@ def function_history(messages, tools):
 class NativeToolRouter:
     """Stream normal text; capture native tool requests and feed their results back."""
 
-    def __init__(self, router, max_tools=24, on_tool=None, on_status=None):
+    def __init__(self, router, max_tools=100, on_tool=None, on_status=None):
         self.router = router
         self.max_tools = max_tools
         self.on_tool = on_tool
@@ -443,6 +443,8 @@ class NativeToolRouter:
                     yield buffer
                     buffer = ""
             if is_text:
+                if goal and goal.get('suggestion'):
+                    yield '\n\nPuwedeng susunod: ' + goal['suggestion']
                 return
             request = parse_request(buffer)
             if request is None:

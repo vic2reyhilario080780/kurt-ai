@@ -32,7 +32,7 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 ## Behavior ni Kurt — permanenteng gabay
 
 - Sa ordinary chat, unawain ang goal at conversation context gamit ang AI. Huwag ibalik ang keyword/regex matching bilang kailangang gate para makagamit ng app o tools; dapat gumana ang bagong paraphrase at implicit goal kahit walang app name o “open.”
-- Mag-discover ng available apps/tools, ideklara ang buong goal at completion condition, saka mag-initiate ng kinakailangang actions. Gamitin ang loop na **understand → plan → act → observe → adjust**, hindi fixed na bilang ng response layers. Ang kasalukuyang budget ay hanggang 24 tool calls bawat task.
+- Mag-discover ng available apps/tools, ideklara ang buong goal at completion condition, saka mag-initiate ng kinakailangang actions. Gamitin ang loop na **understand → plan → act → observe → adjust**, hindi fixed na bilang ng response layers. Ang kasalukuyang budget ay hanggang 100 tool calls bawat task.
 - Para sa app-only goal, huminto kapag verified na ang eksaktong foreground process. Huwag magdagdag ng clicks, bagong dokumento o pagbabago sa content para lang magpakitang kumikilos. Sa workflow, ituloy ang mga kinakailangang hakbang hanggang ma-observe ang requested result o may tunay na blocker.
 - Magtanong ng isang focused question kung mahalagang detalye ang kulang. Maaaring magmungkahi ng isang kapaki-pakinabang na susunod na hakbang, pero ang suggestion ay hindi pahintulot na gawin ito. Manatili sa goal na ibinigay ng user.
 - Ibase ang success sa actual tool receipts at observed effects. Huwag mag-claim ng document readiness, typing, saving o buong task completion dahil lang nabuksan ang app. Obserbahan muna ang indeterminate action bago mag-adjust; huwag basta ulitin ito.
@@ -68,6 +68,21 @@ module.
 ## Log
 
 <!-- Bagong entries dito, pinakabago sa pinakataas. -->
+
+## 2026-11-11 — Vision/coordinate-click fallback para sa AX-tree failures (Claude Code)
+- Ano: Idinagdag ang `analyze_screen` at `click_at_coordinates` bilang bagong tools na kayang gamitin ni Kurt mismo sa autonomous chat loop (`kurt/core/assistant_tools.py`) — dati, reachable lang ang vision analysis via manual `/computer analyze` o sa `/subagent` loop; walang access dito ang ordinary chat. `click_at_coordinates` ay totoong raw pixel mouse click (reuse ng existing `computer_use.py`), naka-gate sa `set_task_goal` at may screen-bounds check.
+- Ano: Binago ang `ASSISTANT_POLICY` — kapag sunod-sunod na nabigo ang `observe_application` (accessibility-tree reading) sa parehong app/window, dapat lumipat sa `analyze_screen` muna (hal. mode=find para sa coordinates), saka sa `click_at_coordinates` bilang huling resort — hindi na dapat mag-re-declare ng bagong `set_task_goal` lang dahil nabigo ang observation.
+- Ano: Inayos ang `kurt/core/vision.py` (shared `_vision_call()` helper) para automatic na mag-fallback sa Claude API (`KURT_ALLOW_CLOUD_VISION=1`) kapag walang local Ollama+llava — dati, palaging nabibigo ang vision kung walang Ollama kahit may existing cloud-fallback function (`describe_screen_claude`) na hindi pala ginagamit ng mode functions (describe/ocr/find/context/answer).
+- Ano: Itinaas ang `NativeToolRouter.max_tools` mula 24 papuntang 100 (shared tool-call budget ng web search/computer use/app navigation sa chat). Pinalawak ang `set_task_goal`'s `suggestion` field para lumabas pagkatapos ng KAHIT ANONG natapos na task, hindi lang app-foreground goals.
+- Bakit: Totoong na-log na pagkabigo nang hiningi ng user na patugtugin ang isang Lady Gaga album — naubos ang buong tool-call budget sa paulit-ulit na AX-tree observation failure (Music.app, mahina ang accessibility support) dahil walang Plan B si Kurt: walang vision, walang coordinate-click access sa autonomous loop, at nag-re-reset ng goal 3x imbes na lumipat ng approach.
+- Susunod: Hindi pa na-verify sa totoong `kurt chat` session laban sa parehong Lady Gaga/music-app scenario — manual verification lang gamit ang mocks (10 bagong tests, `tests/test_vision_fallback_actions.py`).
+
+## 2026-11-11 — Interactive `/` command palette sa chat (Claude Code)
+- Ano: Bagong `/` command palette gamit ang `prompt_toolkit` (`kurt/core/command_palette.py`) — ↑↓←→ navigation, nested dropdowns para sa `/skills` (buong native catalog), `/mcp` (connected servers + 6 presets + buong 58,857-entry public catalog), `/agents`/`/plugins` (buong 10,000 bawat isa), `/model` (routing-table defaults + buong 400+ OpenRouter + 1,400+ fal.ai kung naka-configure ang `FAL_API_KEY`), at `/config` (theme/name/icon/language/aimode/projects/setup/reset). `?` para sa flat show-all, Esc para bumalik ng isang antas (o cancel sa root), Tab para diretso sa home.
+- Ano: Bagong `/mcp connect-preset <name>` at `/zip export|import <folder>` slash commands (`kurt/core/cli_orchestrator.py`, bagong `kurt/core/archive.py` na may zip-slip path-traversal protection). Fix sa isang tunay na ambiguity bug: pareho ang "shape" ng fal.ai at OpenRouter model IDs (`vendor/name`), kaya idinagdag ang explicit na `/model <id> fal` tag (`id|provider` encoding sa `kurt/main.py`) imbes na manghula base sa pangalan.
+- Ano: Falls back sa plain `console.input()` kapag hindi tunay/interactive na terminal (piped input, CliRunner tests, CI) — kinakailangan ito dahil hindi makaka-basa si `prompt_toolkit` sa simulated stdin.
+- Bakit: Gusto ng user ng Claude-Code-style na command palette (keyboard navigation + nested menus, walang white background) imbes na puro typing ng buong slash commands.
+- Validation: 245 total tests passed (dating 221 bago ang session na ito), kasama ang mga bagong test para sa palette data providers, model-provider tagging, zip export/import, at MCP preset-connect.
 
 ## 2026-11-10 — Semantic chat goals at observed workflow execution (Codex)
 - Ano: Ordinary chat always reaches a tool-capable conversational planner; removed keyword intent execution, regex web triggers and prompt-word-dependent tool gating. AI discovers apps and declares the full goal before acting through required-field tools.

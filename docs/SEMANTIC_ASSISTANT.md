@@ -11,7 +11,7 @@ context, discovers installed apps, and chooses actions. It declares the whole
 goal through `set_task_goal` before a semantic action can execute. The executor
 validates required arguments and returns actual local evidence. There is no
 fixed number of response layers: the model can observe, act and adjust within a
-24-tool-call budget. Questions can receive an answer without any app action.
+100-tool-call budget. Questions can receive an answer without any app action.
 
 ```mermaid
 flowchart TD
