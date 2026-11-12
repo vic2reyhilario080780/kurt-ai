@@ -337,6 +337,21 @@ def _current_items(state: _PaletteState, query: str) -> list[dict]:
     return []
 
 
+def _personalized_highlight_style() -> str:
+    """Plain text (no color, no background block) until the user has
+    actually personalized Kurt via `kurt setting` — persona.json existing on
+    disk is that signal. Once personalized, the active tab / selected row
+    use the user's own theme color instead of a hardcoded reversed block,
+    so the highlight is never a flat white/inverted bar in a stock terminal."""
+    from kurt.core.persona import PERSONA_PATH, get_theme
+
+    if not PERSONA_PATH.exists():
+        return ""
+    color = get_theme().get("primary", "bold cyan").split()[-1]
+    color = {"orange1": "orange"}.get(color, color)
+    return f"bold fg:{color}"
+
+
 def _render(state: _PaletteState, buf_text: str):
     query = _effective_query(state, buf_text)
     items = _current_items(state, query)
@@ -345,13 +360,14 @@ def _render(state: _PaletteState, buf_text: str):
     else:
         state.index = 0
 
+    highlight = _personalized_highlight_style()
     lines = []
 
     if state.view == "root":
         tab_bar = []
         for t in ROOT_TABS:
             label = f" {TAB_LABELS[t]} "
-            tab_bar.append(("reverse" if t == state.tab else "", label))
+            tab_bar.append((highlight if t == state.tab else "", label))
             tab_bar.append(("", "  "))
         lines.append(tab_bar + [("", "\n")])
     elif state.view == "show_all":
@@ -367,7 +383,7 @@ def _render(state: _PaletteState, buf_text: str):
         start = max(0, min(state.index - WINDOW // 2, max(0, len(items) - WINDOW)))
         for i, item in enumerate(items[start:start + WINDOW], start=start):
             marker = "▶ " if i == state.index else "  "
-            style = "reverse" if i == state.index else ""
+            style = highlight if i == state.index else ""
             lines.append([(style, f"{marker}{item['label']}"), ("", "\n")])
         if len(items) > WINDOW:
             lines.append([("dim", f"  ... {len(items)} total, scroll with ↑↓"), ("", "\n")])

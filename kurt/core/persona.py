@@ -427,7 +427,7 @@ def config_show():
 
     console.print(table)
     console.print(f"\n[dim]Config file: {PERSONA_PATH}[/dim]")
-    console.print(f"[dim]Edit directly or use: kurt config <command>[/dim]")
+    console.print(f"[dim]Edit directly or use: kurt setting <command>[/dim]")
 
 
 def config_theme_wizard():

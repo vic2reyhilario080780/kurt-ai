@@ -56,6 +56,7 @@ class ModelRouter:
         messages: list,
         stream: bool = True,
         native_tools: Optional[list] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncGenerator[str, None]:
         """Call any model via OpenRouter"""
         headers = {
@@ -67,7 +68,8 @@ class ModelRouter:
 
         if native_tools:
             async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
-                                                    "https://openrouter.ai/api/v1/chat/completions", headers):
+                                                    "https://openrouter.ai/api/v1/chat/completions", headers,
+                                                    temperature=temperature):
                 yield chunk
             return
 
@@ -76,6 +78,8 @@ class ModelRouter:
             "messages": redact(messages),
             "stream": stream,
         }
+        if temperature is not None:
+            payload["temperature"] = temperature
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
@@ -104,6 +108,7 @@ class ModelRouter:
         messages: list,
         stream: bool = True,
         native_tools: Optional[list] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncGenerator[str, None]:
         """Call models via Groq (super fast!)"""
         headers = {
@@ -111,10 +116,11 @@ class ModelRouter:
             "Content-Type": "application/json",
         }
         async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
-                                                "https://api.groq.com/openai/v1/chat/completions", headers):
+                                                "https://api.groq.com/openai/v1/chat/completions", headers,
+                                                temperature=temperature):
             yield chunk
 
-    async def _call_tool_chat(self, model, messages, stream, native_tools, endpoint, headers):
+    async def _call_tool_chat(self, model, messages, stream, native_tools, endpoint, headers, temperature=None):
         """Shared SSE function-call transport for compatible model providers."""
 
         payload = {
@@ -122,6 +128,8 @@ class ModelRouter:
             "messages": redact(messages),
             "stream": stream,
         }
+        if temperature is not None:
+            payload["temperature"] = temperature
 
         yielded_any = False
         collected_text = ""
@@ -304,7 +312,8 @@ class ModelRouter:
         self,
         model: str,
         messages: list,
-        stream: bool = True
+        stream: bool = True,
+        temperature: Optional[float] = None,
     ) -> AsyncGenerator[str, None]:
         """Call Claude directly via Anthropic API (native, not via OpenRouter)"""
         headers = {
@@ -330,6 +339,8 @@ class ModelRouter:
         }
         if system_parts:
             payload["system"] = "\n\n".join(system_parts)
+        if temperature is not None:
+            payload["temperature"] = temperature
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream(
@@ -357,7 +368,8 @@ class ModelRouter:
         self,
         model: str,
         messages: list,
-        stream: bool = True
+        stream: bool = True,
+        temperature: Optional[float] = None,
     ) -> AsyncGenerator[str, None]:
         """Call local models via Ollama (offline fallback!)"""
         ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -367,6 +379,8 @@ class ModelRouter:
             "messages": redact(messages),
             "stream": stream,
         }
+        if temperature is not None:
+            payload["options"] = {"temperature": temperature}
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream(
@@ -401,6 +415,7 @@ class ModelRouter:
         stream: bool = True,
         file_path: Optional[str] = None,
         native_tools: Optional[list] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
 
@@ -417,17 +432,17 @@ class ModelRouter:
                 model = "llama3"
 
         if provider == "openrouter":
-            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools):
+            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools, temperature=temperature):
                 yield chunk
         elif provider == "anthropic":
             # Try direct Anthropic API, fallback to OpenRouter
             if self._has_key("anthropic"):
-                async for chunk in self.call_anthropic(model, messages, stream):
+                async for chunk in self.call_anthropic(model, messages, stream, temperature=temperature):
                     yield chunk
             elif self._has_key("openrouter"):
                 # Route Claude via OpenRouter
                 or_model = model if "/" in model else f"anthropic/{model}"
-                async for chunk in self.call_openrouter(or_model, messages, stream, native_tools=native_tools):
+                async for chunk in self.call_openrouter(or_model, messages, stream, native_tools=native_tools, temperature=temperature):
                     yield chunk
             else:
                 raise RuntimeError("No Anthropic API key and no OpenRouter key — cannot call Claude!")
@@ -439,7 +454,7 @@ class ModelRouter:
                     yield chunk
             else:
                 groq_model = model.replace("groq/", "")
-                async for chunk in self.call_groq(groq_model, messages, stream, native_tools=native_tools):
+                async for chunk in self.call_groq(groq_model, messages, stream, native_tools=native_tools, temperature=temperature):
                     yield chunk
         elif provider == "fal":
             prompt = messages[-1]["content"] if messages else ""
@@ -451,9 +466,9 @@ class ModelRouter:
             async for chunk in self.call_replicate(replicate_model, {"prompt": prompt}):
                 yield chunk
         elif provider == "ollama":
-            async for chunk in self.call_ollama(model, messages, stream):
+            async for chunk in self.call_ollama(model, messages, stream, temperature=temperature):
                 yield chunk
         else:
             # Default fallback: openrouter
-            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools):
+            async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools, temperature=temperature):
                 yield chunk

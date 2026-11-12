@@ -15,18 +15,23 @@ Usage:
 from kurt.utils.security import redact
 
 import asyncio
+import colorsys
+import math
 import os
+import select
 import sys
+import time
 import uuid
 from typing import Optional, Annotated
 
 import typer
 from typer.core import TyperGroup
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
+from rich.table import Table
 from rich.prompt import Confirm
 from rich import box
 
@@ -74,20 +79,17 @@ from kurt.core.artifacts import (
 from kurt.core.scheduler import (
     list_schedules, add_schedule, remove_schedule, run_schedule, toggle_schedule
 )
-from kurt.core.file_ops import (
-    read_file, list_dir, apply_edit, write_new_file, run_file, run_code_string
-)
 from kurt.core.codebase import (
     index_codebase, show_index_summary, get_git_diff, get_git_log,
     parse_diff_stats, build_diff_review_prompt, get_codebase_context
 )
 
 class KurtGroup(TyperGroup):
-    """Route the documented one-off prompt shorthand through the ask command."""
+    """Route the documented one-off prompt shorthand through the chat command."""
 
     def parse_args(self, ctx, args):
         value_options = {"--model", "-m", "--skill", "-s", "--session"}
-        flag_options = {"--no-memory", "--verbose", "-v"}
+        flag_options = {"--no-memory"}
         index = 0
         while index < len(args):
             token = args[index]
@@ -98,13 +100,13 @@ class KurtGroup(TyperGroup):
             ):
                 index += 1
             elif token == "--" and index + 1 < len(args):
-                args = ["ask", *args]
+                args = ["chat", *args]
                 break
             elif token.startswith("-"):
                 break
             else:
                 if token not in self.commands:
-                    args = ["ask", *args]
+                    args = ["chat", *args]
                 break
         return super().parse_args(ctx, args)
 
@@ -118,12 +120,12 @@ app = typer.Typer(
     invoke_without_command=True,
     epilog=(
         "Examples:\n\n"
-        "  kurt hello                          First time? Start here\n"
-        "  kurt ask \"what is the capital of PH?\"   One-off question, no chat session\n"
-        "  kurt chat                           Open an interactive conversation\n"
-        "  kurt do \"open Spotify and play lofi\"    Let Kurt control the computer\n"
-        "  kurt skill list                     See what skills Kurt has loaded\n"
-        "  kurt mcp list                       See connected MCP tool servers\n\n"
+        "  kurt hello                              First time? Start here\n"
+        "  kurt \"what is the capital of PH?\"        One-off question, answered right in the terminal\n"
+        "  kurt chat                               Open an interactive conversation\n"
+        "  kurt \"open Spotify and play lofi\"        Computer control, web browsing, coding — same place\n"
+        "  kurt skill list                         See what skills Kurt has loaded\n"
+        "  kurt mcp list                           See connected MCP tool servers\n\n"
         "Tagalog tip: hindi mo kailangan gamitin lahat ng commands — \"kurt chat\" lang, sapat na iyon."
     ),
 )
@@ -180,9 +182,8 @@ def hello():
         f"[bold cyan]👋 Hey, ako si {_kurt_name}![/bold cyan]\n\n"
         "Ako ang personal AI assistant mo dito sa terminal. Here's what I can do:\n\n"
         "  💬 [bold]kurt chat[/bold] — mag-usap tayo, ongoing conversation\n"
-        "  🤖 [bold]kurt ask \"...\"[/bold] — quick one-off question\n"
-        "  🖱️  [bold]kurt do \"...\"[/bold] — I'll click/type/open apps for you\n"
-        "  📂 [bold]kurt read / edit / run[/bold] — file work with AI help\n\n"
+        "  🤖 [bold]kurt \"...\"[/bold] — quick one-off question, answered right away\n"
+        "  🖱️  Computer control, web browsing, file editing, coding/debugging — just ask, same chat\n\n"
         f"🧠 [bold]{skill_count}[/bold] skills loaded (`kurt skill list` to browse)\n"
         f"🤖 [bold]{len(model_names)}[/bold] models wired up: {', '.join(model_names)}\n"
         f"🔌 [bold]{mcp_count}[/bold] MCP server(s) connected: {mcp_names}\n\n"
@@ -202,6 +203,7 @@ config_app = typer.Typer(help="🎨 Personalize KURT — themes, language, name,
 project_app = typer.Typer(help="📁 Manage projects with AI context")
 artifact_app = typer.Typer(help="📦 Manage AI-generated code artifacts")
 schedule_app = typer.Typer(help="⏰ Schedule recurring KURT tasks")
+memory_app = typer.Typer(help="🧠 Edit memory.md — facts KURT remembers about you")
 
 app.add_typer(skill_app, name="skill", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(plugin_app, name="plugin", rich_help_panel="🧩 Extend Kurt")
@@ -215,10 +217,11 @@ register_desktop_cli_commands(app, console)
 app.add_typer(hub_app, name="hub", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(connect_app, name="connect", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(models_app, name="models", rich_help_panel="🧩 Extend Kurt")
-app.add_typer(config_app, name="config", rich_help_panel="🎨 Personalize")
+app.add_typer(config_app, name="setting", rich_help_panel="🎨 Personalize")
 app.add_typer(project_app, name="project", rich_help_panel="🎨 Personalize")
 app.add_typer(artifact_app, name="artifact", rich_help_panel="🎨 Personalize")
 app.add_typer(schedule_app, name="schedule", rich_help_panel="🎨 Personalize")
+app.add_typer(memory_app, name="memory", rich_help_panel="🎨 Personalize")
 
 
 
@@ -239,130 +242,6 @@ def main(
         # The command list stays out of the way until the user asks for it
         # (/help or /).
         chat(skill=None, model=None, session=None, no_memory=False)
-
-
-@app.command(rich_help_panel="💬 Talk to Kurt")
-def ask(
-    prompt: str = typer.Argument(..., help="Your task or question"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Use a specific skill, e.g. tiktok, seo, trading"),
-    session: Optional[str] = typer.Option(None, "--session", help="Continue a session by ID"),
-    no_memory: bool = typer.Option(False, "--no-memory", help="Huwag i-save ang conversation (don't save to history)"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show which model/provider Kurt picked and why"),
-):
-    """🤖 Ask KURT one question, get one answer — no chat session, no back-and-forth.
-
-    Use 'ask' when you just want a quick answer and you're going back to your terminal
-    work right after. Use 'chat' instead if you want an ongoing conversation where Kurt
-    remembers what you said earlier in the same session.
-
-    Halimbawa (example): kurt ask "ano ang 15% ng 2400?"
-    """
-
-    # Load env
-    load_env()
-
-    current_session = session or str(uuid.uuid4())
-    direct_action = _try_local_request(prompt, current_session, no_memory)
-    if direct_action is not None:
-        if direct_action['status'] != 'completed':
-            raise typer.Exit(1)
-        return
-
-    # Check setup
-    status = check_setup()
-    if not status.get("openrouter") and not status.get("groq") and not status.get("ollama"):
-        console.print("[red]❌ Walang configured AI provider![/red]")
-        console.print("[yellow]Run: kurt setup[/yellow]")
-        raise typer.Exit(1)
-
-    # Init DB
-    if not no_memory:
-        init_db()
-
-    # Analyze the task
-    analysis = analyze_task(prompt)
-
-    # Override model if specified
-    if model:
-        analysis.model = model
-        analysis.reason = f"Manual override: {model}"
-
-    # Show routing info if verbose
-    if verbose:
-        console.print(Panel(
-            f"[cyan]Task Type:[/cyan] {analysis.task_type.value}\n"
-            f"[cyan]Model:[/cyan] {analysis.model}\n"
-            f"[cyan]Provider:[/cyan] {analysis.provider}\n"
-            f"[cyan]Reason:[/cyan] {analysis.reason}",
-            title="🔍 Routing Info",
-            box=box.ROUNDED,
-            border_style="dim",
-        ))
-
-    # AI mode routing: hybrid uses KURT's own fast tool-capable routing (Groq + live web search)
-    ai_mode = get_ai_mode()
-    if ai_mode == "claude_only":
-        analysis.provider = "anthropic"
-        analysis.model = "claude-3-5-sonnet-20241022"
-        analysis.fallback_provider = "groq"
-        analysis.fallback_model = "openai/gpt-oss-120b"
-        if verbose:
-            console.print(f"[dim]🧠 Claude-only mode[/dim]")
-    # hybrid / kurt_only: use ROUTING_TABLE (Groq with native tools + fallback)
-
-    # Build messages
-    messages = []
-
-    # Language system prompt — always inject first
-    lang_prompt = get_language_system_prompt()
-    if lang_prompt:
-        messages.append({"role": "system", "content": lang_prompt})
-
-    # Inject active project contexts
-    persona = load_persona()
-    active_projects = persona.get("active_projects", [])
-    if active_projects:
-        proj_ctx = get_active_project_contexts(active_projects)
-        if proj_ctx:
-            messages.append({
-                "role": "system",
-                "content": f"ACTIVE PROJECTS CONTEXT:\n{proj_ctx}"
-            })
-            if verbose:
-                console.print(f"[dim]📁 Injecting context for: {', '.join(active_projects)}[/dim]")
-
-    # Add skill system prompt if specified
-    if skill:
-        skill_prompt = get_skill_prompt(skill)
-        if skill_prompt:
-            messages.append({"role": "system", "content": skill_prompt})
-            if verbose:
-                console.print(f"[dim]🧠 Using skill: {skill}[/dim]")
-        else:
-            console.print(f"[yellow]⚠️  Skill not found: {skill}[/yellow]")
-
-    # Add conversation history
-    if not no_memory and session:
-        history = get_history(current_session)
-        messages.extend(history)
-
-    # Add current prompt
-    messages.append({"role": "user", "content": prompt})
-
-    # Save user message
-    if not no_memory:
-        save_message(current_session, "user", prompt, analysis.model, analysis.task_type.value)
-
-    # Stream the response
-    asyncio.run(stream_response(
-        analysis=analysis,
-        messages=messages,
-        session_id=current_session,
-        no_memory=no_memory,
-        verbose=verbose,
-        prompt=prompt,
-    ))
 
 
 def _try_local_request(prompt, session_id, no_memory=False):
@@ -408,7 +287,7 @@ def _show_no_key_help():
     ))
 
 
-async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt=""):
+async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt="", temperature=None):
     """Stream AI response with real-time display"""
     router = ModelRouter()
     if analysis.task_type not in {TaskType.IMAGE, TaskType.MUSIC, TaskType.VIDEO, TaskType.TRANSCRIBE}:
@@ -426,6 +305,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 provider=analysis.provider,
                 model=analysis.model,
                 messages=messages,
+                temperature=temperature,
             ):
                 full_response += chunk
                 live.update(Text(redact(full_response)))
@@ -450,6 +330,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                         provider=analysis.fallback_provider,
                         model=analysis.fallback_model,
                         messages=messages,
+                        temperature=temperature,
                     ):
                         full_response += chunk
                         live.update(Text(redact(full_response)))
@@ -558,17 +439,97 @@ def models_fal_cmd(
 # CHAT COMMAND (Interactive Mode)
 # ══════════════════════════════════════
 
+def _kurt_wordmark_lines() -> list[str]:
+    """'KURT' rendered as big ANSI-Shadow block art (pyfiglet), trailing blank rows trimmed."""
+    import pyfiglet
+    raw = pyfiglet.figlet_format("KURT", font="ansi_shadow")
+    lines = raw.rstrip("\n").split("\n")
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines
+
+
+_KURT_WORDMARK_LINES = _kurt_wordmark_lines()
+
+_AI_MODE_LABELS = {
+    "hybrid": "Hybrid",
+    "claude_only": "Claude Only",
+    "kurt_only": "KURT Only",
+}
+
+
+def _kurt_row_glow(row: int, rows: int, phase: float) -> str:
+    """Hue rotates with `phase` (0..1 = one full loop) for a flowing rainbow glow;
+    lightness breathes with a sine wave so the logo pulses instead of sitting flat."""
+    hue = (0.07 + (row / (rows - 1)) * 0.6 + phase) % 1.0
+    lightness = 0.50 + 0.13 * math.sin(2 * math.pi * (phase * 2 + row * 0.12))
+    lightness = max(0.32, min(0.78, lightness))
+    r, g, b = colorsys.hls_to_rgb(hue, lightness, 0.88)
+    hex_color = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+    return f"bold {hex_color}"
+
+
+def _kurt_wordmark(phase: float = 0.0) -> Text:
+    """Big 'KURT' wordmark (ANSI-Shadow block art). `phase` (0..1) animates a
+    rotating, pulsing glow — each row of the glyphs gets its own hue/brightness."""
+    lines = _KURT_WORDMARK_LINES
+    rows = len(lines)
+    text = Text()
+    for row, line in enumerate(lines):
+        style = _kurt_row_glow(row, rows, phase)
+        text.append(line, style=style)
+        if row < rows - 1:
+            text.append("\n")
+    text.no_wrap = True
+    return text
+
+
+def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_model, current_skill, session_id, phase=0.0):
+    """Opening screen: big KURT wordmark on the left, session info on the right."""
+    ai_mode_label = _AI_MODE_LABELS.get(get_ai_mode(), "Hybrid")
+
+    info = Text()
+    info.append(f"{kurt_name} CLI", style=theme["primary"])
+    info.append(f" v{kurt_version}\n")
+    info.append(f"{user_name}", style="bold")
+    info.append(f" · {ai_mode_label}\n", style="dim")
+    info.append("Model: ", style="dim")
+    info.append(f"{current_model}", style=theme.get("accent", theme["primary"]))
+    info.append(f"   Skill: {current_skill or 'none'}\n", style="dim")
+    info.append(f"{os.getcwd()}\n", style="dim")
+    info.append(f"session {session_id[:8]}", style="dim")
+    info.no_wrap = True
+
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(no_wrap=True)
+    grid.add_column(vertical="middle", no_wrap=True)
+    grid.add_row(_kurt_wordmark(phase), info)
+
+    dim_style = theme.get("dim", "dim")
+    accent_style = theme.get("accent", theme["primary"])
+    tail = Text()
+    tail.append(f"{get_greeting()}\n", style=accent_style)
+    tail.append("\n")
+    tail.append("Type your message to start · /help for commands · /exit to quit\n", style=dim_style)
+    tail.append("kurt setting to personalize — theme, name, greeting", style=dim_style)
+
+    return Group(grid, Text(""), tail)
+
+
 @app.command(rich_help_panel="💬 Talk to Kurt")
 def chat(
+    prompt: Optional[str] = typer.Argument(None, help="Optional one-off message — Kurt answers it, then keeps the conversation open"),
     skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Start with a skill active, e.g. tiktok, seo, trading"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
     no_memory: Annotated[bool, typer.Option("--no-memory", help="Do not read or save conversation history")] = False,
 ):
-    """💬 Open an ongoing conversation with Kurt — mag-usap kayo, aalala siya sa sinabi mo.
+    """💬 Talk to Kurt — mag-usap kayo, aalala siya sa sinabi mo. Everything lives here now:
+    one-off questions, ongoing conversation, computer/web automation, and coding/debugging.
 
-    This is the main way to use Kurt day-to-day. Type /help once inside chat to see
-    all slash commands (switch models, run shell commands, browse the web, etc.).
+    Pass a message directly for a quick one-off answer (`kurt "ano ang 15% ng 2400?"`), or
+    run it bare for an ongoing session. Type /help once inside chat to see all slash commands
+    (switch models, run shell commands, browse the web, etc.).
 
     Halimbawa (example): kurt chat
     """
@@ -586,21 +547,73 @@ def chat(
     current_skill = skill
     last_response = ""
     conversation = []  # Session context is retained even when disk memory is off.
+    _pending_initial = prompt.strip() if isinstance(prompt, str) and prompt.strip() else None
+
+    from kurt.persona import KurtPersona
+    kurt_persona = KurtPersona()
 
     # ── Welcome banner — Kurt's own startup screen ───────────────────
     from kurt import __version__ as _kurt_version
-    _dim_style = _theme.get("dim", "dim")
-    _accent_style = _theme.get("accent", _theme["primary"])
-    console.print(Panel(
-        f"[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]  [dim]v{_kurt_version} · {session_id[:8]}[/dim]\n"
-        f"[{_accent_style}]{get_greeting()}[/{_accent_style}]\n\n"
-        f"[dim]Model:[/dim] {current_model}   [dim]Skill:[/dim] {current_skill or 'none'}\n\n"
-        f"[{_dim_style}]Type your message to start · /help for commands · /exit to quit\n"
-        f"kurt config to personalize — theme, name, greeting[/{_dim_style}]",
-        box=box.ROUNDED,
-        border_style=_theme.get("border", "cyan"),
-        style=_theme.get("background", ""),
-    ))
+
+    def _render_banner(phase: float) -> Panel:
+        return Panel(
+            _kurt_welcome_banner(
+                kurt_name=_kurt_name,
+                kurt_version=_kurt_version,
+                theme=_theme,
+                user_name=get_user_name(),
+                current_model=current_model,
+                current_skill=current_skill,
+                session_id=session_id,
+                phase=phase,
+            ),
+            box=box.ROUNDED,
+            border_style=_theme.get("border", "cyan"),
+            style=_theme.get("background", ""),
+        )
+
+    def _glow_until_keypress(render_fn, fps=18):
+        """Keep the banner glowing/pulsing in place for as long as you sit there
+        — stops the instant you press a key. Puts stdin in cbreak mode (no
+        line buffering, no local echo) just for this idle wait: `select` peeks
+        at stdin without consuming bytes, and with echo off the terminal
+        driver never prints a keystroke mid-redraw. Settings are restored
+        before handing off to the normal chat prompt either way."""
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            frame_dt = 1.0 / fps
+            phase = 0.0
+            with Live(render_fn(0.0), console=console, refresh_per_second=fps) as live:
+                while True:
+                    ready, _, _ = select.select([sys.stdin], [], [], frame_dt)
+                    if ready:
+                        break
+                    phase = (phase + frame_dt * 0.35) % 1.0
+                    live.update(render_fn(phase))
+        except KeyboardInterrupt:
+            pass
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        if sys.platform != "win32":
+            try:
+                _glow_until_keypress(_render_banner)
+            except Exception:
+                console.print(_render_banner(0.0))
+        else:
+            # cbreak/select can't watch stdin this way on Windows — short
+            # intro loop instead of an indefinite idle glow.
+            with Live(_render_banner(0.0), console=console, refresh_per_second=18) as _glow:
+                for _i in range(1, 25):
+                    _glow.update(_render_banner(_i / 24))
+                    time.sleep(0.045)
+    else:
+        console.print(_render_banner(0.0))
 
     # ── Voice mode (Hey Kurt) ────────────────────────────────────────
     # Wire in background voice listener — injects voice commands as if typed
@@ -630,33 +643,39 @@ def chat(
         _proactive = None
 
     while True:
-        # ── Inject voice command if any ──────────────────────────────
-        if _voice_queue:
-            _voice_input = _voice_queue.pop(0)
-            if _voice_input:
-                console.print(f"\n[bold cyan]You[/bold cyan] [dim](🎤 voice)[/dim]: {_voice_input}")
-                # Treat voice input exactly like typed input
-                prompt = _voice_input
-                # Jump straight to processing (skip the input() call below)
-                # We'll handle this via the goto pattern using a flag
-                _from_voice = True
+        if _pending_initial is not None:
+            # First turn seeded from `kurt "<prompt>"` — skip voice/typed input once.
+            prompt = _pending_initial
+            _pending_initial = None
+            console.print(f"\n[bold cyan]You[/bold cyan] [dim]›[/dim] {prompt}")
+        else:
+            # ── Inject voice command if any ──────────────────────────────
+            if _voice_queue:
+                _voice_input = _voice_queue.pop(0)
+                if _voice_input:
+                    console.print(f"\n[bold cyan]You[/bold cyan] [dim](🎤 voice)[/dim]: {_voice_input}")
+                    # Treat voice input exactly like typed input
+                    prompt = _voice_input
+                    # Jump straight to processing (skip the input() call below)
+                    # We'll handle this via the goto pattern using a flag
+                    _from_voice = True
+                else:
+                    _from_voice = False
             else:
                 _from_voice = False
-        else:
-            _from_voice = False
-        # ── Input ────────────────────────────────────────────────────
-        if not _from_voice:
-            try:
-                prompt = read_chat_input(console).strip()
-            except (KeyboardInterrupt, EOFError):
-                console.print("\n[dim]👋 Bye![/dim]")
-                if _proactive:
-                    try:
-                        _proactive.stop()
-                    except Exception:
-                        pass
-                close_browser_session()
-                break
+            # ── Input ────────────────────────────────────────────────────
+            if not _from_voice:
+                try:
+                    prompt = read_chat_input(console).strip()
+                except (KeyboardInterrupt, EOFError):
+                    console.print("\n[dim]👋 Bye![/dim]")
+                    if _proactive:
+                        try:
+                            _proactive.stop()
+                        except Exception:
+                            pass
+                    close_browser_session()
+                    break
 
         if not prompt:
             continue
@@ -727,20 +746,16 @@ def chat(
 
         messages = []
 
-        # System prompt: KURT persona
-        from datetime import datetime as _dt
-        kurt_system = (
-            f"You are {_kurt_name}, a smart, friendly AI assistant built by Daddy Tito. "
-            f"Today's date is {_dt.now().strftime('%Y-%m-%d (%A)')}. "
-            "You communicate in Taglish (Tagalog-English mix) unless asked otherwise. "
-            "You are helpful, honest, and efficient. "
+        # System prompt: KURT persona (persona.md + memory.md + mode detection)
+        _persona_turn = kurt_persona.build(prompt, mode="auto")
+        messages.append({"role": "system", "content": _persona_turn["system_prompt"]})
+        # Operational guidance — not personality, so it stays separate from persona.md.
+        messages.append({"role": "system", "content": (
             "You are running as a CLI tool called KURT — Kinetic Unified Response Terminal. "
             "The user speaks in pure natural language (no slash commands needed). "
             "Whenever asked about events, news, leaders, prices, weather, or developments from June 2024 to the present, "
-            "always use the `search_web` (and `read_webpage`) tool automatically so your knowledge is completely up to date. "
-            "Keep responses concise and practical."
-        )
-        messages.append({"role": "system", "content": kurt_system})
+            "always use the `search_web` (and `read_webpage`) tool automatically so your knowledge is completely up to date."
+        )})
 
         # Language prompt
         lang_prompt = get_language_system_prompt()
@@ -775,8 +790,10 @@ def chat(
             no_memory=no_memory,
             verbose=False,
             prompt=prompt,
+            temperature=_persona_turn["temperature"],
         ))
         if isinstance(response, str) and response:
+            kurt_persona.remember(prompt, response)
             conversation.extend([{'role': 'user', 'content': prompt},
                                  {'role': 'assistant', 'content': response}])
             last_response = response
@@ -906,405 +923,6 @@ def voice(
         console.print("\n[dim]Voice mode stopped.[/dim]")
     except Exception as e:
         console.print(f"[red]❌ Voice mode error: {e}[/red]")
-
-
-# ══════════════════════════════════════
-# DO COMMAND — Agent + Computer Use
-# ══════════════════════════════════════
-
-@app.command(rich_help_panel="🖱️  Automate")
-def do(
-    task: str = typer.Argument(..., help="Task for Kurt to execute with computer control"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    max_steps: int = typer.Option(15, "--max-steps", help="Max number of steps before Kurt gives up (safety limit)"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show each step Kurt takes in detail"),
-):
-    """🖱️ Give Kurt a computer task and let it work on its own, step by step.
-
-    This is an "agent task" — instead of just answering a question, Kurt actually
-    DOES things: clicking, typing, opening apps, taking screenshots, even calling
-    other AI models or CLI tools, one step at a time, until the task is done or it
-    hits the step limit. Use this for multi-step things you'd normally do by hand.
-
-    Halimbawa (example): kurt do "open Safari and search for weather in Manila"
-    """
-    load_env()
-    direct_action = _try_local_request(task, str(uuid.uuid4()))
-    if direct_action is not None:
-        if direct_action['status'] != 'completed':
-            raise typer.Exit(1)
-        return
-    init_db()
-
-    console.print(Panel(
-        f"[bold cyan]🖱️ Computer Task[/bold cyan]\n"
-        f"[dim]{task}[/dim]",
-        box=box.ROUNDED, border_style="cyan"
-    ))
-
-    from kurt.core.agent_loop import run_agent
-    router = ModelRouter()
-
-    # For computer tasks, use Ollama local model (libre) or best available
-    analysis = analyze_task(task)
-    if not model:
-        # Try local Ollama first (libre, no cost)
-        try:
-            import requests
-            r = requests.get("http://localhost:11434/api/tags", timeout=2)
-            if r.ok:
-                models_list = [m["name"] for m in r.json().get("models", [])]
-                # Prefer llama3.2 or similar for tasks
-                for preferred in ["llama3.2", "llama3.1", "llama3", "mistral", "gemma"]:
-                    if any(preferred in m for m in models_list):
-                        analysis.model = next(m for m in models_list if preferred in m)
-                        analysis.provider = "ollama"
-                        break
-        except Exception:
-            pass
-    else:
-        analysis.model = model
-
-    result = asyncio.run(run_agent(
-        task=task,
-        analysis=analysis,
-        router=router,
-        cwd=".",
-        max_steps=max_steps,
-        verbose=verbose,
-    ))
-
-    if result.success:
-        console.print(f"\n[bold green]✅ Done![/bold green] {result.final_summary}")
-    else:
-        console.print(f"\n[yellow]⚠ Task incomplete after {len(result.steps)} steps[/yellow]")
-
-
-# ══════════════════════════════════════
-# PHASE 2 — FILE COMMANDS
-# ══════════════════════════════════════
-
-@app.command(rich_help_panel="📂 Files & Code")
-def read(
-    path: str = typer.Argument(..., help="File path to read"),
-    lines: Optional[str] = typer.Option(None, "--lines", "-l", help="Line range e.g. '10-25' or '10'"),
-    ask: Optional[str] = typer.Option(None, "--ask", "-a", help="Ask AI a question about this file"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-):
-    """📖 Print a file's contents, with an optional AI question about it.
-
-    Halimbawa (example): kurt read main.py --ask "what does this file do?"
-    """
-    load_env()
-    content = read_file(path, lines)
-    console.print(content)
-
-    if ask:
-        init_db()
-        from kurt.core.file_ops import read_file_summary
-        file_info = read_file_summary(path)
-        if "error" in file_info:
-            console.print(f"[red]{file_info['error']}[/red]")
-            return
-        analysis = analyze_task(ask)
-        if model:
-            analysis.model = model
-        session_id = str(uuid.uuid4())
-        messages = [
-            {"role": "system", "content": "You are KURT, an expert code reviewer. Be concise and practical."},
-            {"role": "user", "content": f"File: {file_info['path']}\n\n```{file_info['ext']}\n{file_info['content'][:6000]}\n```\n\nQuestion: {ask}"},
-        ]
-        _theme = get_theme()
-        console.print(f"\n[{_theme['primary']}]🤖 KURT[/{_theme['primary']}] [dim]({analysis.model}):[/dim]")
-        asyncio.run(stream_response(
-            analysis=analysis, messages=messages,
-            session_id=session_id, no_memory=True, verbose=False, prompt=ask,
-        ))
-
-
-@app.command(rich_help_panel="📂 Files & Code")
-def edit(
-    path: str = typer.Argument(..., help="File to edit"),
-    instruction: str = typer.Argument(..., help="What to change, in plain English"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview only — don't write"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt"),
-):
-    """✏️  Edit a file by describing the change in plain English — Kurt writes the diff.
-
-    Halimbawa (example): kurt edit app.py "add error handling to the login function"
-    """
-    load_env()
-    init_db()
-
-    from kurt.core.file_ops import read_file_summary, apply_edit
-    file_info = read_file_summary(path)
-    if "error" in file_info:
-        console.print(f"[red]{file_info['error']}[/red]")
-        raise typer.Exit(1)
-
-    console.print(f"[cyan]📄 {file_info['name']}[/cyan] [dim]({file_info['lines']} lines)[/dim]")
-    console.print(f"[dim]Instruction: {instruction}[/dim]\n")
-
-    # Ask AI to generate the edit as old_str/new_str
-    edit_prompt = (
-        f"You must edit this file. Return ONLY a JSON object with 'old_str' and 'new_str' keys.\n"
-        f"old_str: exact text from the file to replace (must be unique)\n"
-        f"new_str: the replacement text\n\n"
-        f"File: {file_info['path']}\n"
-        f"Instruction: {instruction}\n\n"
-        f"File content:\n```{file_info['ext']}\n{file_info['content'][:6000]}\n```\n\n"
-        f"Return ONLY this JSON format (no explanation):\n"
-        f'{{"old_str": "...", "new_str": "..."}}'
-    )
-
-    analysis = analyze_task(instruction)
-    if model:
-        analysis.model = model
-    # Force to code-capable model
-    if analysis.model not in ("deepseek/deepseek-coder", "anthropic/claude-3.5-sonnet"):
-        analysis.model = "deepseek/deepseek-coder"
-        analysis.provider = "openrouter"
-
-    session_id = str(uuid.uuid4())
-    messages = [
-        {"role": "system", "content": "You are a precise code editor. Output only valid JSON."},
-        {"role": "user", "content": edit_prompt},
-    ]
-
-    console.print("[dim]🤖 Generating edit…[/dim]")
-    full_response = ""
-
-    async def _get_edit():
-        nonlocal full_response
-        from kurt.core.router import ModelRouter
-        router = ModelRouter()
-        async for chunk in router.route(provider=analysis.provider, model=analysis.model, messages=messages):
-            full_response += chunk
-
-    asyncio.run(_get_edit())
-
-    # Parse JSON from response
-    import json as _json
-    json_match = re.search(r'\{[^{}]*"old_str"[^{}]*\}', full_response, re.DOTALL)
-    if not json_match:
-        console.print("[red]❌ AI did not return valid JSON edit.[/red]")
-        console.print(f"[dim]{full_response[:500]}[/dim]")
-        raise typer.Exit(1)
-
-    try:
-        edit_data = _json.loads(json_match.group(0))
-        old_str = edit_data.get("old_str", "")
-        new_str = edit_data.get("new_str", "")
-    except _json.JSONDecodeError as e:
-        console.print(f"[red]❌ JSON parse error: {e}[/red]")
-        raise typer.Exit(1)
-
-    if not old_str:
-        console.print("[red]❌ AI returned empty old_str.[/red]")
-        raise typer.Exit(1)
-
-    # Preview
-    console.print(Panel(
-        f"[red]- {old_str[:200]}[/red]\n[green]+ {new_str[:200]}[/green]",
-        title="Proposed Edit", box=box.ROUNDED,
-    ))
-
-    if dry_run:
-        console.print("[dim]Dry run — no changes written.[/dim]")
-        return
-
-    if not yes:
-        if not Confirm.ask("Apply this edit?"):
-            console.print("[dim]Cancelled.[/dim]")
-            return
-
-    result = apply_edit(path, old_str, new_str)
-    color = "green" if result.startswith("✅") else "red"
-    console.print(f"[{color}]{result}[/{color}]")
-
-
-@app.command("run", rich_help_panel="📂 Files & Code")
-def run_cmd(
-    path: str = typer.Argument(..., help="File to execute (.py .sh .js)"),
-    args: str = typer.Option("", "--args", "-a", help="Arguments to pass"),
-    explain: bool = typer.Option(False, "--explain", "-e", help="Ask AI to explain the output"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-):
-    """▶️  Run a .py/.sh/.js file and optionally have Kurt explain the output.
-
-    Halimbawa (example): kurt run scrape.py --explain
-    """
-    load_env()
-
-    console.print(f"[cyan]▶ Running {path}[/cyan] [dim]{args}[/dim]\n")
-    result = run_file(path, args)
-
-    if "error" in result:
-        console.print(f"[red]{result['error']}[/red]")
-        raise typer.Exit(1)
-
-    stdout = result.get("stdout", "")
-    stderr = result.get("stderr", "")
-    rc = result.get("returncode", 0)
-    rt = result.get("runtime_ms", 0)
-
-    status_color = "green" if rc == 0 else "red"
-    console.print(f"[{status_color}]Exit {rc}[/{status_color}] [dim]· {rt}ms[/dim]")
-    if stdout:
-        console.print(stdout)
-    if stderr:
-        console.print(f"[yellow]{stderr}[/yellow]")
-
-    if explain:
-        init_db()
-        from kurt.core.file_ops import read_file_summary
-        file_info = read_file_summary(path)
-        analysis = analyze_task("explain code output")
-        if model:
-            analysis.model = model
-        session_id = str(uuid.uuid4())
-        messages = [
-            {"role": "system", "content": "You are KURT, an expert debugger. Explain clearly and concisely."},
-            {"role": "user", "content": (
-                f"File: {path}\nCode:\n```\n{file_info.get('content','')[:3000]}\n```\n\n"
-                f"Output (exit {rc}):\n{stdout[:2000]}\n{stderr[:1000]}\n\n"
-                f"Explain what happened and if there are any issues."
-            )},
-        ]
-        _theme = get_theme()
-        console.print(f"\n[{_theme['primary']}]🤖 KURT[/{_theme['primary']}] [dim]({analysis.model}):[/dim]")
-        asyncio.run(stream_response(
-            analysis=analysis, messages=messages,
-            session_id=session_id, no_memory=True, verbose=False,
-        ))
-
-
-@app.command(rich_help_panel="📂 Files & Code")
-def ls(
-    path: str = typer.Argument(".", help="Directory to list"),
-    depth: int = typer.Option(2, "--depth", "-d", help="Tree depth 1-3"),
-):
-    """📁 List a directory as a tree.
-
-    Halimbawa (example): kurt ls . --depth 2
-    """
-    console.print(list_dir(path, depth))
-
-
-@app.command(rich_help_panel="📂 Files & Code")
-def grep(
-    query: str = typer.Argument(..., help="Regex or text pattern to search for"),
-    path: str = typer.Option(".", "--path", "-p", help="Directory or file path"),
-    include: Optional[str] = typer.Option(None, "--include", "-i", help="Filename glob filter e.g. '*.py'"),
-    case_sensitive: bool = typer.Option(False, "--case-sensitive", "-s", help="Enable case-sensitive search"),
-    max_results: int = typer.Option(50, "--max-results", "-n", help="Max matches to return"),
-):
-    """🔎 Fast regex/text search across files in a directory (like ripgrep).
-
-    Halimbawa (example): kurt grep "ModelRouter" --include "*.py"
-    """
-    from kurt.core.file_ops import grep_search
-    console.print(grep_search(query=query, path=path, include=include, case_sensitive=case_sensitive, max_results=max_results))
-
-
-@app.command("find", rich_help_panel="📂 Files & Code")
-def find_cmd(
-    pattern: str = typer.Argument("*", help="Filename glob or substring pattern"),
-    path: str = typer.Option(".", "--path", "-p", help="Root directory to search"),
-    max_results: int = typer.Option(50, "--max-results", "-n", help="Max files to return"),
-):
-    """📂 Find files by glob or filename substring.
-
-    Halimbawa (example): kurt find "*.py" --path kurt
-    """
-    from kurt.core.file_ops import find_files
-    console.print(find_files(pattern=pattern, path=path, max_results=max_results))
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def doctor(
-    action: str = typer.Argument("summary", help="Action: summary, cpu, mem, disk, net, crashes, startup, open_folder"),
-    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target path for 'disk' or 'open_folder'"),
-    limit: int = typer.Option(10, "--limit", "-n", help="Max items to display"),
-):
-    """🖥️ Diagnose and debug your iMac / host machine (CPU, RAM, disk, network, crash logs, startup items, Finder).
-
-    Halimbawa (example):
-      kurt doctor summary
-      kurt doctor cpu
-      kurt doctor disk --target ~/Downloads
-      kurt doctor open_folder --target ~/Downloads
-    """
-    from kurt.core.mac_doctor import run_doctor_action, format_doctor_report
-    data = run_doctor_action(action=action, target=target, limit=limit)
-    console.print(format_doctor_report(data))
-
-
-# ══════════════════════════════════════
-# PHASE 3 — AGENT + CODEBASE + DIFF
-# ══════════════════════════════════════
-
-@app.command(rich_help_panel="🖱️  Automate")
-def agent(
-    task: str = typer.Argument(..., help="Task for the agent to complete autonomously"),
-    path: str = typer.Option(".", "--path", "-p", help="Working directory"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    max_steps: int = typer.Option(25, "--max-steps", help="Max agent steps (safety limit)"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Native workflow-agent ID"),
-    data: Optional[str] = typer.Option(None, "--data", help="CSV/JSON input for a native workflow agent"),
-    output: Optional[str] = typer.Option(None, "--output", help="New JSON report path for a native workflow"),
-    skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Apply an installed skill to the AI agent"),
-):
-    """🤖 Like 'kurt do', but for coding tasks — Kurt reads/edits files and runs
-    commands on its own until the task is done (similar to Claude Code's agent mode).
-
-    Halimbawa (example): kurt agent "fix the failing test in test_api.py"
-    """
-    if profile:
-        if skill:
-            raise typer.BadParameter("Use --skill for the AI agent or --profile for a declared native workflow.")
-        from kurt.capabilities.commands import run_and_write
-        if not data:
-            raise typer.BadParameter("--profile requires --data with a CSV or JSON file.")
-        try:
-            report = run_and_write(profile, data, output, "agent")
-        except (ValueError, OSError) as exc:
-            raise typer.BadParameter(str(exc)) from exc
-        import json
-        print(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False))
-        if report["status"] != "completed":
-            raise typer.Exit(1)
-        return
-    if data or output:
-        raise typer.BadParameter("--data and --output require a native --profile.")
-    load_env()
-    init_db()
-
-    from kurt.core.agent_loop import run_agent
-    from kurt.core.router import ModelRouter
-
-    analysis = analyze_task(task)
-    # Agent mode: prefer code-capable model
-    if not model:
-        analysis.model = "deepseek/deepseek-coder"
-        analysis.provider = "openrouter"
-        analysis.fallback_model = "anthropic/claude-3.5-sonnet"
-    else:
-        analysis.model = model
-
-    router = ModelRouter()
-    result = asyncio.run(run_agent(
-        task=task,
-        analysis=analysis,
-        router=router,
-        cwd=str(Path(path).expanduser().resolve()),
-        max_steps=max_steps,
-        skill=skill,
-    ))
-
-    if result.files_changed:
-        console.print(f"\n[dim]📝 Files changed: {', '.join(result.files_changed)}[/dim]")
 
 
 @app.command(rich_help_panel="📂 Files & Code")
@@ -2348,8 +1966,8 @@ def config_callback(ctx: typer.Context):
     """🎨 Personalize KURT — themes, language, name, greeting, AI mode"""
     if ctx.invoked_subcommand is None:
         config_show()
-        console.print(f"\n[dim]Run [cyan]kurt config setup[/cyan] for full wizard[/dim]")
-        console.print(f"[dim]Or use: kurt config theme / language / name / icon / aimode / projects[/dim]")
+        console.print(f"\n[dim]Run [cyan]kurt setting setup[/cyan] for full wizard[/dim]")
+        console.print(f"[dim]Or use: kurt setting theme / language / name / icon / aimode / projects[/dim]")
 
 
 @config_app.command("show")
@@ -2412,8 +2030,61 @@ def config_reset_cmd():
 
 @config_app.command("lang")
 def config_lang_shortcut():
-    """🌐 Shortcut para sa language — same as 'kurt config language'"""
+    """🌐 Shortcut para sa language — same as 'kurt setting language'"""
     config_language_wizard()
+
+
+# ══════════════════════════════════════
+# MEMORY SUBCOMMANDS — memory.md editing
+# ══════════════════════════════════════
+
+@memory_app.callback(invoke_without_command=True)
+def memory_callback(ctx: typer.Context):
+    """🧠 memory.md — facts KURT remembers about you"""
+    if ctx.invoked_subcommand is None:
+        memory_show_cmd()
+
+
+@memory_app.command("show")
+def memory_show_cmd():
+    """📋 I-print ang kasalukuyang laman ng memory.md"""
+    from kurt.persona.kurt_persona import MEMORY_PATH
+    if not MEMORY_PATH.exists():
+        console.print("[dim](wala pang memory.md)[/dim]")
+        raise typer.Exit()
+    console.print(MEMORY_PATH.read_text(encoding="utf-8"), markup=False)
+
+
+@memory_app.command("add")
+def memory_add_cmd(fact: str = typer.Argument(..., help="Bagong fact na idadagdag")):
+    """➕ Maglagay ng bagong fact sa memory.md"""
+    from kurt.persona.kurt_persona import MEMORY_PATH
+    fact = fact.strip()
+    if not fact:
+        console.print("[red]❌ Walang laman ang fact.[/red]")
+        raise typer.Exit(1)
+    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with MEMORY_PATH.open("a", encoding="utf-8") as f:
+        f.write(f"- {fact}\n")
+    console.print(f"[green]✅ Naidagdag sa memory.md:[/green] {fact}")
+
+
+@memory_app.command("edit")
+def memory_edit_cmd():
+    """✏️  Buksan ang memory.md sa $EDITOR (default: nano)"""
+    import os
+    import subprocess
+    from kurt.persona.kurt_persona import MEMORY_PATH
+    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not MEMORY_PATH.exists():
+        MEMORY_PATH.write_text("# Tungkol kay Daddy Tito\n\n", encoding="utf-8")
+    editor = os.environ.get("EDITOR", "nano")
+    try:
+        subprocess.run([editor, str(MEMORY_PATH)], check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        console.print(f"[red]❌ Hindi mabuksan ang editor '{editor}': {exc}[/red]")
+        raise typer.Exit(1)
+    console.print("[green]✅ Na-save ang memory.md[/green]")
 
 
 # ══════════════════════════════════════

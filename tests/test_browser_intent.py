@@ -51,27 +51,30 @@ class BrowserIntentTests(unittest.TestCase):
             result = execute_browser_request(BrowserRequest('Safari'))
         self.assertEqual(result['status'], 'failed')
 
-    def test_quick_ask_dispatches_literal_request_without_model_or_intent_fallback(self):
+    def test_quick_local_action_dispatches_literal_request_without_model_or_intent_fallback(self):
+        # `_try_local_request` is the literal-command fast path shared by `kurt
+        # voice` and (formerly) `kurt ask`/`kurt do` — it must resolve a plain
+        # "open the browser" request without ever touching the AI model.
         from kurt import main
-        with patch.object(main, 'load_env'), \
-             patch.object(main, 'ModelRouter', side_effect=AssertionError('AI must not be needed')), \
+        with patch.object(main, 'ModelRouter', side_effect=AssertionError('AI must not be needed')), \
              patch('kurt.core.intent.detect_intent', side_effect=AssertionError('Must not misroute the app name')), \
              patch('kurt.core.browser_intent.default_browser', return_value='Safari'), \
              patch('kurt.core.browser_intent.desktop_action', return_value={
                  'status': 'completed', 'observation': {'status': 'completed', 'window_id': 42}}) as action:
-            result = CliRunner().invoke(main.app, ['ask', 'magbukas ka ng browser', '--no-memory'])
-        self.assertEqual(result.exit_code, 0, f'{result.output}\n{result.exception!r}')
-        self.assertIn('Nabuksan at na-verify ang Safari', result.output)
+            result = main._try_local_request('magbukas ka ng browser', 'test-session', no_memory=True)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['status'], 'completed')
+        self.assertIn('Nabuksan at na-verify ang Safari', result['message'])
         self.assertEqual(action.call_count, 1)
 
-    def test_ask_opens_without_provider_configuration_or_credits(self):
+    def test_quick_local_action_opens_without_provider_configuration_or_credits(self):
         from kurt import main
-        with patch.object(main, 'load_env'), \
-             patch.object(main, 'check_setup', side_effect=AssertionError('No AI setup required')), \
+        with patch.object(main, 'check_setup', side_effect=AssertionError('No AI setup required')), \
              patch('kurt.core.browser_intent.desktop_action', return_value={
                  'status': 'completed', 'observation': {'status': 'completed', 'window_id': 42}}):
-            result = CliRunner().invoke(main.app, ['ask', 'buksan mo nga yung Chrome', '--no-memory'])
-        self.assertEqual(result.exit_code, 0, result.output)
+            result = main._try_local_request('buksan mo nga yung Chrome', 'test-session', no_memory=True)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['status'], 'completed')
 
 
 if __name__ == '__main__':

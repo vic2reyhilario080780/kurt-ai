@@ -29,6 +29,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "mcp>=1.30,<2",
     "prompt_toolkit>=3.0.43",
+    "pyfiglet>=1.0",
 ]
 
 [project.optional-dependencies]

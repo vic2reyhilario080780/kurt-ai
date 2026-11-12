@@ -23,8 +23,8 @@ class CommandParsingTests(unittest.TestCase):
 
         check(get_command(app), [])
 
-    def test_documented_prompt_shortcuts_reach_ask_with_options(self):
-        info = next(c for c in app.registered_commands if c.callback.__name__ == "ask")
+    def test_documented_prompt_shortcuts_reach_chat_with_options(self):
+        info = next(c for c in app.registered_commands if c.callback.__name__ == "chat")
         calls = []
 
         @wraps(info.callback)
@@ -37,7 +37,7 @@ class CommandParsingTests(unittest.TestCase):
             (["--model=gpt4o", "explain this"], "explain this", None, "gpt4o"),
             (["explain this", "-s", "seo", "-m", "gpt4o"], "explain this", "seo", "gpt4o"),
             (["--", "-a literal prompt"], "-a literal prompt", None, None),
-            (["ask", "hello"], "hello", None, None),
+            (["chat", "hello"], "hello", None, None),
         ]
         with patch.object(info, "callback", capture):
             for args, prompt, skill, model in cases:

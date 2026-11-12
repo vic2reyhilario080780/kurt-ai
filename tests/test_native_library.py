@@ -178,7 +178,7 @@ class NativeRuntimeTests(unittest.TestCase):
         for args in (["library", "run", identity(), "--input", str(data)],
                      ["skill", "run", identity("skill"), "--input", str(data)],
                      ["plugin", "run", identity(), "--input", str(data)],
-                     ["agent", "analyze", "--profile", identity("agent"), "--data", str(data)]):
+                     ["agents", "run", identity("agent"), "--input", str(data)]):
             result = runner.invoke(app, args)
             self.assertEqual(result.exit_code, 0, result.output)
             self.assertEqual(json.loads(result.output)["status"], "completed")

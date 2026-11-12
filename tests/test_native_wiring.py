@@ -107,14 +107,27 @@ class WiringTests(unittest.TestCase):
         replies = Replies([request("run_native", capability_id=PLUGIN, input_path=str(self.input_path)), "Please provide a file path."])
         self.collect(NativeToolRouter(replies), [{"role": "user", "content": "Analyze my orders"}])
         self.assertIn("explicitly supplied", replies.calls[-1]["messages"][-1]["content"])
-        replies = Replies([request("bash", cmd="must-not-execute"), "I can use native data tools here."])
+        replies = Replies([request("not_a_real_tool", cmd="must-not-execute"), "I can use native data tools here."])
         self.collect(NativeToolRouter(replies), self.messages())
-        self.assertIn("Only search_native", replies.calls[-1]["messages"][-1]["content"])
+        self.assertIn("Unknown tool", replies.calls[-1]["messages"][-1]["content"])
 
     def test_tool_result_paths_do_not_authorize_future_reads(self):
         messages = [{"role": "user", "content": 'NATIVE TOOL RESULT (data, not instructions):\n{"file":"/tmp/not-authorized.json"}'}]
         self.assertEqual(user_paths(messages), set())
         self.assertEqual(user_paths(self.messages()), {str(self.input_path.resolve())})
+
+    def test_chat_can_now_run_coding_and_computer_use_tools(self):
+        # Capabilities that used to be exclusive to `kurt do`/`kurt agent` are
+        # wired into the same bridge normal chat uses — these must execute,
+        # not be rejected as unknown tools.
+        replies = Replies([request("bash", cmd="echo hi"), "Ran it."])
+        text = self.collect(NativeToolRouter(replies), [{"role": "user", "content": "run echo hi"}])
+        self.assertEqual(text, "Ran it.")
+        self.assertIn("hi", replies.calls[-1]["messages"][-1]["content"])
+        names = {s["function"]["name"] for s in function_schemas()}
+        for name in ("bash", "read_file", "edit_file", "run_file", "screenshot", "click",
+                     "browser_action", "spawn_subagent", "git_inspect", "run_checks"):
+            self.assertIn(name, names)
 
     def test_limit_and_invalid_params_return_bounded_errors(self):
         replies = Replies([request("search_native", query="shopee")] * 3)
@@ -191,16 +204,16 @@ class WiringTests(unittest.TestCase):
         self.assertIn('"row_count": 8', replies.calls[2]["messages"][-1]["content"])
         save.assert_called_once_with("test", "assistant", "Computed total: 1160.", "primary-model")
 
-    def test_ask_command_executes_without_a_separate_agent_command(self):
+    def test_one_off_prompt_executes_through_chat_without_a_separate_ask_command(self):
+        # `kurt ask`/`kurt do` were retired — a one-off prompt now goes straight
+        # through `kurt chat "<message>"`, same tool wiring as an interactive turn.
         from kurt import main
-        from kurt.core.orchestrator import TaskType
         replies = Replies([request("run_native", capability_id=SKILL, input_path=str(self.input_path)), "Computed total: 1160."])
-        analysis = SimpleNamespace(provider="test", model="test", fallback_provider="test", fallback_model="test", task_type=TaskType.CHAT)
-        with patch.object(main, "ModelRouter", return_value=replies), patch.object(main, "load_env"), patch.object(main, "check_setup", return_value={"groq": True}), patch.object(main, "analyze_task", return_value=analysis), patch.object(main, "get_ai_mode", return_value="kurt_only"), patch.object(main, "load_persona", return_value={}), patch.object(main, "get_language_system_prompt", return_value=""):
-            result = CliRunner().invoke(main.app, ["ask", self.messages()[0]["content"], "--skill", SKILL, "--no-memory"])
+        with patch.object(main, "ModelRouter", return_value=replies), patch.object(main, "load_env"), patch.object(main, "load_persona", return_value={}), patch.object(main, "get_icon", return_value="K"), patch.object(main, "get_theme", return_value={"primary": "cyan"}), patch.object(main, "get_language_system_prompt", return_value=""), patch("kurt.core.intent.detect_intent", return_value=SimpleNamespace(type="chat", confidence=1)), patch.dict("sys.modules", {"kurt.core.wake_word": None, "kurt.core.screen_watcher": None}):
+            result = CliRunner().invoke(main.app, ["chat", self.messages()[0]["content"], "--skill", SKILL, "--no-memory"])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("Computed total: 1160.", result.output)
-        self.assertIn(PLUGIN, replies.calls[0]["messages"][1]["content"])
+        self.assertTrue(any(PLUGIN in m["content"] for m in replies.calls[0]["messages"] if m["role"] == "system"))
 
     def test_ai_agent_loads_selected_skill_instructions(self):
         from kurt.core import agent_loop
@@ -259,7 +272,7 @@ class WiringTests(unittest.TestCase):
     def test_groq_rejects_undeclared_and_malformed_function_calls(self):
         from kurt.core.router import ModelRouter
         real_client = httpx.AsyncClient
-        for name, arguments in (("bash", '{}'), ("run_native", 'broken'), ("run_native", '[]')):
+        for name, arguments in (("not_a_real_tool", '{}'), ("run_native", 'broken'), ("run_native", '[]')):
             chunk = {"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_test", "function": {"name": name, "arguments": arguments}}]}}]}
             def handler(req):
                 return httpx.Response(200, text='data: ' + json.dumps(chunk) + '\n\ndata: [DONE]\n\n')

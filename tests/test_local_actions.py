@@ -124,24 +124,18 @@ class LocalActionTests(unittest.TestCase):
         self.assertEqual(result['status'], 'needs_input')
         client.assert_not_called()
 
-    def test_quick_ask_opens_named_app_without_model_or_memory_route(self):
+    def test_quick_local_action_opens_named_app_without_model_or_memory_route(self):
+        # Shared fast path (`_try_local_request`, used by `kurt voice` and
+        # formerly `kurt ask`/`kurt do`): literal app-open commands resolve
+        # without ever touching the AI model.
         from kurt import main
-        with patch.object(main, 'load_env'), patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
+        with patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
              patch.object(local, 'installed_apps', return_value={'notes': 'Notes'}), \
              patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': True}) as action:
-            result = CliRunner().invoke(main.app, ['ask', 'open Notes', '--no-memory'])
-        self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn('Nabuksan at na-verify ang Notes', result.output)
-        action.assert_called_once_with('Notes')
-
-    def test_do_simple_open_skips_model_and_agent(self):
-        from kurt import main
-        with patch.object(main, 'load_env'), patch.object(main, 'init_db'), patch.object(main, 'save_message'), \
-             patch.object(main, 'ModelRouter', side_effect=AssertionError('No model needed')), \
-             patch.object(local, 'installed_apps', return_value={'notes': 'Notes'}), \
-             patch.object(local, 'open_installed_app', return_value={'status': 'completed', 'foreground_verified': True}) as action:
-            result = CliRunner().invoke(main.app, ['do', 'buksan mo yung app na Notes'])
-        self.assertEqual(result.exit_code, 0, result.output)
+            result = main._try_local_request('open Notes', 'test-session', no_memory=True)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['status'], 'completed')
+        self.assertIn('Nabuksan at na-verify ang Notes', result['message'])
         action.assert_called_once_with('Notes')
 
     def test_app_dispatch_without_foreground_verification_is_not_success(self):
