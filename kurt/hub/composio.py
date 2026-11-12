@@ -14,7 +14,7 @@ from rich import box
 
 console = Console()
 
-COMPOSIO_BASE = "https://backend.composio.dev/api/v1"
+COMPOSIO_BASE = "https://backend.composio.dev/api/v3.1"  # v1 was retired by Composio
 KURT_DIR = Path.home() / ".kurt"
 
 # Popular Composio apps grouped by category
@@ -73,18 +73,25 @@ COMPOSIO_APPS = {
         ("anthropic", "Anthropic", "Claude AI"),
         ("elevenlabs", "ElevenLabs", "Voice AI"),
     ],
+    "🎵 Music & Media": [
+        ("spotify", "Spotify", "Playback, playlists & search"),
+        ("youtube", "YouTube", "Videos & channels"),
+    ],
 }
 
 
 def get_composio_key() -> str | None:
     """Get Composio API key from env"""
-    # Load from ~/.kurt/.env
+    # Load from ~/.kurt/.env — setup.py saves values quoted (quote_mode="always"),
+    # so this must go through dotenv's parser rather than a naive split("="),
+    # which left the literal quote characters in the value and made every
+    # key look "invalid" to Composio.
     env_path = KURT_DIR / ".env"
     if env_path.exists():
-        with open(env_path) as f:
-            for line in f:
-                if line.startswith("COMPOSIO_API_KEY="):
-                    return line.split("=", 1)[1].strip()
+        from dotenv import dotenv_values
+        value = dotenv_values(env_path).get("COMPOSIO_API_KEY")
+        if value:
+            return value
     return os.getenv("COMPOSIO_API_KEY")
 
 
@@ -140,40 +147,77 @@ def composio_list(category: str = None, search: str = None):
     console.print(f"\n[dim]Total: 250+ apps available. Run [cyan]kurt connect <app>[/cyan] to connect.[/dim]")
 
 
+def _composio_error(data: dict, resp: httpx.Response) -> str:
+    err = data.get("error")
+    if isinstance(err, dict):
+        msg = err.get("message", "Unknown error")
+        fix = err.get("suggested_fix")
+        return f"{msg} ({fix})" if fix else msg
+    return f"HTTP {resp.status_code}: {data}"
+
+
 def composio_connect(app_name: str):
-    """Connect to a Composio app"""
+    """Connect to a Composio app — mirrors Claude's 'open link, log in, authorize' flow:
+    1. Make sure a (Composio-managed) auth config exists for the toolkit.
+    2. Start a connected account against it — Composio hands back a redirect URL.
+    3. User opens that URL, logs into the real app, and authorizes.
+    No manual tokens or JSON editing required.
+    """
     api_key = get_composio_key()
+    slug = app_name.strip().lower()
 
     if not api_key:
         console.print(f"[yellow]⚠️  Need Composio API key. Run [cyan]kurt setup[/cyan] first.[/yellow]")
         return
 
-    console.print(f"[cyan]🔗 Connecting to {app_name} via Composio...[/cyan]")
+    console.print(f"[cyan]🔗 Connecting to {slug} via Composio...[/cyan]")
 
     try:
         headers = {"x-api-key": api_key, "Content-Type": "application/json"}
-        with httpx.Client(timeout=15) as client:
-            # Initiate connection
+        with httpx.Client(timeout=20) as client:
+            # 1. Get (or create) a Composio-managed OAuth app registration for this toolkit —
+            #    this is what lets us skip asking the user for their own client id/secret.
             resp = client.post(
-                f"{COMPOSIO_BASE}/connectedAccounts",
+                f"{COMPOSIO_BASE}/auth_configs",
                 headers=headers,
-                json={"appName": app_name, "authMode": "OAUTH2"},
+                json={
+                    "toolkit": {"slug": slug},
+                    "auth_config": {"type": "use_composio_managed_auth"},
+                },
             )
             data = resp.json()
+            if resp.status_code >= 400:
+                console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
+                return
+            auth_config_id = data["auth_config"]["id"]
 
-        if "redirectUrl" in data:
+            # 2. Start linking an account under that auth config.
+            resp = client.post(
+                f"{COMPOSIO_BASE}/connected_accounts",
+                headers=headers,
+                json={
+                    "auth_config": {"id": auth_config_id},
+                    "connection": {"user_id": "default"},
+                },
+            )
+            data = resp.json()
+            if resp.status_code >= 400:
+                console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
+                return
+
+        redirect_url = (data.get("connectionData") or {}).get("val", {}).get("redirectUrl")
+        if redirect_url:
             console.print(Panel(
-                f"[green]✅ Open this URL to authorize {app_name}:[/green]\n\n"
-                f"[link={data['redirectUrl']}]{data['redirectUrl']}[/link]\n\n"
-                f"[dim]After authorizing, it will be connected to KURT.[/dim]",
-                title=f"🔗 Connect {app_name}",
+                f"[green]✅ Open this URL to authorize {slug}:[/green]\n\n"
+                f"[link={redirect_url}]{redirect_url}[/link]\n\n"
+                f"[dim]Log in and approve — KURT picks up the connection automatically once you're done.[/dim]",
+                title=f"🔗 Connect {slug}",
                 box=box.ROUNDED,
                 border_style="green",
             ))
-        elif "error" in data:
-            console.print(f"[red]❌ Error: {data['error']}[/red]")
         else:
-            console.print(f"[green]✅ Connected to {app_name}![/green]")
+            # No OAuth step needed (e.g. API-key-only toolkits) — already linked.
+            console.print(f"[green]✅ Connected to {slug}![/green]")
 
     except Exception as e:
         console.print(f"[red]❌ Connection failed: {e}[/red]")
@@ -192,8 +236,12 @@ def composio_status():
     try:
         headers = {"x-api-key": api_key}
         with httpx.Client(timeout=15) as client:
-            resp = client.get(f"{COMPOSIO_BASE}/connectedAccounts", headers=headers)
+            resp = client.get(f"{COMPOSIO_BASE}/connected_accounts", headers=headers)
             data = resp.json()
+
+        if resp.status_code >= 400:
+            console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
+            return
 
         accounts = data.get("items", [])
         if not accounts:
@@ -210,11 +258,12 @@ def composio_status():
         table.add_column("Connected", style="dim", width=20)
 
         for account in accounts:
-            status = "✅ Active" if account.get("status") == "ACTIVE" else "⚠️  " + account.get("status", "Unknown")
+            status_val = account.get("status", "Unknown")
+            status = "✅ Active" if status_val == "ACTIVE" else "⚠️  " + status_val
             table.add_row(
-                account.get("appName", ""),
+                account.get("toolkit", {}).get("slug", ""),
                 status,
-                account.get("createdAt", "")[:10],
+                (account.get("created_at") or "")[:10],
             )
 
         console.print(table)

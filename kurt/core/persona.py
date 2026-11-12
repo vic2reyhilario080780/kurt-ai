@@ -268,6 +268,31 @@ BUILTIN_ICONS = {
 }
 
 # ══════════════════════════════════════════════════════════════
+# VOICE PRESETS (TTS) — used by kurt.core.wake_word.speak()
+# ══════════════════════════════════════════════════════════════
+VOICE_PRESETS = {
+    "young_boy": {
+        "label": "Batang Lalaki (Young Boy)",
+        # Filipino neural voice (not a US English one) so Tagalog/Taglish
+        # words come out with natural pronunciation instead of an
+        # American "slang" accent. Pitched up + sped up for a boyish sound.
+        "edge_voice": "fil-PH-AngeloNeural",
+        "edge_rate": "+18%",
+        "edge_pitch": "+40Hz",
+        "mac_say_voice": "Junior",   # macOS built-in kid-sounding voice (English fallback only)
+        "pyttsx3_rate": 200,
+    },
+    "default": {
+        "label": "Default (Aria)",
+        "edge_voice": "en-US-AriaNeural",
+        "edge_rate": "+0%",
+        "edge_pitch": "+0Hz",
+        "mac_say_voice": None,
+        "pyttsx3_rate": 175,
+    },
+}
+
+# ══════════════════════════════════════════════════════════════
 # DEFAULT PERSONA
 # ══════════════════════════════════════════════════════════════
 DEFAULT_PERSONA = {
@@ -279,6 +304,8 @@ DEFAULT_PERSONA = {
     "theme": "cyber",             # Key from BUILTIN_THEMES
     "icon": "robot",              # Key from BUILTIN_ICONS
     "custom_icon": None,          # Kung "custom" ang icon, dito ilagay
+    # Voice (TTS persona for wake_word.speak())
+    "voice": "young_boy",         # Key from VOICE_PRESETS
     # Language
     "language": "taglish",        # Key from SUPPORTED_LANGUAGES
     # Greeting style
@@ -333,6 +360,12 @@ def get_theme() -> dict:
     """Return current theme dict"""
     p = load_persona()
     return BUILTIN_THEMES.get(p.get("theme", "cyber"), BUILTIN_THEMES["cyber"])
+
+
+def get_voice_preset() -> dict:
+    """Return current TTS voice preset dict (for kurt.core.wake_word.speak())"""
+    p = load_persona()
+    return VOICE_PRESETS.get(p.get("voice", "young_boy"), VOICE_PRESETS["young_boy"])
 
 
 def get_language() -> dict:
@@ -418,6 +451,8 @@ def config_show():
     table.add_row("KURT Name", p.get("kurt_name", "KURT"), "Pangalan ni KURT")
     table.add_row("Theme", f"{p.get('theme','cyber')} — {theme['name']}", "Color palette")
     table.add_row("Icon", f"{icon} ({p.get('icon','robot')})", "KURT icon")
+    voice = VOICE_PRESETS.get(p.get("voice", "young_boy"), VOICE_PRESETS["young_boy"])
+    table.add_row("Voice", f"{p.get('voice','young_boy')} — {voice['label']}", "TTS voice (Hey Kurt / F5)")
     table.add_row("Language", f"{lang['flag']} {lang['name']}", "Output language")
     table.add_row("Greeting Style", p.get("greeting_style", "casual"), "casual / professional / hype")
     table.add_row("AI Mode", p.get("ai_mode", "hybrid"), "hybrid / kurt_only / claude_only")

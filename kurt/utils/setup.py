@@ -16,6 +16,28 @@ console = Console()
 KURT_DIR = Path.home() / ".kurt"
 ENV_PATH = KURT_DIR / ".env"
 
+
+def _ask_secret(prompt_text: str) -> str:
+    """Prompt for an API key without password-masking it.
+
+    Rich's Prompt.ask(..., password=True) shells out to Python's getpass,
+    which reads in raw terminal mode. Many terminal/shell combos (bracketed
+    paste in particular) mangle or silently drop pasted text in that mode —
+    users could never paste a key in, only type it by hand. Plain input()
+    handles paste correctly everywhere, so we use that and then scrub the
+    typed/pasted line from scrollback right after, instead of masking while
+    typing.
+    """
+    value = Prompt.ask(prompt_text, default="").strip()
+    if value and console.file.isatty():
+        # Move up one line and clear it — removes the raw key from scrollback
+        # now that it's been read. Only covers a single terminal row; a key
+        # long enough to wrap past the terminal width may leave a fragment.
+        # Skipped outside a real terminal (redirected/piped output).
+        console.file.write("\x1b[F\x1b[K")
+        console.file.flush()
+    return value
+
 API_PROVIDERS = [
     # ══════════════════════════════════════
     # AI MODELS
@@ -249,15 +271,15 @@ def run_setup():
     # Create .kurt directory
     KURT_DIR.mkdir(exist_ok=True)
 
-    # Load existing keys
+    # Load existing keys. Must go through dotenv's own parser, not a naive
+    # split("=") — values are saved quoted (quote_mode="always" below), and
+    # .strip() only trims whitespace, not the quote characters. Re-running
+    # setup without this would re-quote an already-quoted value on every
+    # pass, corrupting every untouched key a little more each time.
     existing = {}
     if ENV_PATH.exists():
-        with open(ENV_PATH) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, _, val = line.partition("=")
-                    existing[key.strip()] = val.strip()
+        from dotenv import dotenv_values
+        existing = {k: v for k, v in dotenv_values(ENV_PATH).items() if v is not None}
 
     new_keys = dict(existing)
     skip_all = False
@@ -300,7 +322,7 @@ def run_setup():
         else:
             prompt_text = f"  Paste your {provider['name']} key (Enter to skip)"
 
-        key_value = Prompt.ask(prompt_text, default="", password=True)
+        key_value = _ask_secret(prompt_text)
 
         if key_value:
             new_keys[provider["key"]] = key_value

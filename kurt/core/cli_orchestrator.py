@@ -61,6 +61,7 @@ SLASH_COMMANDS = {
     "/info":      "Show session ID, active model, and active skill  e.g. /info",
     "/save":      "Save Kurt's last reply to a file  e.g. /save answer.md",
     "/config":    "Personalize Kurt — theme, name, greeting  e.g. /config theme",
+    "/setup":     "Add/update your API keys (Groq, OpenRouter, Composio, etc.)  e.g. /setup",
     # ── AI Tools — models, skills, and native workflows ─────────────
     "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
     "/models":    "Show the live model routing table  e.g. /models",
@@ -93,7 +94,7 @@ SLASH_COMMANDS = {
 }
 
 SLASH_GROUPS = [
-    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config"]),
+    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
     ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
     ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
@@ -210,6 +211,14 @@ def handle_slash(
     """
 
     p = prompt.strip()
+
+    # Typing the literal CLI invocation instead of the in-chat command is an
+    # easy slip — the chat's own prompt line also just reads "kurt ...".
+    # Without this, it falls straight through to the AI as a normal message
+    # and Kurt free-associates a vague "do you want help setting up?" reply
+    # instead of actually opening the setup wizard.
+    if p.lower().rstrip(".!? ") in ("kurt setup", "kurt setup wizard"):
+        p = "/setup"
 
     if not p.startswith("/"):
         return SlashResult(handled=False, output="", continue_chat=True)
@@ -359,6 +368,14 @@ def handle_slash(
         # These wizards print/prompt directly (interactive Rich prompts) — run them
         # in place, same as any other console.input() in this loop.
         wizard()
+        return SlashResult(handled=True, output="", continue_chat=True)
+
+    # ── /setup ──────────────────────────────────────────────────────
+    # API keys (Groq, OpenRouter, Composio, ...) — distinct from "/config
+    # setup", which is the persona wizard (theme/name/language/icon).
+    if cmd == "/setup":
+        from kurt.utils.setup import run_setup
+        run_setup()
         return SlashResult(handled=True, output="", continue_chat=True)
 
     # ── /history ────────────────────────────────────────────────────

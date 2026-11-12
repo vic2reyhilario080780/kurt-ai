@@ -633,7 +633,7 @@ def chat(
         if _deps.get("can_record") and _deps.get("can_transcribe"):
             start_listening(callback=_voice_callback)
             _voice_active = True
-            console.print("[dim]🎤 Voice active — say 'Hey Kurt' anytime (Ctrl+Shift+K to activate)[/dim]\n")
+            console.print("[dim]🎤 Voice active — say 'Hey Kurt' anytime, F5 for hands-free conversation (Ctrl+Shift+K for one command)[/dim]\n")
     except Exception:
         pass  # Voice is optional — chat still works without it
 
@@ -647,6 +647,7 @@ def chat(
         _proactive = None
 
     while True:
+        _from_voice = False
         if _pending_initial is not None:
             # First turn seeded from `kurt "<prompt>"` — skip voice/typed input once.
             prompt = _pending_initial
@@ -678,6 +679,12 @@ def chat(
                             _proactive.stop()
                         except Exception:
                             pass
+                    if _voice_active:
+                        try:
+                            from kurt.core.wake_word import stop_listening
+                            stop_listening()
+                        except Exception:
+                            pass
                     close_browser_session()
                     break
 
@@ -687,6 +694,17 @@ def chat(
         # Legacy text shortcuts
         if prompt.lower() in ["exit", "quit", "bye"]:
             console.print("[dim]👋 Bye! K.U.R.T. signing off.[/dim]")
+            if _proactive:
+                try:
+                    _proactive.stop()
+                except Exception:
+                    pass
+            if _voice_active:
+                try:
+                    from kurt.core.wake_word import stop_listening
+                    stop_listening()
+                except Exception:
+                    pass
             close_browser_session()
             break
 
@@ -801,6 +819,15 @@ def chat(
             conversation.extend([{'role': 'user', 'content': prompt},
                                  {'role': 'assistant', 'content': response}])
             last_response = response
+
+            # Hands-free (F5) conversation only works if Kurt talks back —
+            # otherwise it's just reading a silent transcript off the screen.
+            if _from_voice and _voice_active:
+                try:
+                    from kurt.core.wake_word import speak as _kurt_speak, strip_markdown_for_speech
+                    _kurt_speak(strip_markdown_for_speech(response), blocking=True)
+                except Exception:
+                    pass
 
         # Store last response for /save
         from kurt.core.memory import get_history as _gh
@@ -925,6 +952,11 @@ def voice(
 
     except KeyboardInterrupt:
         console.print("\n[dim]Voice mode stopped.[/dim]")
+        try:
+            from kurt.core.wake_word import stop_listening
+            stop_listening()
+        except Exception:
+            pass
     except Exception as e:
         console.print(f"[red]❌ Voice mode error: {e}[/red]")
 

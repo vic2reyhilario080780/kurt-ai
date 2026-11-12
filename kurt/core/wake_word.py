@@ -19,6 +19,7 @@ import logging
 import os
 import platform
 import queue
+import re as _re
 import tempfile
 import threading
 import time
@@ -28,6 +29,11 @@ from typing import Callable, Optional
 logger = logging.getLogger(__name__)
 
 OS = platform.system()  # "Darwin" | "Windows" | "Linux"
+
+# Set while speak() is actively playing audio — conversation-mode listening
+# waits for this to clear before recording again, so Kurt doesn't pick up
+# his own voice through the mic as the next "command".
+_tts_speaking = threading.Event()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -59,20 +65,48 @@ HOTKEY_TRIGGER = {
     "Linux": "ctrl+shift+k",
 }
 
+# F5 toggles hands-free "voice conversation mode" — press once to start
+# talking back and forth without needing "Hey Kurt" each time, press again
+# (or say "stop listening") to end it.
+CONVERSATION_HOTKEY = "<f5>"
+
+
+def _pynput_combo(hotkey: str) -> str:
+    """Convert 'ctrl+shift+k' -> '<ctrl>+<shift>+k' for pynput.GlobalHotKeys"""
+    modifiers = {"ctrl", "shift", "alt", "cmd"}
+    parts = hotkey.lower().split("+")
+    return "+".join(f"<{p}>" if p in modifiers else p for p in parts)
+
 
 # ─────────────────────────────────────────────────────────────
 # STT — Speech to Text
 # ─────────────────────────────────────────────────────────────
 
-def transcribe_audio(audio_path: str, language: str = "en") -> tuple[str, float]:
+_whisper_model = None  # cached faster-whisper model — loading it per chunk was dead weight
+
+
+def _get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        # "small" over "base" — noticeably better Tagalog/Taglish accuracy,
+        # still fast enough on CPU for short command-length clips.
+        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+    return _whisper_model
+
+
+def transcribe_audio(audio_path: str, language: Optional[str] = None) -> tuple[str, float]:
     """
     Transcribe audio file → (text, confidence).
     Tries faster-whisper first (faster), then openai-whisper.
+
+    language=None lets Whisper auto-detect per utterance — important for
+    Taglish, where forcing "en" makes it mangle Tagalog words into
+    English-sounding nonsense instead of transcribing them correctly.
     """
     # Try faster-whisper
     try:
-        from faster_whisper import WhisperModel
-        model = WhisperModel("base", device="cpu", compute_type="int8")
+        model = _get_whisper_model()
         segments, info = model.transcribe(audio_path, language=language)
         text = " ".join(seg.text.strip() for seg in segments)
         return text.strip(), 0.9
@@ -105,11 +139,33 @@ def transcribe_audio_fast(audio_path: str) -> str:
 # TTS — Text to Speech
 # ─────────────────────────────────────────────────────────────
 
-def speak(text: str, blocking: bool = True):
-    """
-    Speak text out loud using best available TTS.
-    Priority: edge-tts (better voice) > pyttsx3 > system TTS > log only
-    """
+_MD_CODE_BLOCK_RE = _re.compile(r"```.*?```", _re.DOTALL)
+_MD_INLINE_CODE_RE = _re.compile(r"`([^`]*)`")
+_MD_LINK_RE = _re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_MD_EMPHASIS_RE = _re.compile(r"(\*\*\*|\*\*|\*|___|__|_)(.*?)\1")
+_MD_HEADER_RE = _re.compile(r"^#{1,6}\s*", _re.MULTILINE)
+_MD_BULLET_RE = _re.compile(r"^\s*[-*+]\s+", _re.MULTILINE)
+
+
+def strip_markdown_for_speech(text: str) -> str:
+    """Strip markdown so TTS doesn't read out asterisks, hashes, backticks, etc."""
+    text = _MD_CODE_BLOCK_RE.sub(" code block omitted ", text)
+    text = _MD_INLINE_CODE_RE.sub(r"\1", text)
+    text = _MD_LINK_RE.sub(r"\1", text)
+    text = _MD_EMPHASIS_RE.sub(r"\2", text)
+    text = _MD_HEADER_RE.sub("", text)
+    text = _MD_BULLET_RE.sub("", text)
+    return text.strip()
+
+
+def _speak_sync(text: str, voice_preset: dict):
+    """Actually play `text` out loud, blocking until done. edge-tts > pyttsx3 > system > log."""
+    edge_voice = voice_preset.get("edge_voice", "en-US-AriaNeural")
+    edge_rate = voice_preset.get("edge_rate", "+0%")
+    edge_pitch = voice_preset.get("edge_pitch", "+0Hz")
+    mac_say_voice = voice_preset.get("mac_say_voice")
+    pyttsx3_rate = voice_preset.get("pyttsx3_rate", 175)
+
     # edge-tts (async, better quality)
     try:
         import asyncio
@@ -120,7 +176,9 @@ def speak(text: str, blocking: bool = True):
         async def _speak():
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
                 tmp = f.name
-            communicate = edge_tts.Communicate(text, voice="en-US-AriaNeural")
+            communicate = edge_tts.Communicate(
+                text, voice=edge_voice, rate=edge_rate, pitch=edge_pitch
+            )
             await communicate.save(tmp)
             # Play the file
             if OS == "Darwin":
@@ -131,10 +189,7 @@ def speak(text: str, blocking: bool = True):
                 subprocess.run(["mpg123", "-q", tmp])
             os.unlink(tmp)
 
-        if blocking:
-            asyncio.run(_speak())
-        else:
-            threading.Thread(target=asyncio.run, args=(_speak(),), daemon=True).start()
+        asyncio.run(_speak())
         return
     except ImportError:
         pass
@@ -145,12 +200,9 @@ def speak(text: str, blocking: bool = True):
     try:
         import pyttsx3
         engine = pyttsx3.init()
-        engine.setProperty("rate", 175)
+        engine.setProperty("rate", pyttsx3_rate)
         engine.say(text)
-        if blocking:
-            engine.runAndWait()
-        else:
-            threading.Thread(target=engine.runAndWait, daemon=True).start()
+        engine.runAndWait()
         return
     except ImportError:
         pass
@@ -161,21 +213,50 @@ def speak(text: str, blocking: bool = True):
     try:
         import subprocess
         if OS == "Darwin":
-            cmd = ["say", text]
+            cmd = ["say"] + (["-v", mac_say_voice] if mac_say_voice else []) + [text]
         elif OS == "Windows":
             cmd = ["powershell", "-Command", f'Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("{text}")']
         else:
             cmd = ["espeak", text]
-        if blocking:
-            subprocess.run(cmd, check=False)
-        else:
-            subprocess.Popen(cmd)
+        subprocess.run(cmd, check=False)
         return
     except Exception as e:
         logger.debug(f"System TTS failed: {e}")
 
     # Last resort
     logger.info(f"[KURT TTS] {text}")
+
+
+def speak(text: str, blocking: bool = True, voice_preset: Optional[dict] = None):
+    """
+    Speak text out loud using best available TTS.
+    Priority: edge-tts (better voice) > pyttsx3 > system TTS > log only
+
+    voice_preset: dict with edge_voice/edge_rate/edge_pitch/mac_say_voice/pyttsx3_rate.
+    Defaults to the user's configured persona voice (kurt.core.persona.get_voice_preset()).
+
+    Sets the module-level `_tts_speaking` event for the duration of playback
+    so WakeWordListener's conversation-mode loop knows not to record while
+    Kurt is talking (otherwise the mic picks up his own voice).
+    """
+    if voice_preset is None:
+        try:
+            from kurt.core.persona import get_voice_preset
+            voice_preset = get_voice_preset()
+        except Exception:
+            voice_preset = {}
+
+    def _run():
+        _tts_speaking.set()
+        try:
+            _speak_sync(text, voice_preset)
+        finally:
+            _tts_speaking.clear()
+
+    if blocking:
+        _run()
+    else:
+        threading.Thread(target=_run, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -285,7 +366,13 @@ class WakeWordListener:
         self._running = False
         self._listen_thread: Optional[threading.Thread] = None
         self._hotkey_thread: Optional[threading.Thread] = None
+        self._hotkey_listener = None
+        self._keyboard_fallback_active = False
         self._command_queue: queue.Queue = queue.Queue()
+
+        # F5 hands-free conversation mode
+        self._conversation_mode = False
+        self._conversation_thread: Optional[threading.Thread] = None
 
     def on_command(self, callback: Callable[[VoiceEvent], None]):
         """Register a callback for when a command is received"""
@@ -315,11 +402,33 @@ class WakeWordListener:
     def stop(self):
         """Stop wake word listening"""
         self._running = False
+        self._conversation_mode = False
         self._remove_hotkey()
+
+        # Let any in-flight sd.rec() chunk finish on its own instead of
+        # force-aborting it — forcing a stop mid-recording is what makes
+        # CoreAudio print the harmless-but-noisy "PaMacCore (AUHAL) err=-50"
+        # message to stderr. A plain join lets the chunk (max ~2s for the
+        # idle wake-word poll) end naturally and exit quietly.
+        for t in (self._listen_thread, self._conversation_thread):
+            if t and t.is_alive():
+                t.join(timeout=3.0)
+
         logger.info("Wake word listener stopped")
 
     def is_running(self) -> bool:
         return self._running
+
+    def is_in_conversation_mode(self) -> bool:
+        return self._conversation_mode
+
+    def _wait_while_speaking(self, settle: float = 0.4):
+        """Pause recording while Kurt is talking, then let mic echo settle.
+        No-op (zero added delay) when he isn't currently speaking."""
+        if _tts_speaking.is_set():
+            while _tts_speaking.is_set() and self._running:
+                time.sleep(0.1)
+            time.sleep(settle)
 
     # ── Continuous audio listener ────────────────────────────
 
@@ -342,6 +451,7 @@ class WakeWordListener:
         logger.info("Listening for wake word...")
         while self._running:
             try:
+                self._wait_while_speaking()
                 # Record a short chunk to check for wake word
                 chunk_path = record_audio(duration=2.0)
                 if not chunk_path:
@@ -384,7 +494,8 @@ class WakeWordListener:
             return
 
         # Otherwise record the command
-        speak("Listening...", blocking=False)
+        speak("Listening...", blocking=True)
+        self._wait_while_speaking()
         cmd_path = record_until_silence(max_duration=10.0)
         if cmd_path:
             command = transcribe_audio_fast(cmd_path)
@@ -406,43 +517,21 @@ class WakeWordListener:
     # ── Hotkey fallback ──────────────────────────────────────
 
     def _setup_hotkey(self):
-        """Set up keyboard hotkey as wake word fallback"""
+        """Set up keyboard hotkeys: F5 (conversation mode toggle) + single-command fallback"""
         hotkey = HOTKEY_TRIGGER.get(OS, "ctrl+shift+k")
 
         # Try pynput first — works on Mac without admin/root
         try:
             from pynput import keyboard as pynput_kb
 
-            # Parse hotkey string into pynput keys
-            _key_map = {
-                "ctrl":  pynput_kb.Key.ctrl,
-                "shift": pynput_kb.Key.shift,
-                "alt":   pynput_kb.Key.alt,
-                "cmd":   pynput_kb.Key.cmd,
-            }
-            parts = hotkey.lower().split("+")
-            trigger_keys = set()
-            for p in parts:
-                if p in _key_map:
-                    trigger_keys.add(_key_map[p])
-                elif len(p) == 1:
-                    trigger_keys.add(pynput_kb.KeyCode.from_char(p))
-
-            current_keys: set = set()
-            callback = self._on_hotkey_pressed
-
-            def on_press(key):
-                current_keys.add(key)
-                if trigger_keys and trigger_keys.issubset(current_keys):
-                    callback()
-
-            def on_release(key):
-                current_keys.discard(key)
-
-            listener = pynput_kb.Listener(on_press=on_press, on_release=on_release)
+            listener = pynput_kb.GlobalHotKeys({
+                CONVERSATION_HOTKEY: self._on_conversation_hotkey,
+                _pynput_combo(hotkey): self._on_hotkey_pressed,
+            })
             listener.daemon = True
             listener.start()
-            logger.info(f"Hotkey registered (pynput): {hotkey}")
+            self._hotkey_listener = listener
+            logger.info(f"Hotkeys registered (pynput): F5 (conversation mode), {hotkey} (single command)")
             self._hotkey_active = True
             return
         except ImportError:
@@ -453,31 +542,97 @@ class WakeWordListener:
         # Fallback: try keyboard library (needs admin on Mac)
         try:
             import keyboard
+            keyboard.add_hotkey("f5", self._on_conversation_hotkey)
             keyboard.add_hotkey(hotkey, self._on_hotkey_pressed)
-            logger.info(f"Hotkey registered (keyboard lib): {hotkey}")
+            logger.info(f"Hotkeys registered (keyboard lib): f5, {hotkey}")
             self._hotkey_active = True
+            self._keyboard_fallback_active = True
         except ImportError:
             logger.info("keyboard library not installed — hotkey disabled")
         except Exception as e:
             logger.warning(f"Hotkey setup failed: {e}")
 
     def _remove_hotkey(self):
-        """Remove keyboard hotkey"""
-        try:
-            import keyboard
-            keyboard.unhook_all()
-        except Exception:
-            pass
+        """Remove keyboard hotkeys"""
+        if self._hotkey_listener is not None:
+            try:
+                self._hotkey_listener.stop()
+            except Exception:
+                pass
+            self._hotkey_listener = None
+        # Only touch the `keyboard` lib if it was actually the one registered
+        # — calling keyboard.unhook_all() unconditionally starts its own
+        # (unused) OS listener thread, which throws an unawaited "Error 13 -
+        # Must be run as administrator" on macOS without Accessibility access.
+        if self._keyboard_fallback_active:
+            try:
+                import keyboard
+                keyboard.unhook_all()
+            except Exception:
+                pass
+            self._keyboard_fallback_active = False
 
     def _on_hotkey_pressed(self):
-        """Handle hotkey press — same as wake word"""
-        speak("Listening...", blocking=False)
+        """Handle single-command hotkey press — same as wake word, one command only"""
+        speak("Listening...", blocking=True)
+        self._wait_while_speaking()
         cmd_path = record_until_silence(max_duration=10.0)
         if cmd_path:
             command = transcribe_audio_fast(cmd_path)
             _cleanup(cmd_path)
             if command:
                 self._fire_command(VoiceEvent(text=command, wake_word_used="hotkey"))
+
+    # ── F5 conversation mode ─────────────────────────────────
+
+    def _on_conversation_hotkey(self):
+        """F5 pressed — toggle hands-free voice conversation mode"""
+        if self._conversation_mode:
+            self._stop_conversation_mode()
+        else:
+            self._start_conversation_mode()
+
+    def _start_conversation_mode(self):
+        if self._conversation_mode:
+            return
+        self._conversation_mode = True
+        speak("Voice activated! Usapan na tayo.", blocking=True)
+        self._conversation_thread = threading.Thread(
+            target=self._conversation_loop,
+            daemon=True,
+            name="KURT-Conversation",
+        )
+        self._conversation_thread.start()
+        logger.info("Voice conversation mode started (F5)")
+
+    def _stop_conversation_mode(self):
+        if not self._conversation_mode:
+            return
+        self._conversation_mode = False
+        speak("Sige, tigil na muna.", blocking=False)
+        logger.info("Voice conversation mode stopped (F5)")
+
+    def _conversation_loop(self):
+        """Keep listening and firing commands until F5 toggles this off."""
+        while self._conversation_mode and self._running:
+            try:
+                # Kurt's spoken reply to the previous turn (fired from
+                # main.py after the AI responds) sets this same event —
+                # wait it out so the mic doesn't re-hear his own answer.
+                self._wait_while_speaking()
+                if not self._conversation_mode:
+                    break
+                cmd_path = record_until_silence(max_duration=12.0)
+                if not cmd_path:
+                    time.sleep(0.3)
+                    continue
+                command = transcribe_audio_fast(cmd_path)
+                _cleanup(cmd_path)
+                if command and self._conversation_mode:
+                    self._fire_command(VoiceEvent(text=command, wake_word_used="f5-conversation"))
+            except Exception as e:
+                logger.error(f"Conversation loop error: {e}")
+                time.sleep(1)
 
 
 # ─────────────────────────────────────────────────────────────
