@@ -69,6 +69,21 @@ module.
 
 <!-- Bagong entries dito, pinakabago sa pinakataas. -->
 
+## 2026-11-12 — Pag-consolidate ng kurt ask/do/agent papuntang kurt chat, bagong KurtPersona system (Claude Code)
+- Ano: Tinanggal ang `kurt ask`, `kurt do`, `kurt agent`, `kurt read/edit/run/ls/grep/find/doctor` bilang hiwalay na commands — ang lahat ng kakayahan nila (coding/file tools, computer-use, web automation, orchestration) ay na-wire na sa parehong tool router ng `kurt chat` (`kurt/capabilities/bridge.py`), delegating sa existing `agent_loop.execute_tool()` engine (walang duplicated logic). `kurt chat "<prompt>"` na ang bagong one-off shorthand (dating `kurt ask`).
+- Ano: Idinagdag ang `kurt/persona/` (persona.md + memory.md + `kurt_persona.py`) — bagong `KurtPersona` class na bumubuo ng system prompt + temperature per turn base sa personality file, memory ni Daddy Tito, at detected mode (casual/coding/business). Pinalitan nito ang hardcoded system prompt sa chat loop. Idinagdag ang `kurt memory show/add/edit`. Pinalitan ang `kurt config` → `kurt setting` para hindi mag-collide sa bagong persona identity.
+- Ano: Idinagdag ang 11 bagong standalone CLI commands (`kurt gh/codex/claude/gemini/subagent/plan/tasks/zip/web/browser/computer`) na manipis na wrapper lang sa parehong `handle_slash()` dispatcher ng "/" commands sa loob ng chat — para magkatugma ang `kurt --help` sa mga capability na dati ay slash-only.
+- Bakit: Gusto ng user ng iisang unified na interface (`kurt chat`) para sa lahat ng gawain imbes na maraming hiwalay na commands, at gusto rin niyang discoverable sa `kurt --help` ang lahat ng puwedeng gawin.
+- Validation: 245 tests passed; live verification sa tatlong required na test case (`kamusta ka kurt` → casual/"boss", `may bug sa code ko` → coding mode, `magkano kaya ang kita ng sari-sari store` → business mode may totoong numero).
+
+## 2026-11-12 — Glowing opening screen at malinis na chat output (Claude Code)
+- Ano: Bagong big block-letter "KURT" wordmark (ANSI-Shadow font via `pyfiglet`) bilang opening screen ng `kurt chat`, may rotating/pulsing rainbow glow habang idle (hanggang mag-type ka) — kapalit ng dating simpleng icon+pangalan na linya.
+- Ano: Nahanap ang totoong ugat ng "white background" bug sa "/" command palette — hindi pala sapat ang empty-string style para i-cancel ang built-in `reverse` default ni `prompt_toolkit` para sa `class:bottom-toolbar`; kailangan ng explicit na `"noreverse"`. Na-verify via direct style-merge inspection (`kurt/core/command_palette.py`).
+- Ano: Idinagdag ang `mac_doctor`/`system_doctor` bilang chat tool (disk/CPU/RAM/network diagnostics) — dati, kaya lang ito ng `kurt doctor` CLI, walang access ang ordinary chat.
+- Ano: Tinago ang internal na error/fallback text (hal. "❌ Error: 413...", "↩ Trying fallback...") at tool-call status lines ("🔧 tool_name", "Desktop action: status") mula sa normal na chat view — naka-gate na ngayon sa `verbose` flag (default False sa `kurt chat`), para malinis ang tingnan.
+- Bakit: Nais ng user na "hindi boring" at "malinis" ang itsura ng pakikipag-usap kay Kurt — hindi dapat lumalabas ang internal na mekanika/errors habang nag-rerecover naman.
+- Validation: 245 tests passed; live verification sa `kurt chat` (walang error/tool-status noise sa output, totoong glow animation).
+
 ## 2026-11-11 — Vision/coordinate-click fallback para sa AX-tree failures (Claude Code)
 - Ano: Idinagdag ang `analyze_screen` at `click_at_coordinates` bilang bagong tools na kayang gamitin ni Kurt mismo sa autonomous chat loop (`kurt/core/assistant_tools.py`) — dati, reachable lang ang vision analysis via manual `/computer analyze` o sa `/subagent` loop; walang access dito ang ordinary chat. `click_at_coordinates` ay totoong raw pixel mouse click (reuse ng existing `computer_use.py`), naka-gate sa `set_task_goal` at may screen-bounds check.
 - Ano: Binago ang `ASSISTANT_POLICY` — kapag sunod-sunod na nabigo ang `observe_application` (accessibility-tree reading) sa parehong app/window, dapat lumipat sa `analyze_screen` muna (hal. mode=find para sa coordinates), saka sa `click_at_coordinates` bilang huling resort — hindi na dapat mag-re-declare ng bagong `set_task_goal` lang dahil nabigo ang observation.

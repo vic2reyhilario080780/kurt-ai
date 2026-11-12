@@ -54,12 +54,13 @@ CONFIG_SUBCOMMANDS = [
     ("reset", "Reset persona to defaults"),
 ]
 
-# No style override needed beyond stripping the default "reverse" the
-# bottom-toolbar class ships with (prompt_toolkit's own defaults.py sets
-# it to a solid reversed block) — that solid bar is what read as a "white
-# background" in a light-background terminal. Leaving it blank lets the
-# terminal's own (transparent) background show through.
-_STYLE = Style.from_dict({"bottom-toolbar": "", "bottom-toolbar.text": ""})
+# prompt_toolkit's own defaults.py ships class:bottom-toolbar as "reverse"
+# (a solid swapped-color block — that's the "white background" users see).
+# An empty string here does NOT cancel it: style merging only overrides
+# attributes a later rule explicitly sets, and "" sets nothing, so the
+# inherited reverse=True from the built-in default style survives untouched.
+# "noreverse" is the explicit attribute that actually clears it.
+_STYLE = Style.from_dict({"bottom-toolbar": "noreverse", "bottom-toolbar.text": "noreverse"})
 
 
 @dataclass
