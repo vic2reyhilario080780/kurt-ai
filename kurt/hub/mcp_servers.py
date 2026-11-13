@@ -6,6 +6,7 @@ KURT Hub — awesome-mcp-servers + LangChain + n8n + Zapier Integration
 import os
 import httpx
 import json
+import webbrowser
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -15,6 +16,73 @@ from rich import box
 console = Console()
 
 KURT_DIR = Path.home() / ".kurt"
+DATA_DIR = Path(__file__).parents[1] / "data"
+
+_zapier_apps_cache: list | None = None
+_n8n_integrations_cache: list | None = None
+
+
+def load_zapier_apps() -> list[str]:
+    """Full bundled snapshot of Zapier's public app directory (10,090 app
+    slugs at time of writing — scraped from Zapier's own sitemap, the same
+    public listing their site indexes for search engines). ZAPIER_APPS
+    below is only a small curated subset for the printed category
+    browser; this backs the full picker."""
+    global _zapier_apps_cache
+    if _zapier_apps_cache is None:
+        _zapier_apps_cache = json.loads((DATA_DIR / "zapier_apps.json").read_text())
+    return _zapier_apps_cache
+
+
+def load_n8n_integrations() -> list[str]:
+    """Full bundled snapshot of n8n's public integrations directory (2,635
+    slugs at time of writing — scraped from n8n.io's own sitemap)."""
+    global _n8n_integrations_cache
+    if _n8n_integrations_cache is None:
+        _n8n_integrations_cache = json.loads((DATA_DIR / "n8n_integrations.json").read_text())
+    return _n8n_integrations_cache
+
+
+def zapier_open(slug: str):
+    """Zapier itself hosts the actual connect/Zap-building UI for a given
+    app — there's no API for a third party like Kurt to establish a live
+    per-app OAuth session the way Composio or native MCP servers allow.
+    The honest move is to open the real integration page for the user."""
+    url = f"https://zapier.com/apps/{slug}/integrations"
+    label = slug.replace("-", " ").title()
+    console.print(Panel(
+        f"[green]Opening {label}'s Zapier integration page…[/green]\n\n"
+        f"[link={url}]{url}[/link]\n\n"
+        f"[dim]Build the Zap there — Zapier doesn't expose a way for Kurt "
+        f"to connect a third-party app on your behalf. Once it's built, "
+        f"Kurt can call it through Zapier's own webhook or NLA actions "
+        f"(set a ZAPIER_NLA_API_KEY with [cyan]kurt setup[/cyan]).[/dim]",
+        title=f"⚡ {label}", box=box.ROUNDED, border_style="green",
+    ))
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
+def n8n_open(slug: str):
+    """Same reasoning as zapier_open: n8n nodes are built and run inside
+    your own n8n instance — Kurt can trigger an existing n8n workflow
+    (see n8n_trigger below) but can't remotely 'connect' one of n8n's
+    built-in node types on your behalf."""
+    url = f"https://n8n.io/integrations/{slug}/"
+    label = slug.replace("-", " ").title()
+    console.print(Panel(
+        f"[green]Opening {label}'s n8n integration page…[/green]\n\n"
+        f"[link={url}]{url}[/link]\n\n"
+        f"[dim]Build the workflow in your n8n instance, then trigger it "
+        f"from Kurt with [cyan]kurt n8n run <workflow-id>[/cyan].[/dim]",
+        title=f"⚙️  {label}", box=box.ROUNDED, border_style="green",
+    ))
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
 
 # Curated list of awesome-mcp-servers (github.com/punkpeye/awesome-mcp-servers)
 AWESOME_MCP_SERVERS = {

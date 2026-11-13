@@ -80,6 +80,9 @@ SLASH_COMMANDS = {
     "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
     "/cli":       "CLI availability/readiness  e.g. /cli status | /cli probe",
     "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
+    "/connect":   "Connect an app (Gmail, Slack, Shopify...) — opens the login page for you  e.g. /connect gmail",
+    "/zapier":    "Browse 9,000+ Zapier app integrations  e.g. /zapier search shopify | /zapier open gmail",
+    "/n8n":       "Browse 2,000+ n8n workflow integrations  e.g. /n8n search postgres | /n8n open slack",
     "/doctor":    "Diagnose & debug your iMac  e.g. /doctor summary | cpu | mem | disk | net | crashes | startup | open <path>",
     "/grep":      "Fast regex/text codebase search  e.g. /grep ModelRouter",
     "/find":      "Find files by glob or substring  e.g. /find *.py",
@@ -96,7 +99,7 @@ SLASH_COMMANDS = {
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
     ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
-    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
+    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -560,14 +563,15 @@ def handle_slash(
                 output = f"MCP: {exc}"
             return SlashResult(handled=True, output=output, continue_chat=True)
 
-        if sub_cmd == "connect-preset":
-            from kurt.core.mcp_client import get_preset, add_connection
-            conn = get_preset(sub_args)
-            if not conn:
-                return SlashResult(handled=True, output=f"❌ Unknown preset: {sub_args}", continue_chat=True)
-            conn.name = sub_args
-            result = add_connection(conn)
-            return SlashResult(handled=True, output=result, continue_chat=True)
+        # "connect-preset" is a legacy spelling kept for compatibility —
+        # both now go through the same unified connect flow.
+        if sub_cmd in ("authorize", "connect-preset"):
+            from kurt.core.mcp_commands import connect_entry
+            if not sub_args:
+                return SlashResult(handled=True, output=f"Usage: /mcp {sub_cmd} <preset or server-id>", continue_chat=True)
+            connect_entry(sub_args)
+            # connect_entry prints its own progress/result straight to the console.
+            return SlashResult(handled=True, output="", continue_chat=True)
 
         if sub_cmd == "list":
             from kurt.core.mcp_client import load_registry
@@ -628,9 +632,61 @@ def handle_slash(
 
         return SlashResult(
             handled=True,
-            output="Usage: /mcp catalog | search <app> | config <id> | connect <JSON or URL> | list | tools | call server/tool {params}",
+            output="Usage: /mcp catalog | search <app> | authorize <id> | config <id> | connect <JSON or URL> | list | tools | call server/tool {params}",
             continue_chat=True,
         )
+
+    # ── /connect (Composio app connectors — Gmail, Slack, Shopify...) ──
+    if cmd == "/connect":
+        from kurt.hub.composio import composio_list, composio_connect, composio_status
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].strip() if sub else ""
+
+        if not sub_cmd or sub_cmd.lower() == "list":
+            composio_list()
+        elif sub_cmd.lower() == "status":
+            composio_status()
+        elif sub_cmd.lower() == "search":
+            composio_list(search=sub[1].strip() if len(sub) > 1 else "")
+        else:
+            composio_connect(sub_cmd)
+        # composio_list/status/connect print their own Rich panels/tables
+        # straight to the console — nothing left to echo back here.
+        return SlashResult(handled=True, output="", continue_chat=True)
+
+    # ── /zapier (9,000+ app directory — no per-app API, so "open" just
+    # hands you the real Zapier integration page instead of faking a
+    # connect step Zapier doesn't expose to third parties) ─────────────
+    if cmd == "/zapier":
+        from kurt.hub.mcp_servers import zapier_list, zapier_open
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else ""
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+        if sub_cmd == "open":
+            if not sub_args:
+                return SlashResult(handled=True, output="Usage: /zapier open <app-slug>", continue_chat=True)
+            zapier_open(sub_args)
+        elif sub_cmd == "search":
+            zapier_list(search=sub_args)
+        else:
+            zapier_list(search=args.strip() or None)
+        return SlashResult(handled=True, output="", continue_chat=True)
+
+    # ── /n8n (2,000+ integration directory — same reasoning as /zapier) ─
+    if cmd == "/n8n":
+        from kurt.hub.mcp_servers import n8n_list, n8n_open
+        sub = args.split(None, 1)
+        sub_cmd = sub[0].lower() if sub else ""
+        sub_args = sub[1].strip() if len(sub) > 1 else ""
+        if sub_cmd == "open":
+            if not sub_args:
+                return SlashResult(handled=True, output="Usage: /n8n open <integration-slug>", continue_chat=True)
+            n8n_open(sub_args)
+        elif sub_cmd == "search":
+            n8n_list(search=sub_args)
+        else:
+            n8n_list(search=args.strip() or None)
+        return SlashResult(handled=True, output="", continue_chat=True)
 
     # ── /computer ───────────────────────────────────────────────────
     if cmd == "/computer":

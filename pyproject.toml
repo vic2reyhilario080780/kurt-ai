@@ -66,7 +66,7 @@ where = ["."]
 include = ["kurt*"]
 
 [tool.setuptools.package-data]
-kurt = ["*.json", "skills/*.json", "plugins/*.json", "data/*.json.gz", "data/native_pack/*.json.gz"]
+kurt = ["*.json", "skills/*.json", "plugins/*.json", "data/*.json", "data/*.json.gz", "data/native_pack/*.json.gz"]
 
 [tool.ruff]
 line-length = 100

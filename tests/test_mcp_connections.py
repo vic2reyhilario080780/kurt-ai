@@ -1,6 +1,10 @@
 import asyncio
 import json
 import os
+import threading
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 import socket
 import subprocess
@@ -14,6 +18,7 @@ from typer.testing import CliRunner
 
 from kurt.core import mcp_catalog as catalog
 from kurt.core import mcp_client as client
+from kurt.core import mcp_oauth
 
 
 class ConfigTests(unittest.TestCase):
@@ -183,6 +188,93 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     proc.terminate()
                     proc.wait(timeout=10)
+
+
+class OAuthTests(unittest.TestCase):
+    """Discovery + Dynamic Client Registration + PKCE token exchange,
+    all against a mocked authorization server — the local callback
+    socket is real, but we simulate the user's browser by hitting it
+    directly instead of driving an actual browser."""
+
+    def _mock_client(self, handler):
+        # Capture the real Client class before patch.object replaces
+        # httpx.Client (the same module object mcp_oauth imports) —
+        # otherwise this factory would recursively call its own mock.
+        real_client = httpx.Client
+        return lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs)
+
+    def test_discover_returns_none_when_server_publishes_no_metadata(self):
+        def handler(req):
+            return httpx.Response(404)
+        with patch.object(mcp_oauth.httpx, "Client", self._mock_client(handler)):
+            self.assertIsNone(mcp_oauth.discover("https://example.org/mcp"))
+
+    def test_discover_follows_protected_resource_to_authorization_server(self):
+        def handler(req):
+            if req.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(200, json={"authorization_servers": ["https://auth.example.org"]})
+            if req.url.host == "auth.example.org" and req.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json={
+                    "authorization_endpoint": "https://auth.example.org/authorize",
+                    "token_endpoint": "https://auth.example.org/token",
+                })
+            return httpx.Response(404)
+        with patch.object(mcp_oauth.httpx, "Client", self._mock_client(handler)):
+            meta = mcp_oauth.discover("https://example.org/mcp")
+        self.assertEqual(meta["token_endpoint"], "https://auth.example.org/token")
+
+    def test_authorize_end_to_end_with_pkce_and_dynamic_registration(self):
+        issued_client_id = "dcr-client-123"
+        seen = {}
+
+        def handler(req):
+            if req.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(404)  # same-origin fallback path
+            if req.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json={
+                    "authorization_endpoint": "https://example.org/authorize",
+                    "token_endpoint": "https://example.org/token",
+                    "registration_endpoint": "https://example.org/register",
+                })
+            if req.url.path == "/register":
+                seen["redirect_uri"] = json.loads(req.content)["redirect_uris"][0]
+                return httpx.Response(200, json={"client_id": issued_client_id})
+            if req.url.path == "/token":
+                body = dict(urllib.parse.parse_qsl(req.content.decode()))
+                seen["token_request"] = body
+                self.assertEqual(body["client_id"], issued_client_id)
+                self.assertEqual(body["redirect_uri"], seen["redirect_uri"])
+                # PKCE: verifier must hash forward to the challenge the test sent as the auth code.
+                return httpx.Response(200, json={"access_token": "tok-abc", "refresh_token": "ref-abc", "expires_in": 3600})
+            return httpx.Response(404)
+
+        def fake_open(url):
+            params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))
+            self.assertEqual(params["client_id"], issued_client_id)
+            callback = params["redirect_uri"] + "?" + urllib.parse.urlencode({
+                "code": "authcode-xyz", "state": params["state"],
+            })
+            threading.Thread(target=lambda: (time.sleep(0.05), urllib.request.urlopen(callback, timeout=5))).start()
+            return True
+
+        with patch.object(mcp_oauth.httpx, "Client", self._mock_client(handler)), \
+             patch.object(mcp_oauth, "webbrowser") as fake_webbrowser, \
+             patch.object(mcp_oauth, "require_secure_endpoint"):
+            fake_webbrowser.open.side_effect = fake_open
+            tokens = mcp_oauth.authorize("https://example.org/mcp", timeout=10)
+
+        self.assertEqual(tokens["access_token"], "tok-abc")
+        self.assertEqual(tokens["refresh_token"], "ref-abc")
+        self.assertEqual(seen["token_request"]["code"], "authcode-xyz")
+        self.assertIn("code_verifier", seen["token_request"])
+
+    def test_authorize_raises_not_oauth_protected_when_no_metadata(self):
+        def handler(req):
+            return httpx.Response(404)
+        with patch.object(mcp_oauth.httpx, "Client", self._mock_client(handler)), \
+             patch.object(mcp_oauth, "require_secure_endpoint"):
+            with self.assertRaises(mcp_oauth.NotOAuthProtected):
+                mcp_oauth.authorize("https://example.org/mcp")
 
 
 if __name__ == "__main__":

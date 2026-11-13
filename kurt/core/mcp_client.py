@@ -344,13 +344,15 @@ PRESETS = {
         args=["-y", "@modelcontextprotocol/server-filesystem", "."],
         description="Local filesystem access",
     ),
+    # @modelcontextprotocol/server-github was archived — GitHub now hosts
+    # its own maintained remote MCP server (api.githubcopilot.com), auth'd
+    # with a bearer PAT instead of a local npx process.
     "github": MCPConnection(
         name="github",
-        transport="stdio",
-        command="npx",
-        args=["-y", "@modelcontextprotocol/server-github"],
-        env={"GITHUB_PERSONAL_ACCESS_TOKEN": os.environ.get("GITHUB_TOKEN", "")},
-        description="GitHub repos, issues, PRs",
+        transport="http",
+        url="https://api.githubcopilot.com/mcp/",
+        headers={"Authorization": os.environ.get("GITHUB_TOKEN", "")},
+        description="GitHub repos, issues, PRs — official remote MCP server",
     ),
     "postgres": MCPConnection(
         name="postgres",
@@ -360,27 +362,38 @@ PRESETS = {
               os.environ.get("DATABASE_URL", "postgresql://localhost/mydb")],
         description="PostgreSQL database",
     ),
+    # @modelcontextprotocol/server-brave-search was pulled from npm —
+    # Brave's own README points to this as the official successor.
     "brave-search": MCPConnection(
         name="brave-search",
         transport="stdio",
         command="npx",
-        args=["-y", "@modelcontextprotocol/server-brave-search"],
+        args=["-y", "@brave/brave-search-mcp-server", "--transport", "stdio"],
         env={"BRAVE_API_KEY": os.environ.get("BRAVE_API_KEY", "")},
         description="Brave web search",
     ),
+    # @modelcontextprotocol/server-sqlite was removed from npm entirely
+    # (404). Its suggested PyPI replacement, mcp-server-sqlite, actually
+    # crashes on startup against the current MCP Python SDK (confirmed by
+    # running it — AttributeError: 'Server' object has no attribute
+    # 'list_resources', an old decorator API that no longer exists).
+    # mcp-sqlite-server (npm) was verified working end-to-end instead —
+    # real initialize + tools/list against a live process.
     "sqlite": MCPConnection(
         name="sqlite",
         transport="stdio",
         command="npx",
-        args=["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"],
-        description="SQLite database",
+        args=["-y", "mcp-sqlite-server"],
+        description="SQLite database (read-only by default)",
     ),
+    # @modelcontextprotocol/server-puppeteer was archived — Microsoft's
+    # actively maintained Playwright MCP server is the modern equivalent.
     "puppeteer": MCPConnection(
         name="puppeteer",
         transport="stdio",
         command="npx",
-        args=["-y", "@modelcontextprotocol/server-puppeteer"],
-        description="Browser automation",
+        args=["-y", "@playwright/mcp"],
+        description="Browser automation (via Playwright MCP)",
     ),
 }
 

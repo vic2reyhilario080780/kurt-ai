@@ -36,6 +36,9 @@ WINDOW = 10  # max visible rows at once
 OPEN_TARGETS = {
     "/skills": "skills",
     "/mcp": "mcp",
+    "/connect": "connectors",
+    "/zapier": "zapier",
+    "/n8n": "n8n",
     "/agents": "agents",
     "/plugins": "plugins",
     "/model": "model",
@@ -124,7 +127,7 @@ def _flat_commands(query: str) -> list[str]:
 
 # ── Data providers — every item here is just the pre-existing function
 # a typed command already calls; nothing here is new business logic
-# except the one `/mcp connect-preset` arm added to cli_orchestrator.py.
+# except the `/mcp authorize` arm added to cli_orchestrator.py.
 # ──────────────────────────────────────────────────────────────────────
 
 def _skills_items(query: str) -> list[dict]:
@@ -167,16 +170,16 @@ def _mcp_items(query: str) -> list[dict]:
             items.append({
                 "label": f"✓ {name}  [{conn.transport}]  {conn.description}",
                 "kind": "leaf",
-                "value": "",
+                "value": f"/mcp tools {name}",
             })
     for name, preset in PRESETS.items():
         if name in registry:
             continue
         if _matches(query, name, preset.description):
             items.append({
-                "label": f"○ {name}  (preset — ready to connect)  {preset.description}",
+                "label": f"○ {name}  (preset — connect)  {preset.description}",
                 "kind": "leaf",
-                "value": f"/mcp connect-preset {name}",
+                "value": f"/mcp authorize {name}",
             })
     preset_ids = {f"{p}" for p in PRESETS} | set(registry.keys())
     for entry in _catalog_entries():
@@ -185,13 +188,80 @@ def _mcp_items(query: str) -> list[dict]:
             continue
         if _matches(query, entry["id"], entry.get("title", ""), entry.get("description", "")):
             items.append({
-                "label": f"◇ {entry['id']}  (catalog — needs config)  {entry.get('description', '')[:60]}",
+                "label": f"◇ {entry['id']}  (catalog — connect)  {entry.get('description', '')[:60]}",
                 "kind": "leaf",
-                # Not a one-click connect: most catalog servers need an
-                # API key/URL filled in first. `/mcp config <id>` already
-                # prints the ready-to-fill connection template.
-                "value": f"/mcp config {entry['id']}",
+                # Tries the server's own OAuth sign-in first (opens the
+                # browser); falls back to printing a fillable config
+                # template when the server has no OAuth metadata or only
+                # runs locally via stdio.
+                "value": f"/mcp authorize {entry['id']}",
             })
+    return items
+
+
+_composio_curated_cache: Optional[dict] = None
+
+
+def _composio_curated() -> dict:
+    """slug -> (name, description, category) for the ~40 hand-written
+    entries in COMPOSIO_APPS — used only to give those few a nicer label
+    than a bare title-cased slug; everything else in the full 1,633-entry
+    bundled directory still works, just without hand-written copy."""
+    global _composio_curated_cache
+    if _composio_curated_cache is None:
+        from kurt.hub.composio import COMPOSIO_APPS
+        _composio_curated_cache = {
+            slug: (name, desc, cat)
+            for cat, apps in COMPOSIO_APPS.items()
+            for slug, name, desc in apps
+        }
+    return _composio_curated_cache
+
+
+def _connector_items(query: str) -> list[dict]:
+    """All Composio app connectors — the full bundled toolkit directory
+    (1,633 at time of writing, kurt/data/composio_toolkits.json), not just
+    the ~40 hand-curated ones. Picking one resolves to `/connect <slug>`,
+    which opens the real login page in the user's browser and watches for
+    authorization automatically (same OAuth-via-Composio flow as before)."""
+    from kurt.hub.composio import load_toolkits
+
+    curated = _composio_curated()
+    items = []
+    for slug in load_toolkits():
+        name, desc, cat = curated.get(slug, (slug.replace("_", " ").replace("-", " ").title(), "", ""))
+        if _matches(query, slug, name, desc):
+            label = f"{name}  —  {desc}  [{cat}]" if desc else name
+            items.append({"label": label, "kind": "leaf", "value": f"/connect {slug}"})
+    return items
+
+
+def _zapier_picker_items(query: str) -> list[dict]:
+    """All 10,090 bundled Zapier app slugs (kurt/data/zapier_apps.json).
+    Zapier has no API for a third party to connect a per-app OAuth session
+    the way Composio does, so picking one opens that app's real Zapier
+    integration page instead (`/zapier open <slug>`)."""
+    from kurt.hub.mcp_servers import load_zapier_apps
+
+    items = []
+    for slug in load_zapier_apps():
+        label = slug.replace("-", " ").title()
+        if _matches(query, slug, label):
+            items.append({"label": label, "kind": "leaf", "value": f"/zapier open {slug}"})
+    return items
+
+
+def _n8n_picker_items(query: str) -> list[dict]:
+    """All 2,635 bundled n8n integration slugs (kurt/data/n8n_integrations.json).
+    Same reasoning as Zapier: n8n nodes run inside your own n8n instance,
+    so picking one opens the real n8n.io integration page."""
+    from kurt.hub.mcp_servers import load_n8n_integrations
+
+    items = []
+    for slug in load_n8n_integrations():
+        label = slug.replace("-", " ").title()
+        if _matches(query, slug, label):
+            items.append({"label": label, "kind": "leaf", "value": f"/n8n open {slug}"})
     return items
 
 
@@ -309,6 +379,12 @@ def _current_items(state: _PaletteState, query: str) -> list[dict]:
         return _skills_items(query)
     if state.view == "mcp":
         return _mcp_items(query)
+    if state.view == "connectors":
+        return _connector_items(query)
+    if state.view == "zapier":
+        return _zapier_picker_items(query)
+    if state.view == "n8n":
+        return _n8n_picker_items(query)
     if state.view == "agents":
         return _capability_items(query, "agent", "/agents")
     if state.view == "plugins":
@@ -333,7 +409,12 @@ def _current_items(state: _PaletteState, query: str) -> list[dict]:
         ]
         return [r for r in rows if _matches(query, r["label"])]
     if state.tab == "mcp":
-        rows = [{"label": "/mcp       Connect to & call outside tools", "kind": "open", "target": "mcp"}]
+        rows = [
+            {"label": "/connect   Connect an app — 1,633 Composio toolkits", "kind": "open", "target": "connectors"},
+            {"label": "/mcp       Connect to & call outside tools — 58K+ public MCP servers", "kind": "open", "target": "mcp"},
+            {"label": "/zapier    Browse 9,000+ Zapier app integrations", "kind": "open", "target": "zapier"},
+            {"label": "/n8n       Browse 2,000+ n8n workflow integrations", "kind": "open", "target": "n8n"},
+        ]
         return [r for r in rows if _matches(query, r["label"])]
     return []
 
@@ -374,8 +455,8 @@ def _render(state: _PaletteState, buf_text: str):
     elif state.view == "show_all":
         lines.append([("bold", "📖 All commands"), ("", "\n")])
     else:
-        icon = {"skills": "🧠", "mcp": "🔌", "agents": "⚙️", "plugins": "⚙️",
-                "model": "🤖", "config": "🛠️"}.get(state.view, "")
+        icon = {"skills": "🧠", "mcp": "🔌", "connectors": "🔗", "zapier": "⚡", "n8n": "⚙️",
+                "agents": "⚙️", "plugins": "⚙️", "model": "🤖", "config": "🛠️"}.get(state.view, "")
         lines.append([("bold", f"{icon} {state.view}"), ("", "\n")])
 
     if not items:

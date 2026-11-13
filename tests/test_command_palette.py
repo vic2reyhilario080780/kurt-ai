@@ -1,6 +1,8 @@
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -96,30 +98,115 @@ class ConnectPresetSlashCommandTests(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
+    async def _fake_probe(self, conn):
+        from kurt.core.mcp_client import MCPTool
+        return [MCPTool(name="t", description="", server_name=conn.name)]
+
     def test_connect_preset_persists_to_registry(self):
-        result = orch.handle_slash(
-            prompt="/mcp connect-preset sqlite",
-            session_id="s1",
-            current_model="auto",
-            current_skill=None,
-            last_response="",
-        )
+        with patch.object(client, "probe_connection", self._fake_probe):
+            result = orch.handle_slash(
+                prompt="/mcp connect-preset sqlite",
+                session_id="s1",
+                current_model="auto",
+                current_skill=None,
+                last_response="",
+            )
         self.assertTrue(result.handled)
         registry = client.load_registry()
         self.assertIn("sqlite", registry)
         self.assertEqual(registry["sqlite"].transport, "stdio")
 
     def test_connect_preset_unknown_name(self):
-        result = orch.handle_slash(
-            prompt="/mcp connect-preset not-a-real-preset",
-            session_id="s1",
-            current_model="auto",
-            current_skill=None,
-            last_response="",
-        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = orch.handle_slash(
+                prompt="/mcp connect-preset not-a-real-preset",
+                session_id="s1",
+                current_model="auto",
+                current_skill=None,
+                last_response="",
+            )
         self.assertTrue(result.handled)
-        self.assertIn("Unknown preset", result.output)
+        self.assertIn("Unknown server", buf.getvalue())
         self.assertEqual(client.load_registry(), {})
+
+    def test_authorize_alias_also_persists_preset(self):
+        with patch.object(client, "probe_connection", self._fake_probe):
+            result = orch.handle_slash(
+                prompt="/mcp authorize sqlite",
+                session_id="s1",
+                current_model="auto",
+                current_skill=None,
+                last_response="",
+            )
+        self.assertTrue(result.handled)
+        self.assertIn("sqlite", client.load_registry())
+
+    def test_authorize_reports_missing_field_without_blocking_when_not_a_tty(self):
+        # github preset needs GITHUB_PERSONAL_ACCESS_TOKEN — with no real
+        # tty (as in a test run) this must describe what's missing instead
+        # of calling Prompt.ask and hanging forever waiting for stdin.
+        # github is a remote http preset (Authorization header) whose own
+        # server has no OAuth metadata (confirmed against the real
+        # api.githubcopilot.com endpoint) — mock that discovery call so
+        # the test doesn't depend on network access.
+        from kurt.core import mcp_oauth
+        with patch.dict(client.PRESETS["github"].headers, {"Authorization": ""}), \
+             patch.object(mcp_oauth, "authorize", side_effect=mcp_oauth.NotOAuthProtected("github")):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = orch.handle_slash(
+                    prompt="/mcp authorize github",
+                    session_id="s1",
+                    current_model="auto",
+                    current_skill=None,
+                    last_response="",
+                )
+        self.assertTrue(result.handled)
+        self.assertIn("Needs: Authorization", buf.getvalue())
+        self.assertIn("https://github.com/settings/tokens", buf.getvalue())
+        self.assertNotIn("github", client.load_registry())
+
+
+class ConnectorDirectoryTests(unittest.TestCase):
+    """The full bundled Composio/Zapier/n8n directories (not just the
+    small hand-curated subsets) that back the command palette's pickers."""
+
+    def test_bundled_directories_are_large_and_deduplicated(self):
+        from kurt.hub.composio import load_toolkits
+        from kurt.hub.mcp_servers import load_zapier_apps, load_n8n_integrations
+
+        for loader, minimum in ((load_toolkits, 1000), (load_zapier_apps, 9000), (load_n8n_integrations, 2000)):
+            slugs = loader()
+            with self.subTest(loader=loader.__name__):
+                self.assertGreaterEqual(len(slugs), minimum)
+                self.assertEqual(len(slugs), len(set(slugs)))
+
+    def test_connector_picker_covers_full_composio_directory(self):
+        from kurt.core.command_palette import _connector_items
+        items = _connector_items("")
+        self.assertGreaterEqual(len(items), 1000)
+        self.assertTrue(any(i["value"] == "/connect gmail" for i in items))
+
+    def test_zapier_and_n8n_pickers_resolve_to_open_not_connect(self):
+        from kurt.core.command_palette import _zapier_picker_items, _n8n_picker_items
+        zap = _zapier_picker_items("shopify")
+        n8n = _n8n_picker_items("slack")
+        self.assertTrue(zap and all(i["value"].startswith("/zapier open ") for i in zap))
+        self.assertTrue(n8n and all(i["value"].startswith("/n8n open ") for i in n8n))
+
+    def test_zapier_open_and_n8n_open_navigate_to_the_real_integration_page(self):
+        from kurt.hub import mcp_servers
+        with patch.object(mcp_servers.webbrowser, "open") as fake_open:
+            result = orch.handle_slash(prompt="/zapier open shopify", session_id="s1",
+                                        current_model="auto", current_skill=None, last_response="")
+            self.assertTrue(result.handled)
+            fake_open.assert_called_with("https://zapier.com/apps/shopify/integrations")
+
+            result = orch.handle_slash(prompt="/n8n open slack", session_id="s1",
+                                        current_model="auto", current_skill=None, last_response="")
+            self.assertTrue(result.handled)
+            fake_open.assert_called_with("https://n8n.io/integrations/slack/")
 
 
 if __name__ == "__main__":

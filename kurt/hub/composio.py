@@ -4,6 +4,8 @@ KURT Hub — Composio Integration
 """
 
 import os
+import time
+import webbrowser
 import httpx
 import json
 from pathlib import Path
@@ -16,6 +18,21 @@ console = Console()
 
 COMPOSIO_BASE = "https://backend.composio.dev/api/v3.1"  # v1 was retired by Composio
 KURT_DIR = Path.home() / ".kurt"
+
+_TOOLKITS_PATH = Path(__file__).parents[1] / "data" / "composio_toolkits.json"
+_toolkits_cache: list | None = None
+
+
+def load_toolkits() -> list[str]:
+    """Full bundled snapshot of Composio's public toolkit directory (1,633
+    slugs at time of writing — scraped from composio.dev/toolkits, the
+    same public listing Composio's own site renders, no API key needed to
+    browse). COMPOSIO_APPS below is only a small curated subset for the
+    printed category browser; this backs the full picker."""
+    global _toolkits_cache
+    if _toolkits_cache is None:
+        _toolkits_cache = json.loads(_TOOLKITS_PATH.read_text())
+    return _toolkits_cache
 
 # Popular Composio apps grouped by category
 COMPOSIO_APPS = {
@@ -156,11 +173,43 @@ def _composio_error(data: dict, resp: httpx.Response) -> str:
     return f"HTTP {resp.status_code}: {data}"
 
 
-def composio_connect(app_name: str):
-    """Connect to a Composio app — mirrors Claude's 'open link, log in, authorize' flow:
+def _is_api_key_error(data: dict) -> bool:
+    """True for problems with KURT's own Composio API key/header (invalid,
+    missing, expired) — Composio's error slugs for these all start with
+    'Auth_' (confirmed: Auth_NoAuthProvided, Auth_Unauthorized). Anything
+    else from the same /auth_configs call (most commonly: this toolkit has
+    no Composio-managed OAuth app at all) needs a different message."""
+    err = data.get("error")
+    return isinstance(err, dict) and str(err.get("slug", "")).startswith("Auth_")
+
+
+def _poll_connection(client: httpx.Client, headers: dict, account_id: str,
+                      timeout: float = 180, interval: float = 2.5) -> str:
+    """Poll a connected account until the user finishes the OAuth dance in
+    their browser (or we time out). Returns the last known status."""
+    deadline = time.monotonic() + timeout
+    status = "INITIATED"
+    while time.monotonic() < deadline:
+        try:
+            resp = client.get(f"{COMPOSIO_BASE}/connected_accounts/{account_id}", headers=headers)
+            if resp.status_code < 400:
+                status = resp.json().get("status", status)
+                if status in ("ACTIVE", "FAILED", "EXPIRED"):
+                    return status
+        except httpx.HTTPError:
+            pass
+        time.sleep(interval)
+    return status
+
+
+def composio_connect(app_name: str, open_browser: bool = True):
+    """Connect to a Composio app — mirrors Claude's 'pick a connector, open
+    link, log in, authorize' flow:
     1. Make sure a (Composio-managed) auth config exists for the toolkit.
     2. Start a connected account against it — Composio hands back a redirect URL.
-    3. User opens that URL, logs into the real app, and authorizes.
+    3. Open that URL in the user's default browser automatically.
+    4. Poll the connection until the user finishes authorizing (or times out),
+       so KURT picks up the result without the user having to check back.
     No manual tokens or JSON editing required.
     """
     api_key = get_composio_key()
@@ -187,7 +236,36 @@ def composio_connect(app_name: str):
             )
             data = resp.json()
             if resp.status_code >= 400:
-                console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
+                if _is_api_key_error(data):
+                    console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
+                    return
+                # Most likely cause: this toolkit has no Composio-managed
+                # OAuth app (confirmed in Composio's own docs — e.g.
+                # PostHog, Tavily, Perplexity, and many smaller toolkits
+                # require your own OAuth app). Their documented fix is
+                # registering an OAuth app on the provider yourself, then
+                # pasting its Client ID/Secret into a custom auth config —
+                # done through their dashboard, since the exact credential
+                # fields differ per auth scheme and no stable per-toolkit
+                # deep link is published to do this via API blind.
+                console.print(Panel(
+                    f"[yellow]{_composio_error(data, resp)}[/yellow]\n\n"
+                    f"{slug} most likely has no Composio-managed OAuth app — it needs "
+                    f"[bold]your own OAuth Client ID + Client Secret[/bold] instead:\n\n"
+                    f"1. Register an OAuth app on {slug}'s own developer site\n"
+                    f"2. Set its redirect URI to:\n"
+                    f"   [cyan]https://backend.composio.dev/api/v3/toolkits/auth/callback[/cyan]\n"
+                    f"3. In the Composio dashboard: Auth Configs → Create Auth Config → "
+                    f"pick {slug} → toggle 'Use your own developer credentials' → paste the "
+                    f"Client ID/Secret\n\n"
+                    f"[dim]Opening dashboard.composio.dev…[/dim]",
+                    title=f"🔑 {slug} needs its own OAuth app", box=box.ROUNDED, border_style="yellow",
+                ))
+                if open_browser:
+                    try:
+                        webbrowser.open("https://dashboard.composio.dev/")
+                    except Exception:
+                        pass
                 return
             auth_config_id = data["auth_config"]["id"]
 
@@ -205,19 +283,44 @@ def composio_connect(app_name: str):
                 console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
                 return
 
-        redirect_url = (data.get("connectionData") or {}).get("val", {}).get("redirectUrl")
-        if redirect_url:
+            account_id = data.get("id")
+            redirect_url = (data.get("connectionData") or {}).get("val", {}).get("redirectUrl")
+
+            if not redirect_url:
+                # No OAuth step needed (e.g. API-key-only toolkits) — already linked.
+                console.print(f"[green]✅ Connected to {slug}![/green]")
+                return
+
             console.print(Panel(
-                f"[green]✅ Open this URL to authorize {slug}:[/green]\n\n"
+                f"[green]Opening your browser to authorize {slug}…[/green]\n\n"
                 f"[link={redirect_url}]{redirect_url}[/link]\n\n"
-                f"[dim]Log in and approve — KURT picks up the connection automatically once you're done.[/dim]",
+                f"[dim]Log in and approve — KURT is watching and will pick it up automatically.[/dim]",
                 title=f"🔗 Connect {slug}",
                 box=box.ROUNDED,
                 border_style="green",
             ))
+
+            if open_browser:
+                try:
+                    webbrowser.open(redirect_url)
+                except Exception:
+                    pass  # headless/no-display environments — link above still works
+
+            if not account_id:
+                return
+
+            with console.status(f"[cyan]Waiting for you to finish authorizing {slug} in the browser…[/cyan]"):
+                status = _poll_connection(client, headers, account_id)
+
+        if status == "ACTIVE":
+            console.print(f"[green]✅ {slug} connected and ready to use![/green]")
+        elif status in ("FAILED", "EXPIRED"):
+            console.print(f"[red]❌ Authorization {status.lower()} for {slug}. Run [cyan]kurt connect {slug}[/cyan] to try again.[/red]")
         else:
-            # No OAuth step needed (e.g. API-key-only toolkits) — already linked.
-            console.print(f"[green]✅ Connected to {slug}![/green]")
+            console.print(
+                f"[yellow]⌛ Still waiting on {slug} — finish the login in your browser, "
+                f"then check [cyan]kurt connect status[/cyan].[/yellow]"
+            )
 
     except Exception as e:
         console.print(f"[red]❌ Connection failed: {e}[/red]")
