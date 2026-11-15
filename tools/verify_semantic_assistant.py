@@ -41,7 +41,7 @@ def turn(process, prompt, first=False):
 
 
 def verify(model):
-    process = subprocess.Popen(['/opt/homebrew/bin/kurt', 'chat', '--no-memory', '--model', model],
+    process = subprocess.Popen(['/opt/homebrew/bin/kurt', 'chat', '--no-memory', '--verbose', '--model', model],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
     cases = [
         ('May kukuwentahin akong simpleng arithmetic. Ihanda mo sa harap ko ang built-in na pang-compute ng iMac. App lang muna, wala pang ita-type.', 'Calculator', True),

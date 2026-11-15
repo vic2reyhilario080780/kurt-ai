@@ -89,19 +89,20 @@ def invoke_assistant(name, params):
         return desktop_action('open_url', **params)
     if name == 'generate_media':
         import asyncio
-        from .orchestrator import ROUTING_TABLE, TaskType
+        from .execution_preferences import media_target
         from .router import ModelRouter
-        kinds = {'image': TaskType.IMAGE, 'music': TaskType.MUSIC, 'video': TaskType.VIDEO}
-        if params['kind'] not in kinds:
+        if params['kind'] not in ('image', 'music', 'video'):
             raise ValueError('Use image, music or video.')
-        target = ROUTING_TABLE[kinds[params['kind']]]
+        target = media_target(params['kind'])
         router = ModelRouter()
+        router.strict_selection = True
         if not router._has_key(target['provider']):
             return {'status': 'blocked', 'reason': f"No configured {target['provider']} generation key."}
         async def generate():
             return ''.join([chunk async for chunk in router.route(target['provider'], target['model'],
-                [{'role': 'user', 'content': params['prompt']}])])
+                [{'role': 'user', 'content': params['prompt']}], media_kind=params['kind'])])
         return {'status': 'provider_result', 'output': asyncio.run(generate()),
+                'model': target['model'], 'provider': target['provider'],
                 'note': 'Inspect the returned artifact/link or error before claiming generation succeeded.'}
     actions = {'observe_application': 'observe', 'fill_field': 'fill', 'click_element': 'click',
                'move_pointer': 'move', 'press_key': 'press', 'scroll_window': 'scroll'}
@@ -144,11 +145,16 @@ def invoke_assistant(name, params):
                 'model_used': result.model_used, 'elements': result.elements}
     if name == 'click_at_coordinates':
         from . import computer_use
-        x, y = int(params['x']), int(params['y'])
+        x, y = params['x'], params['y']
+        if type(x) is not int or type(y) is not int:
+            raise ValueError('Coordinates must be integer pixel positions.')
         width, height = computer_use.get_screen_size()
         if not (0 <= x < width and 0 <= y < height):
             raise ValueError(f'Coordinates ({x},{y}) are outside the screen bounds ({width}x{height}).')
         focus = computer_use.focus_window(params['app'])
+        if not focus.success:
+            return {'status': 'blocked', 'focus_verified': False,
+                    'reason': 'The target app could not be verified in the foreground; no click was sent.'}
         clicked = computer_use.click(x, y)
         return {'status': 'dispatched' if clicked.success else 'error',
                 'focus_verified': focus.success,

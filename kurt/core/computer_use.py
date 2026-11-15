@@ -367,8 +367,10 @@ def focus_window(app_name: str) -> ActionResult:
     """Bring an app window to the foreground"""
     try:
         if OS == "Darwin":
-            script = f'tell application "{app_name}" to activate'
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
+            from kurt.core.app_launcher import open_installed_app
+            receipt = open_installed_app(app_name)
+            return ActionResult(success=receipt.get('status') == 'completed' and receipt.get('foreground_verified') is True,
+                                message=receipt.get('error') or 'Foreground application verified.', data=receipt)
 
         elif OS == "Windows":
             # Use pygetwindow if available

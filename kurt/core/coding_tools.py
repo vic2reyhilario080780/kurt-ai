@@ -12,6 +12,12 @@ from kurt.utils.security import redact
 from kurt.utils.workspace import current_workspace, workspace_path
 
 CODING_TOOLS = [
+    {'name':'android_doctor','description':'Inspect Android project wrapper, SDK and JVM sandbox readiness. Does not install dependencies.',
+     'parameters':{'project':'optional string — project directory inside the active workspace'}},
+    {'name':'android_build','description':'Build APK/AAB offline with scoped JVM permissions; verify fresh package artifacts and signatures. Configure release signing locally.',
+     'parameters':{'project':'optional string — project directory','kind':'optional string — apk or aab','variant':'optional string — debug or release','module':'optional string — Gradle module, default app','timeout':'optional integer — 1 to 1800 seconds'}},
+    {'name':'generate_qr','description':'Generate a QR PNG for a supplied download URL. Does not upload an APK or verify hosting.',
+     'parameters':{'url':'string — HTTPS download URL','output':'optional string — new workspace PNG path'}},
     {'name':'project_skills','description':'Discover or read project SKILL.md workflows without executing their scripts.',
      'parameters':{'action':'optional string — list or read','skill':'optional string — skill ID returned by list'}},
     {'name':'git_inspect','description':'Inspect git status, diff or recent log without mutating the repository.',
@@ -77,6 +83,11 @@ def project_skills(action='list', skill=None):
 
 
 def execute_coding_tool(name, params):
+    if name in {'android_doctor', 'android_build', 'generate_qr'}:
+        from kurt.core import android_build as android
+        if name == 'android_doctor': return android.android_doctor(params.get('project', '.'))
+        if name == 'generate_qr': return android.generate_qr(params.get('url', ''), params.get('output', 'apk-download.png'))
+        return android.android_build(params.get('project', '.'), params.get('kind', 'apk'), params.get('variant', 'debug'), params.get('module', 'app'), params.get('timeout', 900))
     if name=='project_skills':return project_skills(params.get('action','list'),params.get('skill'))
     if name=='git_inspect': return git_inspect(params.get('action','status'),params.get('staged',False))
     if name=='run_checks': return run_checks(params.get('argv'),params.get('timeout',60))

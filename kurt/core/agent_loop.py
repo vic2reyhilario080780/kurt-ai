@@ -851,16 +851,22 @@ def _execute_tool(tool_name: str, params: dict) -> str:
             session = _get_browser_session()
             if act == "open":
                 res = session.go(params.get("url", ""))
-                return f"✓ Opened: {res.title} ({res.url})" if res.success else f"❌ {res.error}"
+                return json.dumps({"status": "observed", "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links}, ensure_ascii=False) if res.success else f"❌ {res.error}"
             if act == "read":
                 res = session.read()
-                return f"Title: {res.title}\nURL: {res.url}\n\n{res.content[:4000]}" if res.success else f"❌ {res.error}"
+                return json.dumps({"status": "observed", "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links}, ensure_ascii=False) if res.success else f"❌ {res.error}"
             if act == "click":
                 ok = session.click(selector=params.get("selector"), text=params.get("text"))
-                return "✓ Clicked element" if ok else "❌ Click failed"
+                if not ok:
+                    return "❌ Click failed; inspect the page before retrying."
+                res = session.read()
+                return json.dumps({"status": "observed_after_action", "action": "click", "title": res.title, "url": res.url, "content": res.content[:4000], "observation_ok": res.success, "controls": res.controls}, ensure_ascii=False)
             if act == "type":
                 ok = session.type(params.get("selector", ""), params.get("text", ""))
-                return "✓ Typed into element" if ok else "❌ Type failed"
+                if not ok:
+                    return "❌ Type failed; inspect the page before retrying."
+                res = session.read()
+                return json.dumps({"status": "observed_after_action", "action": "type", "title": res.title, "url": res.url, "content": res.content[:4000], "observation_ok": res.success, "controls": res.controls}, ensure_ascii=False)
             if act == "screenshot":
                 import base64 as _b64, time as _time
                 shots_dir = Path.home() / ".kurt" / "browser_screenshots"

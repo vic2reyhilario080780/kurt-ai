@@ -34,7 +34,7 @@ def fetch_models(use_cache: bool = True) -> list:
             with open(cache_file) as f:
                 return json.load(f)
 
-    key = os.getenv("FAL_API_KEY", "")
+    key = os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY", "")
     if not key:
         console.print("[red]❌ No FAL_API_KEY configured — run `kurt setup`.[/red]")
         if cache_file.exists():

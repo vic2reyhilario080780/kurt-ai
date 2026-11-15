@@ -36,10 +36,10 @@ from kurt.utils.security import child_env
 def _protected_paths(service=None):
     """Sensitive directories and credential-filename pattern, shared by the
     macOS Seatbelt profile and the Windows lexical guard."""
-    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
+    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.vibe', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
     if service:
         # Service adapters keep only their own login/state directories usable.
-        own = {"openclaw": ".openclaw", "claude": ".claude", "gemini": ".gemini"}.get(service)
+        own = {"openclaw": ".openclaw", "claude": ".claude", "gemini": ".gemini", "vibe": ".vibe"}.get(service)
         roots = [p for p in roots if p.name not in {own, "Library"}]
     if service != "openclaw":
         roots.append(Path(__file__).resolve().parents[2]/'.openclaw-kurt')
@@ -52,7 +52,7 @@ def _protected_paths(service=None):
 def sandbox_profile(*, service=None, workspace=None):
     # Deny rules apply to descendants as well, including symlink-resolved reads.
     roots, names = _protected_paths(service=service)
-    if service and service != "claude":
+    if service and service not in {"claude", "vibe"}:
         roots.append(Path.home()/"Library/Keychains")
         # claude is exempted: Claude Code's own OAuth/Pro login is stored in
         # the macOS Keychain, not a plain file under ~/.claude — blocking
@@ -60,6 +60,8 @@ def sandbox_profile(*, service=None, workspace=None):
         # actually logged in). Verified via a direct before/after sandboxed
         # run: identical profile minus this one path fixes it, nothing else
         # needed. gemini/openclaw are untouched — no evidence they need this.
+        # Vibe 3.1 also explicitly loads its own provider key from macOS Keychain
+        # when MISTRAL_API_KEY is absent; its trusted adapter needs that login.
     filters = '\n'.join('(subpath ' + json.dumps(str(p.resolve())) + ')' for p in roots)
     # SBPL regex literals use ordinary backslashes, unlike Scheme string literals.
     restrictions = '' if service else '(deny network*)\n(deny appleevent-send)\n(deny mach-lookup)\n(deny process-info*)\n'
@@ -68,7 +70,22 @@ def sandbox_profile(*, service=None, workspace=None):
     if workspace is not None and not service:
         paths = {str(Path(workspace).resolve()), str(Path(tempfile.gettempdir()).resolve()), "/private/tmp", "/tmp"}
         restrictions += "(deny file-write*)\n(allow file-write* " + " ".join("(subpath " + json.dumps(p) + ")" for p in sorted(paths)) + ")\n"
-    return '(version 1)\n(allow default)\n' + restrictions + '(deny file-read* file-write*\n' + filters + '\n(regex #"' + names + '"))\n'
+    profile = '(version 1)\n(allow default)\n' + restrictions + '(deny file-read* file-write*\n' + filters + '\n(regex #"' + names + '"))\n'
+    if service == 'vibe':
+        # The generic *.pem rule must not hide the public TLS trust bundle.
+        import ssl
+        cert = ssl.get_default_verify_paths().cafile
+        if cert:
+            for path in {str(Path(cert)), str(Path(cert).resolve())}:
+                profile += '(allow file-read* (literal ' + json.dumps(path) + '))\n'
+        # Python Vibe creates a Certifi context before adding SSL_CERT_FILE.
+        # Its isolated uv installation has a separate public root bundle.
+        executable = shutil.which('vibe')
+        if executable:
+            install = Path(executable).resolve().parent.parent
+            for bundle in install.glob('lib/python*/site-packages/certifi/cacert.pem'):
+                profile += '(allow file-read* (literal ' + json.dumps(str(bundle.resolve())) + '))\n'
+    return profile
 
 
 def _windows_guard_violation(command, *, service=None):

@@ -54,6 +54,7 @@ class SecurityTests(unittest.TestCase):
         from kurt.core.router import ModelRouter
         from unittest.mock import AsyncMock, MagicMock
         response = MagicMock(); response.json.return_value = {'choices': [{'message': {'content': 'ok'}}]}
+        response.status_code = 200
         async def lines():
             yield 'data: [DONE]'
         response.aiter_lines.side_effect = lines

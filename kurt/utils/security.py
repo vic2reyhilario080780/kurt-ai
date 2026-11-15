@@ -124,7 +124,7 @@ def sensitive_path(path):
                     "secrets.json", "secrets.yaml", "secrets.yml", "auth.json", ".credentials.json", "auth-profiles.json", "mcp_connections.json", "memory.db", "control.db",
                     "id_rsa", "id_ed25519", "id_ecdsa"} or name.endswith((".pem", ".key", ".p12", ".pfx", ".tfstate", ".kurt-token")):
             return True
-    return any(part.lower() in {".kurt", ".codex", ".claude", ".gemini", ".openclaw", ".aws", ".ssh", ".gnupg", ".openclaw-kurt", ".kurt-saas"} for part in p.resolve().parts)
+    return any(part.lower() in {".kurt", ".codex", ".claude", ".gemini", ".vibe", ".openclaw", ".aws", ".ssh", ".gnupg", ".openclaw-kurt", ".kurt-saas"} for part in p.resolve().parts)
 
 
 def require_public_file(path):

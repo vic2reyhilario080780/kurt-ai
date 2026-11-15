@@ -199,7 +199,7 @@ def connection_error(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         if code in (401, 403):
-            return f"HTTP {code}: access denied; provide the app's API key/access token. Browser OAuth sign-in is not implemented."
+            return f"HTTP {code}: access denied; provide the app's API key/access token. Reconnect from the MCP picker to authorize again or update credentials."
         return f"HTTP {code}: server rejected the MCP request."
     if isinstance(exc, FileNotFoundError):
         return "Required executable is missing; install the configured command (such as npx or uvx)."
@@ -256,7 +256,7 @@ async def execute_mcp_tool(tool_ref: str, params: dict) -> str:
 
     # Parse server/tool format
     if "/" in tool_ref:
-        server_name, tool_name = tool_ref.split("/", 1)
+        server_name, tool_name = tool_ref.rsplit("/", 1)
         if server_name not in registry:
             return f"❌ MCP server not found: {server_name}"
         return await call_tool(registry[server_name], tool_name, params)

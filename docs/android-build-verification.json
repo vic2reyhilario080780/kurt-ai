@@ -1,0 +1,53 @@
+{
+  "tested_at": "2026-11-15T10:09:04.521947+00:00",
+  "scope": "Disposable minimal Gradle Android fixture, no deployment/device installation",
+  "certificate": "fixture debug certificate; not a production upload key",
+  "builds": [
+    {
+      "report": "apk-report.json",
+      "kind": "apk",
+      "variant": "debug",
+      "status": "completed",
+      "network_enabled": true,
+      "exit_code": 0,
+      "artifacts": [
+        {
+          "size": 5627,
+          "sha256": "0c6f20ce9bbb9d7b747cf19b2c12ce6bff81dd8ea6e48312a0076b6afd49f25c",
+          "signature_verified": true
+        }
+      ]
+    },
+    {
+      "report": "aab-report.json",
+      "kind": "aab",
+      "variant": "release",
+      "status": "completed",
+      "network_enabled": false,
+      "exit_code": 0,
+      "artifacts": [
+        {
+          "size": 5134,
+          "sha256": "1d296888f853283058a9127eb9897ea92c33de2b9f182390cacb383384c75d32",
+          "signature_verified": true
+        }
+      ]
+    },
+    {
+      "report": "aab-up-to-date.json",
+      "kind": "aab",
+      "variant": "release",
+      "status": "up_to_date",
+      "network_enabled": false,
+      "exit_code": 0,
+      "artifacts": [
+        {
+          "size": 5134,
+          "sha256": "1d296888f853283058a9127eb9897ea92c33de2b9f182390cacb383384c75d32",
+          "signature_verified": true,
+          "fresh": false
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,8 @@ class ComposioConnectErrorHandlingTests(unittest.TestCase):
 
     def test_api_key_error_shows_key_message_and_does_not_open_dashboard(self):
         def handler(req):
+            if req.method == "GET":
+                return httpx.Response(200, json={"items": []})
             return httpx.Response(401, json={"error": {
                 "message": "Invalid API key: ck_**EO91", "code": 902,
                 "slug": "Auth_Unauthorized", "suggested_fix": "Please check you are using a valid API key.",
@@ -39,6 +41,8 @@ class ComposioConnectErrorHandlingTests(unittest.TestCase):
 
     def test_missing_managed_auth_explains_custom_oauth_and_opens_dashboard(self):
         def handler(req):
+            if req.method == "GET":
+                return httpx.Response(200, json={"items": []})
             return httpx.Response(400, json={"error": {
                 "message": "No managed OAuth app available for toolkit spotify",
                 "code": 400, "slug": "Toolkit_NoManagedAuth",
@@ -52,7 +56,7 @@ class ComposioConnectErrorHandlingTests(unittest.TestCase):
             composio.composio_connect("spotify")
 
         output = buf.getvalue()
-        self.assertIn("needs its own OAuth app", output)
+        self.assertIn("authentication setup required", output)
         self.assertIn("Client ID", output)
         self.assertIn("backend.composio.dev/api/v3/toolkits/auth/callback", output)
         fake_browser.open.assert_called_with("https://dashboard.composio.dev/")

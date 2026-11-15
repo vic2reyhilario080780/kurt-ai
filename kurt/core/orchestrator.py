@@ -96,7 +96,7 @@ ROUTING_TABLE = {
         "fallback_provider": "openai",
     },
     TaskType.IMAGE: {
-        "model": "black-forest-labs/flux-schnell",
+        "model": "fal-ai/flux/schnell",
         "provider": "fal",
         "reason": "Flux Schnell — mabilis, maganda, mura!",
         "fallback_model": "stability-ai/stable-diffusion-3",

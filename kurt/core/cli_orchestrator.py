@@ -11,6 +11,7 @@ import os
 import json
 import subprocess
 import shutil
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,7 @@ class SlashResult:
     model_override: Optional[str] = None   # Override model for next turn
     skill_override: Optional[str] = None   # Override active skill for next turn
     feed_to_ai: bool = False               # If True, persist `output` into chat history so Kurt's own LLM sees it next turn
+    cli_override: Optional[str] = None
     new_session_id: Optional[str] = None   # If set, caller should replace its session_id with this (fresh history)
 
 
@@ -61,8 +63,11 @@ SLASH_COMMANDS = {
     "/info":      "Show session ID, active model, and active skill  e.g. /info",
     "/save":      "Save Kurt's last reply to a file  e.g. /save answer.md",
     "/config":    "Personalize Kurt — theme, name, greeting  e.g. /config theme",
+    "/setting":   "Choose defaults — Chat AI, CLI, Image AI, Video AI",
     "/setup":     "Add/update your API keys (Groq, OpenRouter, Composio, etc.)  e.g. /setup",
     # ── AI Tools — models, skills, and native workflows ─────────────
+    "/image-model": "Choose default image generator: /image-model <model-id> fal|replicate",
+    "/video-model": "Choose default video generator: /video-model <model-id> fal|replicate",
     "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
     "/models":    "Show the live model routing table  e.g. /models",
     "/skill":     "Apply a skill to the next message  e.g. /skill tiktok",
@@ -108,26 +113,33 @@ SLASH_GROUPS = [
 # Persistent Playwright browser session for /browser
 # ─────────────────────────────────────────
 _browser_session = None
+_browser_session_lock = threading.Lock()
 
 
 def close_browser_session():
     """Tear down the persistent /browser session, if one was started."""
     global _browser_session
-    if _browser_session is not None:
-        try:
-            _browser_session.close()
-        except Exception:
-            pass
-        _browser_session = None
+    with _browser_session_lock:
+        if _browser_session is not None:
+            try:
+                _browser_session.close()
+            finally:
+                _browser_session = None
 
 
 def _get_browser_session():
     global _browser_session
-    if _browser_session is None:
-        from kurt.core.web_browse import KurtBrowser
-        _browser_session = KurtBrowser(headless=True)
-        _browser_session.start()
-    return _browser_session
+    with _browser_session_lock:
+        if _browser_session is None:
+            from kurt.core.web_browse import BrowserSession
+            candidate = BrowserSession(headless=True)
+            try:
+                candidate.start()
+            except Exception:
+                candidate.close()
+                raise
+            _browser_session = candidate
+        return _browser_session
 
 
 def _cmd_exists(cmd: str) -> bool:
@@ -141,8 +153,13 @@ def _cmd_exists(cmd: str) -> bool:
 def _ai_cli_env(cmd):
     """Keep CLI login usable and translate Kurt's Google key name explicitly."""
     name = Path(cmd).name
-    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("GH_TOKEN", "GITHUB_TOKEN")
+    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else ("GH_TOKEN", "GITHUB_TOKEN")
     env = child_env(allow=allowed)
+    if name == 'vibe':
+        import ssl
+        cert = ssl.get_default_verify_paths().cafile
+        if cert:
+            env['SSL_CERT_FILE'] = cert
     if name == "gemini" and not env.get("GEMINI_API_KEY") and not env.get("GOOGLE_API_KEY"):
         if os.getenv("GOOGLE_AI_KEY"):
             env["GEMINI_API_KEY"] = os.environ["GOOGLE_AI_KEY"]
@@ -164,6 +181,16 @@ def _ai_cli_env(cmd):
     return env
 
 
+def run_ai_cli(cmd, args):
+    """Return structured process status for the existing AI CLI adapters."""
+    from kurt.utils.process import run_bounded
+    from kurt.utils.workspace import current_workspace
+    if Path(cmd).name not in {"claude", "gemini", "vibe"}:
+        raise ValueError("Expected Claude Code, Gemini or Vibe CLI.")
+    return run_bounded(service_argv([cmd, *args], Path(cmd).name),
+                       env=_ai_cli_env(cmd), cwd=str(current_workspace()), timeout=120, max_output=65536)
+
+
 def _run_shell(cmd: str, args: str) -> str:
     """Run a shell command and return output"""
     full_cmd = f"{cmd} {args}".strip()
@@ -171,16 +198,14 @@ def _run_shell(cmd: str, args: str) -> str:
         trusted = Path(cmd).name in {"claude", "gemini", "gh"}
         runner = subprocess.run if trusted else restricted_run
         from kurt.utils.workspace import current_workspace
-        options = {"env": _ai_cli_env(cmd), "cwd": str(current_workspace())} if trusted else {}
         if trusted and Path(cmd).name in {"claude", "gemini"}:
-            from kurt.utils.process import run_bounded
-            result = run_bounded(service_argv([cmd, *shlex.split(args)], Path(cmd).name),
-                                 env=options['env'], cwd=options['cwd'], timeout=120, max_output=65536)
+            result = run_ai_cli(cmd, shlex.split(args))
             out, err = redact(result['stdout'].strip()), redact(result['stderr'].strip())
             if result['status'] != 'completed':
                 detail = err or f"CLI status: {result['status']}; exit code: {result['exit_code']}."
                 return f"❌ Error:\n{detail}\n[stdout]\n{out}" if out else f"❌ Error:\n{detail}"
             return out or '(no output)'
+        options = {"env": _ai_cli_env(cmd), "cwd": str(current_workspace())} if trusted else {}
         result = runner(
             service_argv([cmd, *shlex.split(args)], Path(cmd).name) if trusted else full_cmd,
             shell=not trusted,
@@ -207,6 +232,7 @@ def handle_slash(
     current_model: str,
     current_skill: Optional[str],
     last_response: str = "",
+    current_cli: str = "auto",
 ) -> SlashResult:
     """
     Check if prompt is a slash command. Returns SlashResult.
@@ -230,6 +256,8 @@ def handle_slash(
     parts = p.split(None, 1)
     cmd = parts[0].lower()
     args = parts[1].strip() if len(parts) > 1 else ""
+    if cmd == "/setting":
+        cmd = "/config"
 
     # ── /help ───────────────────────────────────────────────────────
     if cmd == "/help":
@@ -258,14 +286,73 @@ def handle_slash(
         close_browser_session()
         return SlashResult(handled=True, output="👋 Bye! K.U.R.T. signing off.", continue_chat=False)
 
+    if cmd in ("/image-model", "/video-model"):
+        from kurt.core.execution_preferences import save_default_media, media_label
+        kind = "image" if cmd == "/image-model" else "video"
+        fields = args.split()
+        if not fields:
+            return SlashResult(True, f"Default {kind}: {media_label(kind)}\nSet: {cmd} <model-id> fal|replicate | {cmd} auto", True)
+        if fields == ["choose"]:
+            import sys
+            if not sys.stdin.isatty():
+                return SlashResult(True, f"Set: {cmd} <model-id> fal|replicate", True)
+            from rich.prompt import Prompt
+            try:
+                provider = Prompt.ask("Generation provider", choices=["fal", "replicate"])
+                model_id = Prompt.ask(f"Exact text-to-{kind} model ID")
+                save_default_media(kind, model_id, provider)
+            except (KeyboardInterrupt, EOFError):
+                return SlashResult(True, "Cancelled; defaults unchanged.", True)
+            except ValueError as exc:
+                return SlashResult(True, str(exc), True)
+        else:
+            if len(fields) > 2:
+                return SlashResult(True, f"Usage: {cmd} <model-id> [fal|replicate]", True)
+            try:
+                save_default_media(kind, fields[0], fields[1] if len(fields) == 2 else None)
+            except ValueError as exc:
+                return SlashResult(True, str(exc), True)
+        return SlashResult(True, f"Default {kind} generator saved: {media_label(kind)}. Applies to new generation requests and the next welcome banner.", True)
+
     # ── /model ──────────────────────────────────────────────────────
     if cmd == "/model":
+        from kurt.core.execution_preferences import save_default_model
+        if args.strip() == "choose-default":
+            import sys
+            if not sys.stdin.isatty():
+                return SlashResult(True, "Set: /model default <model-id> [provider]. Example: /model default mistral-small-latest mistral", True)
+            from rich.prompt import Prompt
+            from kurt.core.execution_preferences import TEXT_PROVIDERS
+            try:
+                provider = Prompt.ask("Chat provider", choices=list(TEXT_PROVIDERS), default="openrouter")
+                model_id = Prompt.ask("Exact model ID from your provider's model list")
+                selected = save_default_model(model_id, provider)
+            except (KeyboardInterrupt, EOFError):
+                return SlashResult(True, "Cancelled; defaults unchanged.", True)
+            except ValueError as exc:
+                return SlashResult(True, str(exc), True)
+            return SlashResult(True, f"Default model saved: {selected}. CLI mode: auto.",
+                               True, model_override=selected, cli_override="auto")
+        if args.split()[:1] == ["default"]:
+            parts = args.split()[1:]
+            if not parts:
+                from kurt.core.persona import load_persona
+                return SlashResult(True, f"Saved model: {load_persona().get('default_model', 'auto')}\nUsage: /model default <model-id> [provider]", True)
+            if len(parts) > 2:
+                return SlashResult(True, "Usage: /model default <model-id> [provider]", True)
+            try:
+                selected = save_default_model(parts[0], parts[1] if len(parts) == 2 else None)
+            except ValueError as exc:
+                return SlashResult(True, str(exc), True)
+            return SlashResult(True, f"Default model saved: {selected}. CLI mode: auto. Applies now and to new chats.",
+                               True, model_override=selected, cli_override="auto")
         if not args:
             return SlashResult(
                 handled=True,
                 output=(
                     f"Current model: {current_model}\n"
-                    "Usage: /model <name>\n"
+                    "Usage: /model <model-id> [provider] (this session)\n"
+                    "Save default: /model default <model-id> [provider]\n"
                     "  Groq (libre, mabilis):  /model openai/gpt-oss-120b\n"
                     "  Auto-route:             /model auto\n\n"
                     "Gustong paid na model? Browse first, then switch:\n"
@@ -279,7 +366,7 @@ def handle_slash(
         # "/model <id> <provider>" — explicit provider tag, needed because fal.ai
         # and OpenRouter model ids can look identical (both "vendor/name" style)
         # and auto-detection by id shape alone would guess wrong for fal models.
-        if len(parts) == 2 and parts[1] in ("openrouter", "fal", "groq", "anthropic", "replicate", "kling", "suno", "openai"):
+        if len(parts) == 2 and parts[1] in ("openrouter", "fal", "groq", "anthropic", "replicate", "openai", "mistral", "deepseek", "google", "ollama"):
             model_id, explicit_provider = parts
             return SlashResult(
                 handled=True,
@@ -287,6 +374,11 @@ def handle_slash(
                 continue_chat=True,
                 model_override=f"{model_id}|{explicit_provider}",
             )
+        from kurt.core.execution_preferences import parse_model
+        try:
+            parse_model(args)
+        except ValueError as exc:
+            return SlashResult(True, str(exc), True)
         return SlashResult(
             handled=True,
             output=f"✅ Switched to model: {args}",
@@ -328,6 +420,7 @@ def handle_slash(
             f"  Host OS     : {prof['os_label']} ({prof['system']} {prof['release']}, {prof['machine']})",
             f"  Shell / Pkg : {prof['shell']} · {prof['package_manager']}",
             f"  Model       : {current_model}",
+            f"  CLI         : {current_cli}",
             f"  Skill       : {current_skill or 'none'}",
             f"  Claude CLI  : {'✅ installed' if _cmd_exists('claude') else '❌ not found'}",
             f"  Gemini CLI  : {'✅ installed' if _cmd_exists('gemini') else '❌ not found'}",
@@ -340,6 +433,13 @@ def handle_slash(
 
     # ── /config ─────────────────────────────────────────────────────
     if cmd == "/config":
+        if args.strip() in ("model", "cli", "image", "video"):
+            from kurt.core.persona import load_persona
+            settings = load_persona()
+            kind = args.strip()
+            usage = "/model default <model-id> [provider]" if kind == "model" else (f"/{kind}-model <model-id> fal|replicate" if kind in ("image", "video") else "/cli default <name>")
+            key = f"default_{kind}_model" if kind in ("image", "video") else f"default_{kind}"
+            return SlashResult(True, f"Default {kind}: {settings.get(key, 'auto')}\nSet: {usage}\nOr choose from / → /config → {kind}.", True)
         from kurt.core.persona import (
             config_show, config_theme_wizard, config_name_wizard,
             config_icon_wizard, config_language_wizard, config_aimode_wizard,
@@ -455,10 +555,29 @@ def handle_slash(
         return SlashResult(handled=True, output=f"$ {args}\n\n{output}", continue_chat=True)
 
     if cmd == "/cli":
+        from kurt.core.execution_preferences import DEFAULT_CLIS, save_default_cli
+        parts = args.split()
+        if parts and parts[0] in ("default", "use"):
+            if len(parts) != 2 or parts[1] not in DEFAULT_CLIS:
+                return SlashResult(True, "Usage: /cli default|use " + "|".join(DEFAULT_CLIS), True)
+            selected = parts[1]
+            if parts[0] == "default":
+                save_default_cli(selected)
+            scope = "Default saved" if parts[0] == "default" else "This session"
+            return SlashResult(True, f"{scope}: CLI {selected}. Auto uses the selected API model. Login/setup must be ready.",
+                               True, cli_override=selected)
+        if args in ("", "status"):
+            from kurt.core.persona import load_persona
+            settings = load_persona()
+            rows = [f"Current CLI: {current_cli}", f"Saved default CLI: {settings.get('default_cli', 'auto')}",
+                    f"Saved default model: {settings.get('default_model', 'auto')}"]
+            rows.extend(f"{name}: {'installed' if _cmd_exists(name) else 'not installed'}" for name in DEFAULT_CLIS if name != "auto")
+            rows.append("Set default: /cli default <name> | Session only: /cli use <name> | Readiness: /cli probe")
+            return SlashResult(True, "\n".join(rows), True)
         from kurt.core.cli_tools import cli_status
         import json
         if args not in ("", "status", "probe"):
-            return SlashResult(True, "Usage: /cli status | /cli probe", True)
+            return SlashResult(True, "Usage: /cli status | /cli probe | /cli default <name> | /cli use <name>", True)
         return SlashResult(True, json.dumps(cli_status(probe=args == "probe"), indent=2), True)
 
     if cmd in ("/openclaw", "/peekaboo"):
@@ -555,6 +674,11 @@ def handle_slash(
         sub_cmd = sub[0].lower() if sub else "list"
         sub_args = sub[1].strip() if len(sub) > 1 else ""
 
+        if sub_cmd == "platform":
+            from kurt.core.mcp_commands import connect_platform
+            connect_platform(sub_args)
+            return SlashResult(handled=True, output="", continue_chat=True)
+
         if sub_cmd in ("catalog", "search", "config", "connect", "import"):
             from kurt.core.mcp_commands import chat_command
             try:
@@ -569,7 +693,13 @@ def handle_slash(
             from kurt.core.mcp_commands import connect_entry
             if not sub_args:
                 return SlashResult(handled=True, output=f"Usage: /mcp {sub_cmd} <preset or server-id>", continue_chat=True)
-            connect_entry(sub_args)
+            ref, marker, option = sub_args.rpartition(" --variant ")
+            if marker:
+                if not option.isdigit():
+                    return SlashResult(handled=True, output="Variant must be a non-negative number.", continue_chat=True)
+                connect_entry(ref, variant=int(option))
+            else:
+                connect_entry(sub_args)
             # connect_entry prints its own progress/result straight to the console.
             return SlashResult(handled=True, output="", continue_chat=True)
 
@@ -582,9 +712,9 @@ def handle_slash(
                     output="No MCP connections.\nAdd one: kurt mcp add <name> --url <url>",
                     continue_chat=True,
                 )
-            lines = ["", "🔌 Connected MCP Servers", "─" * 40]
+            lines = ["", "🔌 Saved MCP Servers (not a live connection check)", "─" * 40]
             for name, conn in registry.items():
-                target = conn.url or conn.command or "—"
+                target = conn.command or "remote endpoint"
                 status = "✓" if conn.enabled else "○"
                 lines.append(f"  {status} {name}  [{conn.transport}]  {target[:40]}")
             return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
@@ -601,16 +731,20 @@ def handle_slash(
                 )
             lines = ["", "🔧 MCP Tools", "─" * 40]
             for name, conn in registry.items():
-                if not conn.enabled:
+                if sub_args and name != sub_args:
                     continue
-                from kurt.core.mcp_client import list_tools as _list_tools
+                if not conn.enabled:
+                    lines.append(f"[{name}] Saved but disabled.")
+                    continue
+                from kurt.core.mcp_client import probe_connection as _list_tools
                 try:
                     tools = _asyncio.run(_list_tools(conn))
                     lines.append(f"\n[{name}]")
                     for t in tools[:8]:
                         lines.append(f"  • {t.name}  {t.description[:50]}")
                 except Exception as e:
-                    lines.append(f"\n[{name}] ❌ {e}")
+                    from kurt.core.mcp_client import connection_error
+                    lines.append(f"\n[{name}] Connection failed: {connection_error(e)}")
             return SlashResult(handled=True, output="\n".join(lines), continue_chat=True)
 
         elif sub_cmd == "call":

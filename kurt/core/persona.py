@@ -312,6 +312,10 @@ DEFAULT_PERSONA = {
     "greeting_style": "casual",   # casual | professional | hype
     "custom_greeting": None,      # Kung gusto ng sariling greeting template
     # AI Mode (hybrid KURT + Claude)
+    "default_model": "auto",
+    "default_cli": "auto",
+    "default_image_model": "auto",
+    "default_video_model": "auto",
     "ai_mode": "hybrid",          # hybrid | kurt_only | claude_only
     # Projects context (na-dedisplay sa banner)
     "active_projects": [],        # List of active projects for context
@@ -455,6 +459,11 @@ def config_show():
     table.add_row("Voice", f"{p.get('voice','young_boy')} — {voice['label']}", "TTS voice (Hey Kurt / F5)")
     table.add_row("Language", f"{lang['flag']} {lang['name']}", "Output language")
     table.add_row("Greeting Style", p.get("greeting_style", "casual"), "casual / professional / hype")
+    table.add_row("Default Model", p.get("default_model", "auto"), "Saved model; quota-only failover")
+    table.add_row("Default CLI", p.get("default_cli", "auto"), "auto uses the saved model")
+    from kurt.core.execution_preferences import media_label
+    table.add_row("Default Image", media_label("image", p), "Image generation model")
+    table.add_row("Default Video", media_label("video", p), "Video generation model")
     table.add_row("AI Mode", p.get("ai_mode", "hybrid"), "hybrid / kurt_only / claude_only")
     table.add_row("Active Projects", ", ".join(p.get("active_projects", [])) or "—", "Projects for context")
     table.add_row("Compact Mode", str(p.get("compact_mode", False)), "Compact output")

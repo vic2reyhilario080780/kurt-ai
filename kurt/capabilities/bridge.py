@@ -171,6 +171,11 @@ def function_schemas(include_legacy=True):
                          "args": {"type": "array", "items": {"type": "string"}}, "agent": {"type": "string"},
                          "session_id": {"type": "string"}, "timeout": {"type": "integer", "minimum": 1, "maximum": 600}}, ["tool"]),
         # ── Coding (kurt.core.coding_tools) ──────────────────────────
+        "android_doctor": ({"project": {"type": "string"}}, []),
+        "android_build": ({"project": {"type": "string"}, "kind": {"type": "string", "enum": ["apk", "aab"]},
+                           "variant": {"type": "string", "enum": ["debug", "release"]}, "module": {"type": "string"},
+                           "timeout": {"type": "integer", "minimum": 1, "maximum": 1800}}, []),
+        "generate_qr": ({"url": {"type": "string"}, "output": {"type": "string"}}, ["url"]),
         "project_skills": ({"action": {"type": "string", "enum": ["list", "read"]}, "skill": {"type": "string"}}, []),
         "git_inspect": ({"action": {"type": "string", "enum": ["status", "diff", "log"]}, "staged": {"type": "boolean"}}, []),
         "run_checks": ({"argv": {"type": "array", "items": {"type": "string"}}, "timeout": {"type": "integer", "minimum": 1, "maximum": 120}}, ["argv"]),
@@ -235,7 +240,7 @@ def function_schemas(include_legacy=True):
     return [{"type": "function", "function": {"name": tool["name"], "description": tool["description"],
              "parameters": {"type": "object", "properties": contracts[tool["name"]][0],
                             "required": contracts[tool["name"]][1], "additionalProperties": False}}}
-            for tool in CHAT_TOOLS if include_legacy or tool['name'] != 'desktop_action']
+            for tool in CHAT_TOOLS if include_legacy or tool['name'] not in {'desktop_action', 'open_app', 'focus_window'}]
 
 CHAT_TOOL_PROMPT = """KURT_NATIVE_TOOLS_V1
 You can discover and execute Kurt's native CSV/JSON workflows, search/read live
@@ -276,6 +281,7 @@ copy commands. Use only user-supplied paths for data reads. For timeless
 questions, simply answer without a tool.
 Available native tools:
 """ + json.dumps(CHAT_TOOLS, ensure_ascii=False)
+CHAT_TOOL_PROMPT_NATIVE = CHAT_TOOL_PROMPT.split("Available native tools:", 1)[0] + "Use the supplied function schemas as the tool catalog.\n"
 
 
 DESKTOP_TOOL_PROMPT = """KURT_NATIVE_TOOLS_V1
@@ -409,6 +415,9 @@ def invoke_native(name, params, allowed_paths=None):
             "title": res.title,
             "content": res.content[:4000] if res.success else "",
             "error": res.error,
+            "links": res.links, "status_code": res.status_code,
+            "content_type": res.content_type, "fetched_at": res.fetched_at,
+            "truncated": res.truncated or len(res.content) > 4000,
         }
     if name in _DELEGATED_TOOL_NAMES:
         # Coding/file/computer-use/orchestration tools share their execution
@@ -508,6 +517,16 @@ class NativeToolRouter:
         return redact(message)
 
     async def _chunks(self, provider, model, messages, options, rate_limit_fallback=None):
+        from kurt.core.router import NativeToolArgumentsError
+        def request_correction():
+            bounds = {t['function']['name']: {k: {b: v for b, v in s.items() if b in ('minimum', 'maximum', 'enum', 'type')}
+                       for k, s in t['function']['parameters']['properties'].items() if k == 'timeout'}
+                      for t in options.get('native_tools', [])}
+            messages.append({'role': 'user', 'content': 'The previous tool response was rejected before execution. '
+                             'No tool ran. Return exactly one declared tool with valid JSON object arguments matching its schema. '
+                             'Timeouts are seconds, not milliseconds. Timeout contracts: ' + json.dumps({k: v for k, v in bounds.items() if v})})
+            if self.on_status:
+                self.on_status('Invalid tool arguments; requesting one corrected response. No action was executed.')
         for attempt in range(2):
             started = False
             try:
@@ -515,7 +534,25 @@ class NativeToolRouter:
                     started = True
                     yield chunk
                 return
+            except NativeToolArgumentsError:
+                if attempt or started:
+                    raise
+                request_correction()
+                continue
             except httpx.HTTPStatusError as exc:
+                if not attempt and not started and exc.response.status_code == 400 and options.get('native_tools'):
+                    try:
+                        error = exc.response.json().get('error', {})
+                        invalid = isinstance(error, dict) and (error.get('code') == 'tool_use_failed' or
+                                  str(error.get('message', '')).startswith('Tool call validation failed'))
+                    except (ValueError, httpx.ResponseNotRead):
+                        invalid = False
+                    if invalid:
+                        request_correction()
+                        continue
+                from kurt.core.execution_preferences import quota_exhausted
+                if quota_exhausted(exc):
+                    raise
                 if not attempt and not started and exc.response.status_code == 429 and rate_limit_fallback:
                     model = rate_limit_fallback
                     if self.on_status:
@@ -560,17 +597,26 @@ class NativeToolRouter:
                 if receipt.get('foreground_verified') and receipt.get('status') == 'completed' and receipt.get('app', '').casefold() == goal['target_app'].casefold():
                     goal_receipt = receipt
         rejected_calls = set()
-        if not any(m.get("role") == "system" and "KURT_NATIVE_TOOLS_V1" in str(m.get("content", "")) for m in messages):
-            today_line = f"\nCurrent local date: {datetime.now().strftime('%Y-%m-%d (%A)')}\n"
-            sys_content = CHAT_TOOL_PROMPT + ASSISTANT_POLICY + today_line
+        native_api = getattr(self.router, "supports_native_tools", False) and provider not in ("anthropic", "ollama")
+        today_line = f"\nCurrent local date: {datetime.now().strftime('%Y-%m-%d (%A)')}\n"
+        sys_content = (CHAT_TOOL_PROMPT_NATIVE if native_api else CHAT_TOOL_PROMPT) + ASSISTANT_POLICY + today_line
+        existing_policy = next((m for m in messages if m.get("role") == "system" and "KURT_NATIVE_TOOLS_V1" in str(m.get("content", ""))), None)
+        if existing_policy is None:
             messages.insert(0, {"role": "system", "content": sys_content})
+        else:
+            existing_policy['content'] = sys_content  # Refresh after provider fallback, too.
         if goal_receipt:
             yield self._app_completion(goal, goal_receipt)
             return
         for turn in range(self.max_tools + 1):
             options = dict(kwargs)
-            if getattr(self.router, "supports_native_tools", False):
+            pinned = getattr(self.router, "strict_selection", False)
+            orchestration_tools = {"call_model", "delegate_cli", "spawn_subagent", "swarm_execute", "codex_task", "desktop_cli"}
+            if native_api:
                 options["native_tools"] = function_schemas(include_legacy=False)
+                if pinned:
+                    options["native_tools"] = [t for t in options["native_tools"]
+                                               if t["function"]["name"] not in orchestration_tools]
             buffer = ""
             is_text = False
             request_messages = messages
@@ -605,7 +651,7 @@ class NativeToolRouter:
                         '\nThese steps already ran. Continue from the latest observation; do not reopen '
                         'or reload the page to restart the task, which discards completed work. '
                         'Verify remaining effects. If progress cannot be verified, report incomplete.'})
-            alternate = ("openai/gpt-oss-120b" if model == "openai/gpt-oss-20b" else "openai/gpt-oss-20b") if desktop_mode and provider == "groq" else None
+            alternate = ("openai/gpt-oss-120b" if model == "openai/gpt-oss-20b" else "openai/gpt-oss-20b") if desktop_mode and provider == "groq" and not getattr(self.router, "strict_selection", False) else None
             async for chunk in self._chunks(provider, model, request_messages, options, rate_limit_fallback=alternate):
                 if is_text:
                     yield chunk
@@ -630,6 +676,12 @@ class NativeToolRouter:
                 yield "Native workflow incomplete: the tool-step limit was reached. No further tools were executed."
                 return
             name = request["tool"]
+            # Older providers may retain these aliases in conversation history.
+            # Route activation through the same verified receipt and goal rules.
+            if name in {'open_app', 'focus_window'}:
+                request = {**request, 'tool': 'open_application',
+                           'params': {'app': request.get('params', {}).get('app_name', '')}}
+                name = 'open_application'
             if name in desktop_names:
                 desktop_mode = True
             # call_id changes on each provider response; compare actual requests.
@@ -643,9 +695,15 @@ class NativeToolRouter:
                 params = request.get('params', {})
                 if not isinstance(params, dict):
                     raise ValueError('Tool params must be an object.')
-                if name in ACTION_NAMES and not goal:
+                mutates = name in ACTION_NAMES or name in {
+                    'click', 'type_text', 'hotkey', 'open_url', 'run_applescript',
+                    'find_and_click', 'scroll', 'drag', 'clipboard', 'os_script',
+                } or (name == 'browser_action' and params.get('action') in {'open', 'click', 'type', 'search', 'close'})
+                if pinned and name in orchestration_tools:
+                    result = {"status": "blocked", "reason": "A model is selected. Continue with this model and direct tools; model/CLI orchestration is disabled until quota failover or /model auto."}
+                elif mutates and not goal:
                     result = {'status': 'blocked', 'reason': 'First use set_task_goal to declare the full user goal and completion condition.'}
-                elif name in ACTION_NAMES and goal['goal_type'] == 'app_foreground' and (
+                elif mutates and goal['goal_type'] == 'app_foreground' and (
                         name != 'open_application' or params.get('app', '').casefold() != goal['target_app'].casefold()):
                     result = {'status': 'blocked', 'reason': 'The declared goal only permits activating its target app. Do not alter controls or documents.'}
                 else:

@@ -52,7 +52,7 @@ class ModelPaletteDataTests(unittest.TestCase):
 
     def test_model_items_include_openrouter_entries(self):
         from kurt.core import command_palette as cp
-        fake = [{"id": "openai/gpt-4.1", "name": "OpenAI: GPT-4.1"}]
+        fake = [{"id": "openai/gpt-4.1", "name": "OpenAI: GPT-4.1", "architecture": {"output_modalities": ["text"]}}]
         with patch.object(cp, "_openrouter_cache", fake):
             items = cp._model_items("")
         self.assertTrue(any(i["value"] == "/model openai/gpt-4.1" and "[openrouter]" in i["label"]
@@ -186,14 +186,14 @@ class ConnectorDirectoryTests(unittest.TestCase):
         from kurt.core.command_palette import _connector_items
         items = _connector_items("")
         self.assertGreaterEqual(len(items), 1000)
-        self.assertTrue(any(i["value"] == "/connect gmail" for i in items))
+        self.assertTrue(any(i["target"] == "connector:composio:gmail" for i in items))
 
-    def test_zapier_and_n8n_pickers_resolve_to_open_not_connect(self):
+    def test_zapier_and_n8n_pickers_open_setup_menus(self):
         from kurt.core.command_palette import _zapier_picker_items, _n8n_picker_items
         zap = _zapier_picker_items("shopify")
         n8n = _n8n_picker_items("slack")
-        self.assertTrue(zap and all(i["value"].startswith("/zapier open ") for i in zap))
-        self.assertTrue(n8n and all(i["value"].startswith("/n8n open ") for i in n8n))
+        self.assertTrue(zap and all(i["kind"] == "open" and i["target"].startswith("connector:zapier:") for i in zap))
+        self.assertTrue(n8n and all(i["kind"] == "open" and i["target"].startswith("connector:n8n:") for i in n8n))
 
     def test_zapier_open_and_n8n_open_navigate_to_the_real_integration_page(self):
         from kurt.hub import mcp_servers

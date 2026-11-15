@@ -69,6 +69,70 @@ module.
 
 <!-- Bagong entries dito, pinakabago sa pinakataas. -->
 
+## 2026-11-15 — End-of-session checkpoint: defaults, connectors, automation and Android (Codex)
+- Na-save: Connector setup/API/source links and Composio/n8n/Zapier flows; Chat/CLI/Image/Video defaults and pickers/banner; hands-free voice; computer/web execution fixes; Android APK/AAB/QR tools; working Vibe CLI integration; reliable exit cleanup.
+- Final validation: 351 tests passed; live APK/AAB signature checks, Vibe Keychain-authenticated response and six real terminal exit sessions passed. Individual entries and docs below preserve the exact tested scope and limitations.
+- Para bukas: Improve planner resilience under persistent rate limits; optional persistent browser login; broader Android flavors/framework support and project-specific release signing. SaaS shared-provider credits/pricing remains parked; no production deployment or publishing was performed.
+
+## 2026-11-15 — Exit reliably returns to the shell; picker and microphone shutdown fixes (Codex)
+- Ano: Deleted/replaced slash text now closes the chat picker; exit shortcuts also work inside nested pickers. All chat exit paths (text, slash, EOF, Ctrl+C, exceptions) share final cleanup for voice, browser and proactive resources; goodbye does not trigger TTS.
+- Root cause: Real terminal tests exposed intermittent hangs after Bye. Thread dump showed PortAudio termination racing a microphone worker stuck in graceful InputStream.stop. Capture now aborts and closes input explicitly rather than draining it.
+- Validation: Six real installed-Kurt/zsh PTY sessions returned to the actual shell prompt in 1.27–1.30 seconds across plain exit, deleted slash and nested picker cases. 351 tests passed, including real keyboard regressions and cleanup/voice tests. Results: `docs/chat-exit-verification.json`.
+
+## 2026-11-15 — Mistral Vibe CLI picker and working headless adapter (Codex)
+- Ano: Added installed Vibe to `/setting` / `kurt setting cli`, `/cli default vibe`, session overrides and CLI help. Uses bounded headless ask mode without auto-approving edits; existing saved default unchanged.
+- Auth: Grants only MISTRAL_API_KEY or Vibe's own Keychain/state access. Added narrow read-only exceptions for the public TLS CA bundles (including Homebrew symlink and target); generic commands and other services cannot read Vibe private state.
+- Validation: Installed Vibe 3.1.2 returned KURT_VIBE_OK through Kurt's actual sandboxed adapter using existing Keychain login with TLS verification enabled. Full suite 349 tests passed before final public-CA symlink correction; focused suites rechecked afterward.
+
+## 2026-11-15 — Scoped Android builds, QR tools and bounded coding recovery (Codex)
+- Ano: Added chat/coding tools and `kurt android doctor|build|qr`. Android-only sandbox allows JVM self-process metadata, read-only SDK and local Gradle sockets; generic coding restrictions remain intact. Builds capture bounded logs, hashes, package/signature checks, and distinguish fresh outputs from verified up-to-date files. Dependency networking is explicit CLI-only.
+- Validation: 345 tests passed. Actual Gradle debug APK and offline release AAB built and signature-verified in a disposable fixture using a test certificate; repeat AAB correctly reported up_to_date. Doctor and QR CLI passed. No device install/upload or system-wide JDK installation/config change.
+- Coding: Provider argument rejection now gets one correction attempt before execution. Latest live debug task fixed code and ran passing checks; final review remained incomplete under persistent rate limits.
+- Details: `docs/ANDROID_BUILDS.md`, `docs/android-build-verification.json`. Production release still needs the project's upload/signing setup; flavored/nested modules and Flutter generation are not implemented.
+
+## 2026-11-15 — Coding, QR and Android build readiness audit (Codex)
+- Ano: Live AI corrected a disposable project bug; independent test and Git diff passed. Actual restricted command runner generated a demo QR PNG and preserved a failing command's exit code. Coding/security suites: 36 tests passed.
+- Limitasyon: AI run remained incomplete after provider invalid timeout arguments. SDK/JDK 17 exist, but Java crashes in Kurt's generic sandbox; no actual APK/AAB build was performed and no dedicated Android workflow exists.
+- Susunod: Android setup doctor and scoped build adapter, verified artifacts, explicit signing configuration, real APK download URL/QR flow, and bounded invalid-argument recovery. Details: `docs/CODING_ANDROID_AUDIT.md`.
+
+## 2026-11-15 — Computer/web capability audit and execution fixes (Codex)
+- Ano: Live-verified host app opening, Safari desktop input, headless Chrome form automation and external HTTPS fetch. Fixed browser thread ownership, installed-browser fallback, bounded page fetching, focus verification, legacy goal bypass, duplicate native tool prompts and masked streaming quota errors.
+- Validation: 332 tests passed. Natural-chat Calculator/TextEdit activation passed; contextual follow-up remains inconsistent under provider rate limits/invalid tool arguments. Direct tool success is recorded separately from AI planning.
+- Susunod: Bounded planner recovery, opt-in persistent browser sessions and broader workflow fixtures. Evidence and limitations: `docs/COMPUTER_WEB_AUDIT.md`.
+
+## 2026-11-15 — Four role-specific default pickers in `/setting` and native `kurt setting` (Codex)
+- Ano: Interactive `kurt setting` at `/setting` now group Chat AI, CLI, Image AI and Video AI into separate pickers. Native `kurt setting model|cli|image|video` opens a role directly; `/config` and existing slash shortcuts remain available. Tab returns to the four categories; Esc cancels/back.
+- Ano: Chat pickers filter output modalities and omit media/transcription routes, while preserving vision-input chat models. OpenRouter rows show Paid/Free/unknown pricing labels. Media providers cannot be saved as Chat AI defaults; media lists remain generation-category-specific.
+- Validation: 323 tests passed, including real keyboard navigation and saved CLI selection. Inspected cached OpenRouter catalog: 451 chat-qualified of 470 entries; 19 filtered out. No paid model calls. Code graph updated. Details: [docs/EXECUTION_DEFAULTS.md](docs/EXECUTION_DEFAULTS.md).
+
+## 2026-11-15 — Hands-free voice turn-taking fix: VAD, one mic worker, automatic prompt handoff (Codex)
+- Ano: Local bundled Silero VAD replaces fixed-volume speech detection. Waits for real speech, preserves onset audio, ends after 1.5s trailing silence, and supports up to 60s utterances. Silence/cancel/overflow/limit do not submit empty or truncated commands. Wake-word requests also capture a full utterance.
+- Ano: Iisang worker na ang mic owner. Pending voice turns stay blocked through AI processing and serialized TTS, with matching response acknowledgments on success/error/slash paths. Voice input automatically wakes prompt_toolkit without Enter and preserves typed drafts. F5 works from the opening banner; spoken stop controls and stale-turn invalidation are implemented.
+- Ano: Voice toolbar shows listening/transcribing/thinking/speaking states. TTS reservations cover queued playback, echo settling, failures and cleanup; listener stop clears old callbacks for a fresh restart. Existing model/CLI defaults remain in use.
+- Validation: 314 tests passed, including 19 new voice checks. Real installed Silero VAD plus full WAV capture tested against a local TTS speech file at full and 15% gain; no live microphone or paid AI calls. Code graph updated. Usage, settings and half-duplex limitations: [docs/HANDS_FREE_VOICE.md](docs/HANDS_FREE_VOICE.md).
+
+## 2026-11-15 — Image/video model choices at apat na defaults sa welcome banner (Codex)
+- Ano: Independent saved image/video generators, picker menus sa `/config image|video` at `/image-model` / `/video-model`, at `kurt setting image|video`. May FLUX Schnell/Dev at Wan 2.7/MiniMax H3 Max choices, fal catalog filtered by generation category, at manual fal/Replicate IDs. Hindi pinapalitan ang chat/CLI default.
+- Ano: Native `generate_media` uses the saved generator and stays on its generation provider. Naayos ang default fal FLUX endpoint ID at fal video artifact parsing; may video timeout, bounded Replicate polling at standard `FAL_KEY` alias.
+- Ano: Welcome banner shows Chat, CLI, Image at Video defaults with provider labels, wrapping long values independently of the active executor.
+- Validation: 295 tests passed, plus 7 media/banner tests after the final layout adjustment. Verified text layout at 60/80/120 columns; mocked provider generation responses, no paid media calls. Usage and source schemas: [docs/EXECUTION_DEFAULTS.md](docs/EXECUTION_DEFAULTS.md). Code graph updated.
+
+## 2026-11-15 — Saved default AI model/CLI at quota-only auto failover (Codex)
+- Ano: May persistent `default_model`/`default_cli`, settings menus, `/model default <id> [provider]`, `/cli default|use <name>`, `kurt setting model|cli`, at session `--model`/`--cli` overrides. Current CLI choices: Codex, Claude Code, Gemini CLI, OpenClaw; `auto` uses API mode. Recent context is passed to the default CLI. F5 chat/standalone voice follow saved defaults.
+- Ano: Piniling model stays on its provider; disabled ang secondary model/CLI orchestration habang pinned. Confirmed billing/quota errors lang ang nag-e-enable ng auto routing for the session, retaining tool receipts and excluding the exhausted provider. Auth/ordinary rate-limit/request/server errors do not silently change the selected model. Structured CLI quota failures enable auto on the next request; failed CLI tasks are never automatically replayed.
+- Ano: Na-wire ang direct OpenAI/Mistral/DeepSeek/Google API routes. Existing CLI permission adapters remain; Codex defaults to read-only. Saved preferences are unchanged until the user selects defaults; SaaS billing remains parked.
+- Bakit: Gusto ng user na sariling piniling model o CLI muna ang gamitin, na naaalala sa bagong chat, at orchestrator lang kapag naubos ang credits/quota.
+- Validation: 288 tests passed, including persistence, session override, provider routing, failure classification, CLI-context and no-replay checks; details in [docs/EXECUTION_DEFAULTS.md](docs/EXECUTION_DEFAULTS.md). No paid live model calls. Code graph updated.
+- Susunod: Mistral Vibe/DeepSeek/Copilot CLI adapters remain separate pending integrations; hindi sila ipinakitang ready/default choices sa pagbabagong ito.
+
+## 2026-11-14 — Connector setup menus, website/API/source links, Composio hosted auth at platform MCP setup (Codex)
+- Ano: Bawat MCP/Composio/Zapier/n8n entry ay may setup submenu; nabubuksan ang website, API/setup instructions at source repo habang nananatili sa picker. Composio/Zapier/n8n ay reachable din sa mismong MCP list. May recipe choices, malinaw na missing-metadata messages at npm/PyPI fallback pages.
+- Ano: Guided MCP credential entry supports embedded variables/URL templates at exported credentials, may cancellation at actual connection test. Saved config ay hindi na automatic na “connected”; buong catalog namespace ang ginagamit para walang collision sa magkapangalan na server.
+- Ano: Composio reuses existing auth configs, humihingi ng missing project key sa parehong flow, at gumagamit ng current hosted `/connected_accounts/link` endpoint. Hindi na nagpapanggap na active ang account kapag walang redirect. Zapier/n8n ay may guided MCP URL/token setup sa menu, bukod sa app integration pages.
+- Bakit: Gusto ng user na sa listahan mismo manggaling ang buong setup, kasama ang totoong links kung saan kukuha ng credentials o babasahin ang GitHub instructions. Sa audit, may mga catalog entry na walang links/recipe; hindi maaaring imbentuhin ang eksaktong API-key page.
+- Validation: 271 tests passed, kasama ang keyboard-driven picker interaction, mocked Composio auth at localhost MCP/OAuth protocol tests. Metadata audit: 58,869 MCP, 1,633 Composio, 10,090 Zapier, 2,635 n8n. Details at limitations: [docs/CONNECTOR_SETUP.md](docs/CONNECTOR_SETUP.md). Code graph updated.
+- Susunod: Actual account sign-in per external service remains user/account-dependent; hindi live-verified ang lahat ng catalog links o connectors. 2,442 MCP entries ay walang published website/repo/package page at 3,117 ay walang recipe.
+
 ## 2026-11-13 — Unified MCP/Composio/Zapier/n8n connect flow, 4 sirang default preset na-fix (Claude Code)
 - Ano: Bagong `kurt/core/mcp_oauth.py` — generic MCP Authorization flow (RFC 9728 protected-resource discovery → RFC 8414 auth-server metadata → Dynamic Client Registration (RFC 7591) → PKCE) para direktang maka-connect ang Kurt sa SARILING OAuth ng kahit sinong server sa 58K+ public MCP catalog, walang middleman platform — tulad mismo ng ginagawa ni Claude sa sarili niyang MCP connectors. Na-verify laban sa totoong production server (mcp.context7.com, Clerk-hosted).
 - Ano: Bagong unified na `connect_entry()`/`/mcp authorize <preset-or-id>` (`kurt/core/mcp_commands.py`) — isang flow para sa parehong presets at catalog entries: subukan muna ang totoong OAuth sign-in (browser), kung wala → magpakita ng "🔌 Connect" panel na nagtatanong lang ng eksaktong field na kulang (hal. "Authorization"), kasama ang totoong link kung saan kukuha ng API key (catalog website/repo, o hardcoded para sa presets) — hindi na raw JSON template. Laging tine-test ang koneksyon after i-save (dating "just saves" na walang verification).

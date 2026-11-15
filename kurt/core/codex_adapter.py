@@ -79,6 +79,7 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
     result=run_bounded(command,env=child_env(allow=('OPENAI_API_KEY','CODEX_HOME')),cwd=str(root),
                        timeout=timeout,input_text=redact(task),max_output=1024*1024)
     messages,events,changed=[],[],[]
+    error_codes = []
     completed,failed=False,False
     for line in result.pop('stdout').splitlines():
         try:event=json.loads(line)
@@ -87,6 +88,10 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
         kind=event.get('type')
         if kind=='turn.completed':completed=True
         if kind in ('error','turn.failed'):failed=True
+        if kind in ('error', 'turn.failed'):
+            error = event.get('error')
+            code = error.get('code') if isinstance(error, dict) else event.get('code')
+            if isinstance(code, str):error_codes.append(code)
         item=event.get('item',{})
         if kind=='item.completed' and isinstance(item,dict):
             if item.get('type')=='agent_message' and isinstance(item.get('text'),str):messages.append(item['text'])
@@ -101,5 +106,6 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
     if result['status']=='completed' and (failed or not completed or not messages):result['status']='failed'
     result.update({'backend':'codex','mode':mode,'workspace':str(root),'final_text':'\n'.join(messages)[-16384:],
                    'reported_files_changed':sorted(set(changed)),'events':events,'changes_verified':False,
+                   'provider_error_codes':error_codes,
                    'hint':'Inspect the diff and check results. A timeout/output limit can leave partial edits; do not retry automatically.'})
     return redact(result)

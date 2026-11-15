@@ -4,6 +4,7 @@ Interactive `/` menu for `kurt chat` — a thin input front-end layered on
 top of the existing handle_slash() dispatcher. It never reimplements
 business logic: every resolved selection is just the same command string
 a user could type by hand, fed straight back into the normal chat loop.
+Setup-page actions open the browser while keeping the picker available.
 
 Layout: typing "/" as the first character opens a live menu rendered as
 the PromptSession's bottom_toolbar. ←/→ switch root tabs (Commands /
@@ -42,7 +43,11 @@ OPEN_TARGETS = {
     "/agents": "agents",
     "/plugins": "plugins",
     "/model": "model",
+    "/image-model": "media_image",
+    "/video-model": "media_video",
     "/config": "config",
+    "/setting": "execution_defaults",
+    "/cli": "cli_settings",
 }
 
 CONFIG_SUBCOMMANDS = [
@@ -51,6 +56,10 @@ CONFIG_SUBCOMMANDS = [
     ("name", "Set Kurt's display name"),
     ("icon", "Set Kurt's icon/emoji"),
     ("language", "Set reply language (Tagalog/English/Taglish)"),
+    ("model", "Chat AI — choose default conversational model"),
+    ("cli", "CLI — choose default command-line AI"),
+    ("image", "Choose a default image generator"),
+    ("video", "Choose a default video generator"),
     ("aimode", "Set AI personality mode"),
     ("projects", "Manage per-project context"),
     ("setup", "Run the full setup wizard"),
@@ -73,6 +82,8 @@ class _PaletteState:
     view: str = "root"              # root | show_all | skills | mcp | agents | plugins | model | config
     stack: list = field(default_factory=list)  # back-stack of (view, tab)
     index: int = 0
+    notice: str = ""
+    settings_only: bool = False
 
 
 # ── Live filter / argument parsing ───────────────────────────────────
@@ -168,35 +179,34 @@ def _mcp_items(query: str) -> list[dict]:
     for name, conn in registry.items():
         if _matches(query, name, conn.description):
             items.append({
-                "label": f"✓ {name}  [{conn.transport}]  {conn.description}",
-                "kind": "leaf",
-                "value": f"/mcp tools {name}",
+                "label": f"◇ {name}  [saved; {'enabled' if conn.enabled else 'disabled'}]  {conn.description}",
+                "kind": "open", "target": f"connector:mcp:{name}",
             })
     for name, preset in PRESETS.items():
         if name in registry:
             continue
         if _matches(query, name, preset.description):
             items.append({
-                "label": f"○ {name}  (preset — connect)  {preset.description}",
-                "kind": "leaf",
-                "value": f"/mcp authorize {name}",
+                "label": f"○ {name}  (preset — setup)  {preset.description}",
+                "kind": "open", "target": f"connector:mcp:{name}",
             })
     preset_ids = {f"{p}" for p in PRESETS} | set(registry.keys())
     for entry in _catalog_entries():
-        short = entry["id"].split("/", 1)[-1]
-        if short in preset_ids or entry["id"] in preset_ids:
+        if entry["id"] in preset_ids:
             continue
         if _matches(query, entry["id"], entry.get("title", ""), entry.get("description", "")):
             items.append({
-                "label": f"◇ {entry['id']}  (catalog — connect)  {entry.get('description', '')[:60]}",
-                "kind": "leaf",
-                # Tries the server's own OAuth sign-in first (opens the
-                # browser); falls back to printing a fillable config
-                # template when the server has no OAuth metadata or only
-                # runs locally via stdio.
-                "value": f"/mcp authorize {entry['id']}",
+                "label": f"◇ {entry['id']}  (catalog — setup)  {entry.get('description', '')[:60]}",
+                "kind": "open", "target": f"connector:mcp:{entry['id']}",
             })
-    return items
+    # All provider setup remains reachable from the MCP list itself.
+    providers = [
+        ("Composio — app login / API setup", "connectors"),
+        ("Zapier — app accounts / MCP setup", "zapier"),
+        ("n8n — app credentials / MCP setup", "n8n"),
+    ]
+    return [{"label": label, "kind": "open", "target": target}
+            for label, target in providers if _matches(query, label)] + items
 
 
 _composio_curated_cache: Optional[dict] = None
@@ -219,11 +229,7 @@ def _composio_curated() -> dict:
 
 
 def _connector_items(query: str) -> list[dict]:
-    """All Composio app connectors — the full bundled toolkit directory
-    (1,633 at time of writing, kurt/data/composio_toolkits.json), not just
-    the ~40 hand-curated ones. Picking one resolves to `/connect <slug>`,
-    which opens the real login page in the user's browser and watches for
-    authorization automatically (same OAuth-via-Composio flow as before)."""
+    """Full toolkit directory; each app opens its setup/action submenu."""
     from kurt.hub.composio import load_toolkits
 
     curated = _composio_curated()
@@ -232,37 +238,68 @@ def _connector_items(query: str) -> list[dict]:
         name, desc, cat = curated.get(slug, (slug.replace("_", " ").replace("-", " ").title(), "", ""))
         if _matches(query, slug, name, desc):
             label = f"{name}  —  {desc}  [{cat}]" if desc else name
-            items.append({"label": label, "kind": "leaf", "value": f"/connect {slug}"})
+            items.append({"label": label, "kind": "open", "target": f"connector:composio:{slug}"})
     return items
 
 
 def _zapier_picker_items(query: str) -> list[dict]:
-    """All 10,090 bundled Zapier app slugs (kurt/data/zapier_apps.json).
-    Zapier has no API for a third party to connect a per-app OAuth session
-    the way Composio does, so picking one opens that app's real Zapier
-    integration page instead (`/zapier open <slug>`)."""
+    """Full Zapier directory with app pages and platform MCP setup."""
     from kurt.hub.mcp_servers import load_zapier_apps
 
     items = []
     for slug in load_zapier_apps():
         label = slug.replace("-", " ").title()
         if _matches(query, slug, label):
-            items.append({"label": label, "kind": "leaf", "value": f"/zapier open {slug}"})
+            items.append({"label": label, "kind": "open", "target": f"connector:zapier:{slug}"})
     return items
 
 
 def _n8n_picker_items(query: str) -> list[dict]:
-    """All 2,635 bundled n8n integration slugs (kurt/data/n8n_integrations.json).
-    Same reasoning as Zapier: n8n nodes run inside your own n8n instance,
-    so picking one opens the real n8n.io integration page."""
+    """Full n8n directory with credential pages and platform MCP setup."""
     from kurt.hub.mcp_servers import load_n8n_integrations
 
     items = []
     for slug in load_n8n_integrations():
         label = slug.replace("-", " ").title()
         if _matches(query, slug, label):
-            items.append({"label": label, "kind": "leaf", "value": f"/n8n open {slug}"})
+            items.append({"label": label, "kind": "open", "target": f"connector:n8n:{slug}"})
     return items
+
+
+def _connector_detail_items(provider: str, ref: str, query: str) -> list[dict]:
+    from kurt.core.connector_pages import connector_pages
+    from kurt.core.mcp_client import PRESETS, load_registry
+
+    items = []
+    entry = None
+    if provider == "mcp":
+        saved = load_registry().get(ref)
+        entry = next((e for e in _catalog_entries() if e["id"] == ref), None)
+        if saved:
+            items.append({"label": "Test saved connection / list available tools", "kind": "leaf", "value": f"/mcp tools {ref}"})
+        if ref in PRESETS or (entry and entry.get("configs")):
+            items.append({"label": "Connect / authorize — guided setup", "kind": "leaf", "value": f"/mcp authorize {ref}"})
+            if entry and len(entry.get("configs", [])) > 1:
+                for index, recipe in enumerate(entry["configs"]):
+                    label = recipe.get("type", "stdio")
+                    if recipe.get("command"):
+                        label += " / " + recipe["command"]
+                    items.append({"label": f"Connect option {index + 1}: {label}", "kind": "leaf",
+                                  "value": f"/mcp authorize {ref} --variant {index}"})
+        elif not saved:
+            items.append({"label": "No connection recipe published — open setup instructions below", "kind": "info"})
+    elif provider == "composio":
+        items.append({"label": "Connect app — browser login / guided credentials", "kind": "leaf", "value": f"/connect {ref}"})
+        items.append({"label": "Check account authorization status", "kind": "leaf", "value": "/connect status"})
+    else:
+        items.append({"label": "Connect platform MCP to Kurt — paste your server URL", "kind": "leaf", "value": f"/mcp platform {provider}"})
+        items.append({"label": "App accounts are configured on the platform; only exposed tools reach Kurt", "kind": "info"})
+    pages = connector_pages(provider, ref, entry)
+    items.extend({"label": f"Open {label} — {url}", "kind": "browser", "url": url}
+                 for label, url in pages.items())
+    if not pages:
+        items.append({"label": "No website or repository published by this connector", "kind": "info"})
+    return [item for item in items if _matches(query, item["label"])]
 
 
 def _capability_items(query: str, kind: str, cmd: str) -> list[dict]:
@@ -306,7 +343,7 @@ def _fal_models() -> list:
     global _fal_cache
     if _fal_cache is None:
         import os
-        if not os.getenv("FAL_API_KEY"):
+        if not (os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY")):
             _fal_cache = []
         else:
             from kurt.models.fal import fetch_models
@@ -317,54 +354,123 @@ def _fal_models() -> list:
     return _fal_cache
 
 
-def _model_items(query: str) -> list[dict]:
-    from kurt.core.orchestrator import ROUTING_TABLE
+def _is_chat_model(model):
+    architecture = model.get("architecture") or {}
+    if not isinstance(architecture, dict):
+        return False
+    outputs = architecture.get("output_modalities")
+    if outputs is None:
+        modality = architecture.get("modality", "")
+        outputs = modality.rsplit("->", 1)[-1].split("+") if "->" in modality else []
+    # Vision/input modalities are fine. Generation outputs belong in media pickers.
+    return isinstance(outputs, list) and bool(outputs) and set(outputs) == {"text"}
 
-    names = ["auto"]
-    for route in ROUTING_TABLE.values():
-        for model, provider in ((route["model"], route["provider"]),
-                                 (route["fallback_model"], route["fallback_provider"])):
-            label = f"{model} [{provider}]"
-            if label not in names:
-                names.append(label)
-    rows = [n.split(" [")[0] for n in names]
-    out = []
+
+def _pricing_hint(model):
+    pricing = model.get("pricing") or {}
+    if not isinstance(pricing, dict):
+        return "pricing unavailable"
+    import math
+    try:
+        values = [float(pricing[k]) for k in ("prompt", "completion", "request") if pricing.get(k) is not None]
+    except (ValueError, TypeError):
+        values = []
+    if not values or not all(math.isfinite(v) and v >= 0 for v in values) or pricing.get("prompt") is None or pricing.get("completion") is None:
+        return "pricing unavailable"
+    return "Paid" if any(v > 0 for v in values) else "Free"
+
+
+def _chat_choices():
+    from kurt.core.execution_preferences import TEXT_PROVIDERS
+    from kurt.core.orchestrator import ROUTING_TABLE, TaskType
     seen = set()
-    for raw, label in zip(rows, names):
-        if raw in seen or not _matches(query, label):
+    rows = []
+    for task, route in ROUTING_TABLE.items():
+        if task in (TaskType.IMAGE, TaskType.VIDEO, TaskType.MUSIC, TaskType.TRANSCRIBE):
             continue
-        seen.add(raw)
-        out.append({"label": label, "kind": "leaf", "value": f"/model {raw}"})
+        for model, provider in ((route["model"], route["provider"]), (route["fallback_model"], route["fallback_provider"])):
+            if provider in TEXT_PROVIDERS and (model, provider) not in seen:
+                seen.add((model, provider))
+                rows.append((model, provider, f"{model} [{provider}]"))
+    for model, provider in (("mistral-small-latest", "mistral"), ("deepseek-flash", "deepseek")):
+        if (model, provider) not in seen:
+            seen.add((model, provider))
+            rows.append((model, provider, f"{model} [{provider}]"))
+    for model in _openrouter_models():
+        mid = model.get("id", "")
+        if not mid or not _is_chat_model(model) or (mid, "openrouter") in seen:
+            continue
+        seen.add((mid, "openrouter"))
+        rows.append((mid, "openrouter", f"{mid} [openrouter] — {_pricing_hint(model)} — {model.get('name', '')[:40]}"))
+    return rows
 
-    for m in _openrouter_models():
-        mid = m.get("id", "")
-        if not mid or mid in seen or not _matches(query, mid, m.get("name", "")):
-            continue
+
+def _model_items(query: str) -> list[dict]:
+    rows = [{"label": "Auto — route chat requests", "kind": "leaf", "value": "/model auto"}]
+    rows.extend({"label": label, "kind": "leaf", "value": f"/model {model}" + (f" {provider}" if provider != "openrouter" else "")}
+                for model, provider, label in _chat_choices())
+    return [row for row in rows if _matches(query, row["label"])]
+
+
+def _default_model_items(query):
+    rows = [{"label": "Choose chat provider + exact model ID", "kind": "leaf", "value": "/model choose-default"},
+            {"label": "Auto — let Kurt route chat requests", "kind": "leaf", "value": "/model default auto"}]
+    rows.extend({"label": label + " — save Chat AI default", "kind": "leaf", "value": f"/model default {model} {provider}"}
+                for model, provider, label in _chat_choices())
+    return [row for row in rows if _matches(query, row["label"])]
+
+
+def _execution_default_items(query):
+    rows = [
+        {"label": "Chat AI — conversational models only", "kind": "open", "target": "default_models"},
+        {"label": "CLI — installed/supported AI command-line tools", "kind": "open", "target": "cli_settings"},
+        {"label": "Image AI — text-to-image generators", "kind": "open", "target": "media_image"},
+        {"label": "Video AI — text-to-video generators", "kind": "open", "target": "media_video"},
+    ]
+    return [row for row in rows if _matches(query, row["label"])]
+
+
+def _cli_default_items(query):
+    from kurt.core.execution_preferences import DEFAULT_CLIS
+    from kurt.core.cli_orchestrator import _cmd_exists
+    rows = []
+    for name in DEFAULT_CLIS:
+        status = "use selected API model" if name == "auto" else ("installed; requires working login" if _cmd_exists(name) else "not installed")
+        if name in {"codex", "vibe"}:
+            status += "; read-only by default"
+        if name == "vibe":
+            status += "; Mistral Vibe"
+        rows.append({"label": f"{name} — {status} — save default", "kind": "leaf", "value": f"/cli default {name}"})
+    return [row for row in rows if _matches(query, row["label"])]
+
+
+def _media_model_items(kind, query):
+    from kurt.core.execution_preferences import media_label
+    command = f"/{kind}-model"
+    rows = [
+        {"label": f"Current: {media_label(kind)}", "kind": "info"},
+        {"label": "Auto — use Kurt's generation default", "kind": "leaf", "value": f"{command} auto"},
+        {"label": "Choose provider + exact model ID (fal / Replicate)", "kind": "leaf", "value": f"{command} choose"},
+    ]
+    presets = (("FLUX Schnell", "fal-ai/flux/schnell"), ("FLUX Dev", "fal-ai/flux/dev")) if kind == "image" else (
+        ("Wan 2.7", "fal-ai/wan/v2.7/text-to-video"), ("MiniMax H3 Max", "minimax/h3-max/text-to-video"))
+    seen = set()
+    for label, mid in presets:
         seen.add(mid)
-        out.append({
-            "label": f"{mid}  [openrouter]  {m.get('name', '')[:40]}",
-            "kind": "leaf",
-            "value": f"/model {mid}",
-        })
-
-    for m in _fal_models():
-        mid = m.get("id", "")
-        if not mid or mid in seen or not _matches(query, mid, m.get("title", ""), m.get("category", "")):
+        rows.append({"label": f"{label} [{mid}] [fal] — text-to-{kind}", "kind": "leaf", "value": f"{command} {mid} fal"})
+    for model in _fal_models():
+        if model.get("category") != f"text-to-{kind}" or not model.get("id") or model["id"] in seen:
             continue
+        mid = model["id"]
         seen.add(mid)
-        out.append({
-            "label": f"{mid}  [fal]  {m.get('title', m.get('category', ''))[:40]}",
-            "kind": "leaf",
-            # Explicit provider tag — fal.ai and OpenRouter ids share the
-            # same "vendor/name" shape, so this is required, not optional.
-            "value": f"/model {mid} fal",
-        })
-
-    return out
+        rows.append({"label": f"{model.get('title') or mid} [{mid}] [fal]", "kind": "leaf", "value": f"{command} {mid} fal"})
+    return [row for row in rows if _matches(query, row["label"])]
 
 
 def _config_items(query: str) -> list[dict]:
     return [
+        {"label": f"{sub:<10} {desc}", "kind": "open", "target": {"model": "default_models", "cli": "cli_settings", "image": "media_image", "video": "media_video"}[sub]}
+        if sub in ("model", "cli", "image", "video") else
         {"label": f"{sub:<10} {desc}", "kind": "leaf", "value": f"/config {sub}"}
         for sub, desc in CONFIG_SUBCOMMANDS
         if _matches(query, sub, desc)
@@ -372,6 +478,17 @@ def _config_items(query: str) -> list[dict]:
 
 
 def _current_items(state: _PaletteState, query: str) -> list[dict]:
+    if state.view == "execution_defaults":
+        return _execution_default_items(query)
+    if state.view in ("media_image", "media_video"):
+        return _media_model_items(state.view.split("_", 1)[1], query)
+    if state.view == "default_models":
+        return _default_model_items(query)
+    if state.view == "cli_settings":
+        return _cli_default_items(query)
+    if state.view.startswith("connector:"):
+        _, provider, ref = state.view.split(":", 2)
+        return _connector_detail_items(provider, ref, query)
     if state.view == "show_all":
         return [{"label": f"{t}  {SLASH_COMMANDS.get(t, '')}", "kind": "leaf", "value": t}
                 for t in _flat_commands(query)]
@@ -457,7 +574,8 @@ def _render(state: _PaletteState, buf_text: str):
     else:
         icon = {"skills": "🧠", "mcp": "🔌", "connectors": "🔗", "zapier": "⚡", "n8n": "⚙️",
                 "agents": "⚙️", "plugins": "⚙️", "model": "🤖", "config": "🛠️"}.get(state.view, "")
-        lines.append([("bold", f"{icon} {state.view}"), ("", "\n")])
+        title = {"execution_defaults": "Choose a default", "default_models": "Chat AI — save default", "model": "Chat AI — this session", "cli_settings": "CLI — save default", "media_image": "Image AI — save default", "media_video": "Video AI — save default"}.get(state.view, state.view)
+        lines.append([("bold", f"{icon} {title}"), ("", "\n")])
 
     if not items:
         lines.append([("dim", "  (no matches)"), ("", "\n")])
@@ -469,6 +587,9 @@ def _render(state: _PaletteState, buf_text: str):
             lines.append([(style, f"{marker}{item['label']}"), ("", "\n")])
         if len(items) > WINDOW:
             lines.append([("dim", f"  ... {len(items)} total, scroll with ↑↓"), ("", "\n")])
+
+    if state.notice:
+        lines.append([("", state.notice), ("", "\n")])
 
     lines.append([("dim", "↑↓ select  ←→ tabs  ? all  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel")])
 
@@ -526,14 +647,14 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("?", filter=palette_open, eager=True)
     def _show_all(event):
-        state.view = "show_all"
+        state.view = "execution_defaults" if state.settings_only else "show_all"
         state.stack = []
         state.index = 0
         _reset_query(event.current_buffer)
 
     @kb.add("tab", filter=palette_open, eager=True)
     def _home(event):
-        state.view = "root"
+        state.view = "execution_defaults" if state.settings_only else "root"
         state.tab = "commands"
         state.stack = []
         state.index = 0
@@ -546,6 +667,9 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             state.index = 0
             _reset_query(event.current_buffer)
         else:
+            if state.settings_only:
+                event.app.exit(result="")
+                return
             state.is_open = False
             event.current_buffer.text = ""
             event.current_buffer.cursor_position = 0
@@ -558,11 +682,22 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     @kb.add("enter", filter=palette_open, eager=True)
     def _select(event):
         buf_text = event.current_buffer.text
+        if not state.settings_only and buf_text.strip().casefold() in {'exit', 'quit', 'bye', '/exit', '/quit'}:
+            state.is_open = False
+            event.app.exit(result=buf_text.strip())
+            return
         items = _current_items(state, _effective_query(state, buf_text))
         if not items:
             return
         item = items[state.index % len(items)]
         args = _pending_args(state, buf_text)
+        if item["kind"] == "info":
+            return
+        if item["kind"] == "browser":
+            from kurt.core.connector_pages import open_page
+            state.notice = open_page(item["url"])
+            return
+        state.notice = ""
         if item["kind"] == "open":
             if args:
                 # User already typed a full "/command <args>" by hand —
@@ -580,22 +715,34 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         value = item["value"]
         if value and args:
             value = f"{value} {args}"
+        event.current_buffer.text = value
         event.app.exit(result=value)
 
     session = PromptSession(
         message=HTML("<ansicyan><b>You</b></ansicyan> <ansibrightblack>›</ansibrightblack> "),
         key_bindings=kb,
-        bottom_toolbar=lambda: _render(state, session.default_buffer.text) if state.is_open else None,
+        bottom_toolbar=lambda: _render(state, session.default_buffer.text) if state.is_open else (
+            [("dim", f"🎤 {_active_voice_input.status} · F5 toggle")]
+            if _active_voice_input is not None else None),
         style=_STYLE,
     )
+    def sync_palette(buffer):
+        # A deleted/replaced slash must not leave Enter trapped in an empty
+        # picker. Standalone settings deliberately accept plain search text.
+        if state.is_open and not state.settings_only and not buffer.text.startswith('/'):
+            state.is_open = False
+            state.stack = []
+            state.index = 0
+    session.default_buffer.on_text_changed += sync_palette
     return session, state
 
 
 _session: Optional[PromptSession] = None
 _state: Optional[_PaletteState] = None
+_active_voice_input = None
 
 
-def read_chat_input(console, prompt_label: str = "You") -> str:
+def read_chat_input(console, prompt_label: str = "You", *, voice_input=None):
     """Drop-in replacement for console.input(...): returns the resolved
     command/text string exactly as if typed and submitted. Raises
     KeyboardInterrupt/EOFError the same way the call it replaces did.
@@ -609,8 +756,56 @@ def read_chat_input(console, prompt_label: str = "You") -> str:
     if not sys.stdin.isatty():
         return console.input(f"[bold cyan]{prompt_label}[/bold cyan] [dim]›[/dim] ")
 
-    global _session, _state
+    global _session, _state, _active_voice_input
+    if voice_input is not None:
+        pending = voice_input.pop()
+        if pending is not None:
+            return pending
     if _session is None:
         _session, _state = _build_session()
     with patch_stdout():
-        return _session.prompt()
+        if voice_input is None:
+            return _session.prompt()
+        import asyncio
+        from kurt.core.voice_input import VOICE_READY
+        _active_voice_input = voice_input
+        def bind():
+            voice_input.bind(_session.app, asyncio.get_running_loop())
+        try:
+            value = _session.prompt(default=voice_input.take_draft(), pre_run=bind)
+            return voice_input.pop() if value is VOICE_READY else value
+        finally:
+            voice_input.unbind()
+            _active_voice_input = None
+
+
+def pick_execution_default(kind=None):
+    """Open the four-category picker outside chat; run only a settings action."""
+    import sys
+    from kurt.core.persona import load_persona
+    from kurt.core.cli_orchestrator import handle_slash
+    from kurt.utils.env_loader import load_env
+    load_env()
+    if not sys.stdin.isatty():
+        return False
+    views = {None: "execution_defaults", "model": "default_models", "cli": "cli_settings",
+             "image": "media_image", "video": "media_video"}
+    if kind not in views:
+        raise ValueError("Choose model, cli, image or video.")
+    session, state = _build_session()
+    state.is_open = True
+    state.view = views[kind]
+    state.settings_only = True
+    try:
+        with patch_stdout():
+            command = session.prompt(default="/")
+    except (KeyboardInterrupt, EOFError):
+        return False
+    allowed = ("/model default ", "/model choose-default", "/cli default ", "/image-model ", "/video-model ")
+    if not command.startswith(allowed):
+        return False
+    settings = load_persona()
+    result = handle_slash(command, "settings", settings.get("default_model", "auto"), None)
+    from rich.console import Console
+    Console().print(result.output, markup=False)
+    return True

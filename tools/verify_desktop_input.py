@@ -47,7 +47,7 @@ onscroll=()=>{if(hovered){scrolled=scrollY>hoverY;show()}};</script>'''.replace(
         final = observe(browser)
         return {'browser': browser, 'passed': 'INPUT_OK' in (final.get('window_title') or ''),
                 'window_title': final.get('window_title'), 'trace': trace, 'fixture': str(page), 'mode': 'direct tools'}
-    command = ['/opt/homebrew/bin/kurt', 'chat', '--no-memory']
+    command = ['/opt/homebrew/bin/kurt', 'chat', '--no-memory', '--verbose']
     if model != 'auto':
         command += ['--model', model]
     process = subprocess.Popen(command,

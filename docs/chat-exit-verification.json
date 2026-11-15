@@ -1,0 +1,38 @@
+[
+  {
+    "case": "plain_exit",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.27
+  },
+  {
+    "case": "deleted_slash",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.29
+  },
+  {
+    "case": "nested_picker",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.3
+  },
+  {
+    "case": "plain_exit",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.29
+  },
+  {
+    "case": "deleted_slash",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.29
+  },
+  {
+    "case": "nested_picker",
+    "returned_to_shell": true,
+    "goodbye_seen": true,
+    "seconds": 1.29
+  }
+]

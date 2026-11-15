@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -52,47 +53,56 @@ def read_config(source):
     return Path(source).expanduser().read_text()
 
 
-_PLACEHOLDER = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+_PLACEHOLDER = re.compile(r"\$\{([^}]+)\}|\{([A-Za-z_][A-Za-z0-9_.-]*)\}|<([A-Za-z_][A-Za-z0-9_ -]*)>")
 
 
 def _recipe_missing_fields(recipe: dict) -> list[str]:
-    """Field names this recipe still needs before it can connect: either an
-    unresolved catalog placeholder (${NAME}) or a preset default that fell
-    back to "" because its environment variable isn't set."""
     names = []
+    def inspect(key, value):
+        fields = [next(g for g in m.groups() if g) for m in _PLACEHOLDER.finditer(str(value))]
+        if value == "":
+            fields = [key]
+        for field in fields:
+            if field not in names:
+                names.append(field)
     for mapping_key in ("env", "headers"):
         for key, value in recipe.get(mapping_key, {}).items():
-            if (value == "" or _PLACEHOLDER.match(str(value))) and key not in names:
-                names.append(key)
+            inspect(key, value)
     for value in recipe.get("args", []):
-        m = _PLACEHOLDER.match(str(value))
-        if m and m.group(1) not in names:
-            names.append(m.group(1))
+        inspect("ARGUMENT", value)
+    for key in ("url", "command"):
+        if recipe.get(key):
+            inspect(key, recipe[key])
     return names
 
 
 def _fill_recipe(recipe: dict, values: dict) -> dict:
     def resolve(key, value):
-        if not (value == "" or _PLACEHOLDER.match(str(value))):
-            return value
-        resolved = values.get(key, value)
-        # Users naturally paste the bare token, not the HTTP scheme prefix
-        # — add it back for them rather than making "Bearer " part of what
-        # they have to remember to type into an "Authorization" prompt.
-        if key == "Authorization" and resolved and not resolved.lower().startswith(("bearer ", "basic ", "token ")):
+        resolved = values.get(key, value) if value == "" else _PLACEHOLDER.sub(
+            lambda m: values.get(next(g for g in m.groups() if g), m[0]), str(value))
+        if key.lower() == "authorization" and resolved and not _PLACEHOLDER.search(resolved) and not resolved.lower().startswith(("bearer ", "basic ", "token ")):
             resolved = f"Bearer {resolved}"
         return resolved
-
     filled = dict(recipe)
     for mapping_key in ("env", "headers"):
         if mapping_key in recipe:
             filled[mapping_key] = {k: resolve(k, v) for k, v in recipe[mapping_key].items()}
     if "args" in recipe:
-        filled["args"] = [
-            (values.get(m.group(1), a) if (m := _PLACEHOLDER.match(str(a))) else a)
-            for a in recipe["args"]
-        ]
+        filled["args"] = [resolve("", a) for a in recipe["args"]]
+    for key in ("url", "command"):
+        if key in recipe:
+            filled[key] = resolve(key, recipe[key])
     return filled
+
+
+def _show_setup_pages(pages, open_browser=False):
+    from kurt.core.connector_pages import open_page
+    opened = set()
+    for label, url in pages.items():
+        console.print(f"{label}: {url}", markup=False)
+        if open_browser and url not in opened:
+            console.print(open_page(url), markup=False)
+            opened.add(url)
 
 
 def _save_and_report(conn, name: str):
@@ -110,16 +120,50 @@ def _save_and_report(conn, name: str):
     ))
 
 
-# Presets authenticate against a fixed, well-known service (not a
-# catalog listing with its own website/repository field), so the
-# "where do I get this key" link has to be hardcoded per preset instead.
-_PRESET_KEY_URLS = {
-    "github": "https://github.com/settings/tokens",
-    "brave-search": "https://api.search.brave.com/app/keys",
-}
+def connect_platform(provider: str):
+    """Attach the user's Zapier/n8n MCP endpoint, without hand-editing JSON."""
+    from kurt.core.connector_pages import PLATFORM_PAGES
+    from rich.prompt import Prompt
+
+    if provider not in ("zapier", "n8n"):
+        console.print("Choose zapier or n8n.")
+        return
+    instructions = (
+        "Create a server, add the app actions you want, then copy the server URL from Connect."
+        if provider == "zapier" else
+        "In your n8n instance, enable MCP access in Settings, expose the workflows you want, "
+        "then copy the MCP server URL and access token from its connection settings."
+    )
+    console.print(instructions)
+    _show_setup_pages(PLATFORM_PAGES[provider], open_browser=sys.stdin.isatty())
+    if not sys.stdin.isatty():
+        console.print(f"Continue in a terminal: /mcp platform {provider}")
+        return
+    try:
+        # Zapier server URLs may contain credentials: never echo them in chat.
+        url = Prompt.ask("MCP server URL (Ctrl-C to cancel)", password=True).strip()
+        catalog.parse_config(url, name=provider)  # validate before contacting it
+        token = Prompt.ask("Access token (blank if included in URL / using OAuth)", password=True, default="").strip()
+        headers = {}
+        if token:
+            headers["Authorization"] = token if token.lower().startswith("bearer ") else f"Bearer {token}"
+        else:
+            from kurt.core import mcp_oauth
+            try:
+                tokens = mcp_oauth.authorize(url)
+                headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            except mcp_oauth.NotOAuthProtected:
+                pass
+        conn = catalog.parse_config(json.dumps({provider: {"url": url, "headers": headers}}))[0]
+        _save_and_report(conn, provider)
+    except (KeyboardInterrupt, EOFError):
+        console.print("Connection cancelled; nothing saved.")
+    except (ValueError, RuntimeError):
+        console.print("Connection setup failed. Check the MCP URL, credentials and provider setup instructions.")
 
 
-def connect_entry(ref: str):
+
+def connect_entry(ref: str, variant: int | None = None):
     """One unified 'Connect <App>' flow for anything in kurt's MCP list —
     a quick preset (github, postgres...) or one of the 58K+ public catalog
     entries. Tries the server's OWN OAuth sign-in first — Dynamic Client
@@ -130,55 +174,69 @@ def connect_entry(ref: str):
     here, for the couple of fields it actually needs — never a raw JSON
     template to hand-edit."""
     from kurt.core import mcp_oauth
-    from kurt.core.mcp_client import MCPConnection, PRESETS
+    from kurt.core.connector_pages import connector_pages
+    from kurt.core.mcp_client import PRESETS
 
     preset = PRESETS.get(ref.lower())
     if preset is not None:
         name = ref.lower()
         description = preset.description
-        key_url = _PRESET_KEY_URLS.get(name, "")
+        pages = connector_pages("mcp", name)
         if preset.transport == "stdio":
             recipes = [{"type": "stdio", "command": preset.command, "args": list(preset.args), "env": dict(preset.env)}]
         else:
             recipes = [{"type": preset.transport, "url": preset.url, "headers": dict(preset.headers)}]
+            if name == "github" and os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN"):
+                recipes[0]["headers"]["Authorization"] = f"Bearer {os.environ['GITHUB_PERSONAL_ACCESS_TOKEN']}"
     else:
         entry = next((e for e in catalog.load_catalog()["entries"] if e["id"] == ref), None)
         if entry is None:
             console.print(f"[red]❌ Unknown server:[/red] {ref}  [dim](not a preset or catalog ID — try: kurt mcp search)[/dim]")
             return
-        name = entry["id"].split("/", 1)[-1]
+        name = entry["id"]
         description = entry.get("description", "")
-        key_url = entry.get("website") or entry.get("repository") or ""
+        pages = connector_pages("mcp", ref, entry)
         recipes = entry["configs"]
 
     if not recipes:
         console.print(f"[yellow]⚠️  {name} has no published connection recipe yet.[/yellow]")
+        _show_setup_pages(pages, open_browser=sys.stdin.isatty())
         return
 
+    if variant is not None:
+        if variant < 0 or variant >= len(recipes):
+            console.print("Unknown connection option.")
+            return
+        recipes = [recipes[variant]]
+    # Respect credentials exported after the module/presets were first loaded.
+    recipes = [_fill_recipe(c, {field: os.environ[field] for field in _recipe_missing_fields(c)
+                               if os.environ.get(field)}) for c in recipes]
     remote = next((c for c in recipes if c.get("type") in ("http", "sse", "streamable-http")), None)
 
-    if remote:
+    has_credentials = remote and any(v and not catalog._has_placeholders(v)
+        for k, v in remote.get("headers", {}).items() if k.lower() not in ("accept", "content-type"))
+    if remote and not has_credentials and not catalog._has_placeholders(remote["url"]):
         console.print(f"[cyan]🔎 Checking how {name} signs in…[/cyan]")
         try:
             with console.status(f"[cyan]Waiting for you to finish authorizing {name} in the browser…[/cyan]"):
                 tokens = mcp_oauth.authorize(remote["url"])
-            headers = dict(remote.get("headers", {}))
-            headers["Authorization"] = f"Bearer {tokens['access_token']}"
-            conn = MCPConnection(name=name, transport={"streamable-http": "http"}.get(remote["type"], remote["type"]),
-                                 url=remote["url"], headers=headers, description=description)
-            _save_and_report(conn, name)
-            return
+            remote = {**remote, "headers": {**remote.get("headers", {}),
+                                           "Authorization": f"Bearer {tokens['access_token']}"}}
         except mcp_oauth.NotOAuthProtected:
             pass  # no OAuth of its own — fall through to the guided manual connect below
-        except RuntimeError as exc:
-            console.print(f"[red]❌ Authorization failed:[/red] {exc}")
+        except (RuntimeError, OSError) as exc:
+            console.print(f"Authorization failed: {type(exc).__name__}. Check the publisher's setup instructions.")
+            _show_setup_pages(pages)
+            return
+        except (KeyboardInterrupt, EOFError):
+            console.print("Connection cancelled; nothing saved.")
             return
 
     recipe = remote or recipes[0]
     missing = _recipe_missing_fields(recipe)
     values = {}
     if missing:
-        key_line = f"\n\nGet one here: [link={key_url}]{key_url}[/link]" if key_url else ""
+        key_line = "\n\n" + "\n".join(f"{label}: {url}" for label, url in pages.items()) if pages else "\n\nNo setup website was published; consult the server publisher."
         if not sys.stdin.isatty():
             console.print(Panel(
                 f"[bold]{name}[/bold]\n{description}\n\n"
@@ -191,16 +249,24 @@ def connect_entry(ref: str):
         from rich.prompt import Prompt
         console.print(Panel(f"[bold]{name}[/bold]\n{description}{key_line}",
                             title="🔌 Connect", box=box.ROUNDED, border_style="cyan"))
-        for field in missing:
-            values[field] = Prompt.ask(f"  {field}", password=True)
+        _show_setup_pages(pages, open_browser=True)
+        console.print("Paste the requested values below. Ctrl-C cancels without saving.")
+        try:
+            for field in missing:
+                value = ""
+                while not value.strip():
+                    value = Prompt.ask(f"  {field}", password=True)
+                values[field] = value.strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("Connection cancelled; nothing saved.")
+            return
 
     filled = _fill_recipe(recipe, values)
-    transport = {"streamable-http": "http"}.get(filled.get("type"), filled.get("type", "stdio"))
-    conn = MCPConnection(
-        name=name, transport=transport,
-        command=filled.get("command"), args=filled.get("args", []), env=filled.get("env", {}),
-        url=filled.get("url"), headers=filled.get("headers", {}), description=description,
-    )
+    try:
+        conn = catalog.parse_config(json.dumps({name: {**filled, "description": description}}))[0]
+    except ValueError as exc:
+        console.print(f"Cannot connect: {exc}", markup=False)
+        return
     _save_and_report(conn, name)
 
 
@@ -291,13 +357,19 @@ def register_commands(app, console):
         else:
             console.print("Saved: " + ", ".join(names), markup=False)
 
+    @app.command("platform", rich_help_panel="🔍 Discovery (browse what's out there)")
+    def platform(provider: str):
+        """Connect your own Zapier or n8n MCP endpoint with guided prompts."""
+        connect_platform(provider)
+
     @app.command("authorize", rich_help_panel="🔍 Discovery (browse what's out there)")
-    def authorize(ref: str = typer.Argument(..., help="A preset name (github, postgres...) or a catalog server ID")):
+    def authorize(ref: str = typer.Argument(..., help="A preset name or catalog server ID"),
+                  variant: Optional[int] = typer.Option(None, min=0)):
         """Connect a preset or catalog entry — tries the server's own OAuth sign-in first (opens your browser), and only prompts you for a manual API key when the server has none.
 
         Halimbawa (example): kurt mcp authorize github
         """
-        connect_entry(ref)
+        connect_entry(ref, variant=variant)
 
     @app.command("import", rich_help_panel="🔍 Discovery (browse what's out there)")
     def import_cmd(source: str = typer.Argument(..., help="JSON file, JSON text, URL, or - for stdin"),

@@ -134,6 +134,8 @@ from kurt.saas.client import register_commands as register_cloud_commands
 register_cloud_commands(app)
 from kurt.core.coding import register_commands as register_coding_commands
 register_coding_commands(app)
+from kurt.core.android_build import register_commands as register_android_commands
+register_android_commands(app)
 
 console = Console()
 
@@ -287,9 +289,12 @@ def _show_no_key_help():
     ))
 
 
-async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt="", temperature=None):
+async def stream_response(analysis, messages, session_id, no_memory, verbose, prompt="", temperature=None, execution=None):
     """Stream AI response with real-time display"""
     router = ModelRouter()
+    base_router = router
+    base_router.strict_selection = bool(execution and execution.pinned)
+    base_router.excluded_providers = {execution.exhausted_provider} if execution and execution.exhausted_provider else set()
     if analysis.task_type not in {TaskType.IMAGE, TaskType.MUSIC, TaskType.VIDEO, TaskType.TRANSCRIBE}:
         from kurt.capabilities.bridge import NativeToolRouter
         on_tool = (lambda name: console.print(f"[dim]🔧 {name}[/dim]")) if verbose else None
@@ -314,6 +319,18 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         console.print()
 
     except Exception as e:
+        if execution and execution.pinned:
+            from kurt.core.execution_preferences import quota_exhausted
+            if not quota_exhausted(e):
+                console.print(f"Selected model failed; kept your selection: {redact(str(e))[:500]}", markup=False)
+                return
+            execution.exhausted_provider = analysis.provider
+            execution.exhausted = True
+            base_router.strict_selection = False
+            console.print("Default model credits/quota exhausted → auto routing enabled for this session.", markup=False)
+            # Continue from observed tool receipts; do not discard the task history.
+            return await stream_response(execution.analysis(), messages, session_id, no_memory, verbose,
+                                         prompt=prompt, temperature=temperature, execution=execution)
         err_str = redact(str(e))
         # Detect auth errors (bad/missing key) vs model errors (404)
         is_auth_error = "401" in err_str or "Unauthorized" in err_str
@@ -488,7 +505,7 @@ def _kurt_wordmark(phase: float = 0.0) -> Text:
     return text
 
 
-def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_model, current_skill, session_id, phase=0.0):
+def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_model, current_skill, session_id, phase=0.0, defaults=None):
     """Opening screen: big KURT wordmark on the left, session info on the right."""
     ai_mode_label = _AI_MODE_LABELS.get(get_ai_mode(), "Hybrid")
 
@@ -497,7 +514,7 @@ def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_mode
     info.append(f" v{kurt_version}\n")
     info.append(f"{user_name}", style="bold")
     info.append(f" · {ai_mode_label}\n", style="dim")
-    info.append("Model: ", style="dim")
+    info.append("Active: ", style="dim")
     info.append(f"{current_model}", style=theme.get("accent", theme["primary"]))
     info.append(f"   Skill: {current_skill or 'none'}\n", style="dim")
     info.append(f"{os.getcwd()}\n", style="dim")
@@ -517,7 +534,24 @@ def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_mode
     tail.append("Type your message to start · /help for commands · /exit to quit\n", style=dim_style)
     tail.append("kurt setting to personalize — theme, name, greeting", style=dim_style)
 
-    return Group(grid, Text(""), tail)
+    from kurt.core.execution_preferences import media_label
+    settings = load_persona() if defaults is None else defaults
+    defaults_table = Table.grid(padding=(0, 1), expand=True)
+    defaults_table.add_column(style="dim", no_wrap=True, width=14)
+    defaults_table.add_column(style=theme.get("accent", theme["primary"]), overflow="fold", ratio=1)
+    chat_default = settings.get("default_model", "auto")
+    if "|" in chat_default:
+        model_id, provider = chat_default.rsplit("|", 1)
+        chat_default = f"{model_id} [{provider}]"
+    defaults_table.add_row("Chat default:", Text(chat_default))
+    defaults_table.add_row("CLI default:", Text(settings.get("default_cli", "auto")))
+    for kind in ("image", "video"):
+        try:
+            label = media_label(kind, settings)
+        except ValueError:
+            label = "Invalid selection — update settings"
+        defaults_table.add_row(f"{kind.title()} default:", Text(label))
+    return Group(grid, Text(""), defaults_table, Text(""), tail)
 
 
 @app.command(rich_help_panel="💬 Talk to Kurt")
@@ -525,8 +559,10 @@ def chat(
     prompt: Optional[str] = typer.Argument(None, help="Optional one-off message — Kurt answers it, then keeps the conversation open"),
     skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Start with a skill active, e.g. tiktok, seo, trading"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
+    cli: Optional[str] = typer.Option(None, "--cli", help="Use a CLI for this chat: auto, codex, claude, gemini, openclaw, vibe"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
     no_memory: Annotated[bool, typer.Option("--no-memory", help="Do not read or save conversation history")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Show tool receipts and routing diagnostics")] = False,
 ):
     """💬 Talk to Kurt — mag-usap kayo, aalala siya sa sinabi mo. Everything lives here now:
     one-off questions, ongoing conversation, computer/web automation, and coding/debugging.
@@ -547,7 +583,12 @@ def chat(
     _theme = get_theme()
 
     session_id = session if session else str(uuid.uuid4())
-    current_model = model or "auto"
+    from kurt.core.execution_preferences import ExecutionSession, run_default_cli, CLIQuotaExhausted
+    try:
+        execution = ExecutionSession.load(model=model, cli=cli if isinstance(cli, str) else None)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    current_model = execution.model
     current_skill = skill
     last_response = ""
     conversation = []  # Session context is retained even when disk memory is off.
@@ -559,6 +600,34 @@ def chat(
     # ── Welcome banner — Kurt's own startup screen ───────────────────
     from kurt import __version__ as _kurt_version
 
+    # ── Voice mode (Hey Kurt) ────────────────────────────────────────
+    # Wire in background voice listener — injects voice commands as if typed
+    from kurt.core.voice_input import VoiceInputBridge
+    _voice_input_bridge = VoiceInputBridge()
+    _voice_active = False
+    _voice_listener = None
+    try:
+        from kurt.core.wake_word import start_listening, check_dependencies as _voice_deps
+        _deps = _voice_deps() if sys.stdin.isatty() else {}
+        if _deps.get("can_record") and _deps.get("can_transcribe") and _deps.get("can_detect_speech", False):
+            _voice_listener = start_listening(callback=_voice_input_bridge.submit, deferred=True,
+                                              state_callback=_voice_input_bridge.set_status)
+            _voice_active = True
+    except Exception:
+        pass  # Voice is optional; typed chat remains available.
+
+    def _voice_reply(text):
+        if not _from_voice or not _voice_active or not text:
+            return
+        if _voice_event is not None and not _voice_listener.is_current_turn(_voice_event.turn_id):
+            return
+        from kurt.core.wake_word import speak, strip_markdown_for_speech
+        _voice_listener._set_state("speaking")
+        try:
+            speak(strip_markdown_for_speech(text), blocking=True)
+        except Exception:
+            console.print("[yellow]Voice playback failed; the response is available above.[/yellow]")
+
     def _render_banner(phase: float) -> Panel:
         return Panel(
             _kurt_welcome_banner(
@@ -566,10 +635,11 @@ def chat(
                 kurt_version=_kurt_version,
                 theme=_theme,
                 user_name=get_user_name(),
-                current_model=current_model,
+                current_model=execution.status(),
                 current_skill=current_skill,
                 session_id=session_id,
                 phase=phase,
+                defaults=_persona,
             ),
             box=box.ROUNDED,
             border_style=_theme.get("border", "cyan"),
@@ -593,6 +663,8 @@ def chat(
             phase = 0.0
             with Live(render_fn(0.0), console=console, refresh_per_second=fps) as live:
                 while True:
+                    if _voice_input_bridge.has_pending or (_voice_listener and _voice_listener.is_in_conversation_mode()):
+                        break
                     ready, _, _ = select.select([sys.stdin], [], [], frame_dt)
                     if ready:
                         break
@@ -619,23 +691,8 @@ def chat(
     else:
         console.print(_render_banner(0.0))
 
-    # ── Voice mode (Hey Kurt) ────────────────────────────────────────
-    # Wire in background voice listener — injects voice commands as if typed
-    _voice_queue: "list[str]" = []
-    _voice_active = False
-    try:
-        from kurt.core.wake_word import start_listening, check_dependencies as _voice_deps
-
-        def _voice_callback(event):
-            _voice_queue.append(event.text.strip())
-
-        _deps = _voice_deps() if sys.stdin.isatty() else {}
-        if _deps.get("can_record") and _deps.get("can_transcribe"):
-            start_listening(callback=_voice_callback)
-            _voice_active = True
-            console.print("[dim]🎤 Voice active — say 'Hey Kurt' anytime, F5 for hands-free conversation (Ctrl+Shift+K for one command)[/dim]\n")
-    except Exception:
-        pass  # Voice is optional — chat still works without it
+    if _voice_active:
+        console.print("[dim]🎤 Voice ready — 'Hey Kurt' for one turn; F5 for hands-free conversation. Say 'stop listening' or 'tigil muna' to pause.[/dim]\n")
 
     # ── Screen watcher (proactive mode) ─────────────────────────────
     try:
@@ -646,194 +703,217 @@ def chat(
     except Exception:
         _proactive = None
 
-    while True:
-        _from_voice = False
-        if _pending_initial is not None:
-            # First turn seeded from `kurt "<prompt>"` — skip voice/typed input once.
-            prompt = _pending_initial
-            _pending_initial = None
-            console.print(f"\n[bold cyan]You[/bold cyan] [dim]›[/dim] {prompt}")
-        else:
-            # ── Inject voice command if any ──────────────────────────────
-            if _voice_queue:
-                _voice_input = _voice_queue.pop(0)
-                if _voice_input:
-                    console.print(f"\n[bold cyan]You[/bold cyan] [dim](🎤 voice)[/dim]: {_voice_input}")
-                    # Treat voice input exactly like typed input
-                    prompt = _voice_input
-                    # Jump straight to processing (skip the input() call below)
-                    # We'll handle this via the goto pattern using a flag
-                    _from_voice = True
-                else:
-                    _from_voice = False
+    try:
+        while True:
+            _from_voice = False
+            _voice_event = None
+            if _pending_initial is not None:
+                prompt = _pending_initial
+                _pending_initial = None
+                console.print(f"\n[bold cyan]You[/bold cyan] [dim]›[/dim] {prompt}")
             else:
-                _from_voice = False
-            # ── Input ────────────────────────────────────────────────────
-            if not _from_voice:
                 try:
-                    prompt = read_chat_input(console).strip()
+                    incoming = (read_chat_input(console, voice_input=_voice_input_bridge)
+                                if _voice_active else read_chat_input(console))
+                    if isinstance(incoming, str):
+                        prompt = incoming.strip()
+                    elif incoming is not None:
+                        _voice_event = incoming
+                        if not _voice_listener.is_current_turn(incoming.turn_id):
+                            continue  # F5 was stopped before the queued turn was consumed.
+                        prompt = incoming.text.strip()
+                        _from_voice = True
+                        console.print(f"\n[bold cyan]You[/bold cyan] [dim](🎤 voice)[/dim]: {prompt}")
+                    else:
+                        continue
                 except (KeyboardInterrupt, EOFError):
                     console.print("\n[dim]👋 Bye![/dim]")
-                    if _proactive:
-                        try:
-                            _proactive.stop()
-                        except Exception:
-                            pass
-                    if _voice_active:
-                        try:
-                            from kurt.core.wake_word import stop_listening
-                            stop_listening()
-                        except Exception:
-                            pass
-                    close_browser_session()
                     break
 
-        if not prompt:
-            continue
+            if not prompt:
+                if _voice_event is not None and _voice_listener:
+                    _voice_listener.finish_turn(_voice_event.turn_id)
+                continue
 
-        # Legacy text shortcuts
-        if prompt.lower() in ["exit", "quit", "bye"]:
-            console.print("[dim]👋 Bye! K.U.R.T. signing off.[/dim]")
-            if _proactive:
-                try:
-                    _proactive.stop()
-                except Exception:
-                    pass
-            if _voice_active:
-                try:
-                    from kurt.core.wake_word import stop_listening
-                    stop_listening()
-                except Exception:
-                    pass
-            close_browser_session()
-            break
+            try:
+                if _voice_listener:
+                    _voice_listener.set_processing(True)
+                # Legacy text shortcuts
+                if prompt.lower() in ["exit", "quit", "bye"]:
+                    console.print("[dim]👋 Bye! K.U.R.T. signing off.[/dim]")
+                    break
 
-        if prompt.lower() == "clear":
-            session_id = str(uuid.uuid4())
-            console.print(f"[dim]🆕 New session: {session_id[:8]}[/dim]")
-            continue
+                if prompt.lower() == "clear":
+                    session_id = str(uuid.uuid4())
+                    console.print(f"[dim]🆕 New session: {session_id[:8]}[/dim]")
+                    continue
 
-        # ── Slash command handler ────────────────────────────────────
-        slash_result = handle_slash(
-            prompt=prompt,
-            session_id=session_id,
-            current_model=current_model,
-            current_skill=current_skill,
-            last_response=last_response,
-        )
+                # ── Slash command handler ────────────────────────────────────
+                slash_result = handle_slash(
+                    prompt=prompt,
+                    session_id=session_id,
+                    current_model="auto (default quota exhausted)" if execution.exhausted else current_model,
+                    current_skill=current_skill,
+                    last_response=last_response,
+                    current_cli=execution.cli if not execution.exhausted else "auto (default exhausted)",
+                )
 
-        if slash_result.handled:
-            if slash_result.output:
-                console.print(slash_result.output)
-            if slash_result.model_override:
-                current_model = slash_result.model_override
-                console.print(f"[dim]Model set to: {current_model}[/dim]")
-            if slash_result.skill_override:
-                current_skill = slash_result.skill_override
-            if slash_result.feed_to_ai and slash_result.output:
-                # Keep the request and computed results available to follow-up turns.
+                if slash_result.handled:
+                    if slash_result.output:
+                        console.print(slash_result.output)
+                        if slash_result.continue_chat:
+                            _voice_reply(slash_result.output)
+                    if slash_result.model_override:
+                        current_model = slash_result.model_override
+                        execution.model = current_model
+                        execution.cli = "auto"
+                        execution.exhausted = False
+                        execution.exhausted_provider = None
+                        console.print(f"[dim]Model set to: {current_model}[/dim]")
+                    if slash_result.cli_override is not None:
+                        execution.cli = slash_result.cli_override
+                        execution.exhausted = False
+                        execution.exhausted_provider = None
+                    if slash_result.skill_override:
+                        current_skill = slash_result.skill_override
+                    if slash_result.feed_to_ai and slash_result.output:
+                        # Keep the request and computed results available to follow-up turns.
+                        if not no_memory:
+                            save_message(session_id, "user", prompt)
+                            save_message(session_id, "assistant", slash_result.output)
+                        last_response = slash_result.output
+                        conversation.extend([{'role': 'user', 'content': prompt},
+                                             {'role': 'assistant', 'content': slash_result.output}])
+                    if slash_result.new_session_id:
+                        session_id = slash_result.new_session_id
+                        last_response = ""
+                        conversation.clear()
+                    if not slash_result.continue_chat:
+                        break
+                    continue
+
+                # Every ordinary conversation reaches the same semantic planner. App
+                # discovery/actions are tools; no prompt keyword/regex chooses a handler.
+                analysis = execution.analysis()
+
+                messages = []
+
+                # System prompt: KURT persona (persona.md + memory.md + mode detection)
+                _persona_turn = kurt_persona.build(prompt, mode="auto")
+                messages.append({"role": "system", "content": _persona_turn["system_prompt"]})
+                # Operational guidance — not personality, so it stays separate from persona.md.
+                messages.append({"role": "system", "content": (
+                    "You are running as a CLI tool called KURT — Kinetic Unified Response Terminal. "
+                    "The user speaks in pure natural language (no slash commands needed). "
+                    "Whenever asked about events, news, leaders, prices, weather, or developments from June 2024 to the present, "
+                    "always use the `search_web` (and `read_webpage`) tool automatically so your knowledge is completely up to date."
+                )})
+
+                # Language prompt
+                lang_prompt = get_language_system_prompt()
+                if lang_prompt:
+                    messages.append({"role": "system", "content": lang_prompt})
+
+                # Skill prompt
+                active_skill = current_skill
+                if prompt.startswith("/skill "):
+                    # Inline skill override
+                    active_skill = prompt.split(None, 1)[1].strip()
+                if active_skill:
+                    skill_prompt = get_skill_prompt(active_skill)
+                    if skill_prompt:
+                        messages.append({"role": "system", "content": skill_prompt})
+
+                # The planner chooses search/navigation from meaning; do not pre-fetch
+                # URLs or trigger search from a regex before it has understood the goal.
+                history = get_history(session_id, limit=20) if not no_memory else conversation[-20:]
+                messages.extend(history)
+                messages.append({"role": "user", "content": prompt})
+
                 if not no_memory:
                     save_message(session_id, "user", prompt)
-                    save_message(session_id, "assistant", slash_result.output)
-                last_response = slash_result.output
-                conversation.extend([{'role': 'user', 'content': prompt},
-                                     {'role': 'assistant', 'content': slash_result.output}])
-            if slash_result.new_session_id:
-                session_id = slash_result.new_session_id
-                last_response = ""
-                conversation.clear()
-            if not slash_result.continue_chat:
-                break
-            continue
 
-        # Every ordinary conversation reaches the same semantic planner. App
-        # discovery/actions are tools; no prompt keyword/regex chooses a handler.
-        analysis = conversation_analysis()
-        if current_model != "auto":
-            if "|" in current_model:
-                # Explicit "<id>|<provider>" tag from /model <id> <provider> —
-                # fal.ai and OpenRouter ids can look identical, so this skips
-                # the guess entirely when the provider was stated outright.
-                analysis.model, analysis.provider = current_model.rsplit("|", 1)
-            else:
-                analysis.model = current_model
-                # Auto-detect provider from model name
-                if "/" not in current_model:
-                    # No slash = likely a Groq model (e.g. llama-3.3-70b-versatile)
-                    analysis.provider = "groq"
-                elif current_model.startswith("anthropic/") or current_model.startswith("claude-"):
-                    analysis.provider = "anthropic"
+                console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]")
+
+                if execution.cli != "auto" and not execution.exhausted:
+                    try:
+                        console.print(f"[dim]Using CLI: {execution.cli}[/dim]")
+                        response = run_default_cli(execution.cli, messages)
+                        console.print(response, markup=False)
+                        if not no_memory and response:
+                            save_message(session_id, "assistant", response, f"cli:{execution.cli}")
+                    except CLIQuotaExhausted:
+                        execution.exhausted = True
+                        console.print("Default CLI quota exhausted → auto routing enabled for the next request. Current task was not replayed.", markup=False)
+                        _voice_reply("Naubos ang CLI quota. Naka-auto na ang susunod na request; hindi ko inulit ang kasalukuyang task.")
+                        conversation.extend([{"role": "user", "content": prompt},
+                                             {"role": "assistant", "content": "CLI quota exhausted; task outcome unverified. Check current state before continuing."}])
+                        if not no_memory:
+                            save_message(session_id, "assistant", conversation[-1]["content"])
+                        continue
+                    except (ValueError, OSError, RuntimeError) as exc:
+                        console.print(f"Default CLI failed: {redact(str(exc))[:1000]}", markup=False)
+                        console.print("Task was not replayed. Check the CLI/workspace, or use /cli use auto.", markup=False)
+                        _voice_reply("Hindi natapos ng napiling CLI ang request. Hindi ko ito inulit; tingnan muna ang kasalukuyang resulta.")
+                        receipt = "Default CLI failed; task outcome unverified. Check current state before continuing; do not automatically replay."
+                        conversation.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": receipt}])
+                        if not no_memory:
+                            save_message(session_id, "assistant", receipt)
+                        continue
                 else:
-                    analysis.provider = "openrouter"
+                    response = asyncio.run(stream_response(
+                        analysis=analysis,
+                        messages=messages,
+                        session_id=session_id,
+                        no_memory=no_memory,
+                        verbose=verbose,
+                        prompt=prompt,
+                        temperature=_persona_turn["temperature"],
+                        execution=execution,
+                    ))
+                if response is None:
+                    _voice_reply("Hindi natapos ang AI request. Nasa screen ang error; puwede mo akong kausapin ulit.")
+                    receipt = "Selected AI request failed; task outcome unverified. Inspect current state before continuing."
+                    conversation.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": receipt}])
+                    if not no_memory:
+                        save_message(session_id, "assistant", receipt)
+                    continue
+                if isinstance(response, str) and response:
+                    kurt_persona.remember(prompt, response)
+                    conversation.extend([{'role': 'user', 'content': prompt},
+                                         {'role': 'assistant', 'content': response}])
+                    last_response = response
 
-        messages = []
+                    _voice_reply(response)
 
-        # System prompt: KURT persona (persona.md + memory.md + mode detection)
-        _persona_turn = kurt_persona.build(prompt, mode="auto")
-        messages.append({"role": "system", "content": _persona_turn["system_prompt"]})
-        # Operational guidance — not personality, so it stays separate from persona.md.
-        messages.append({"role": "system", "content": (
-            "You are running as a CLI tool called KURT — Kinetic Unified Response Terminal. "
-            "The user speaks in pure natural language (no slash commands needed). "
-            "Whenever asked about events, news, leaders, prices, weather, or developments from June 2024 to the present, "
-            "always use the `search_web` (and `read_webpage`) tool automatically so your knowledge is completely up to date."
-        )})
+                # Store last response for /save
+                from kurt.core.memory import get_history as _gh
+                _hist = _gh(session_id, limit=1) if not no_memory else []
+                if _hist and _hist[-1]["role"] == "assistant":
+                    last_response = _hist[-1]["content"]
 
-        # Language prompt
-        lang_prompt = get_language_system_prompt()
-        if lang_prompt:
-            messages.append({"role": "system", "content": lang_prompt})
+            finally:
+                if _voice_listener:
+                    if _voice_event is not None:
+                        _voice_listener.finish_turn(_voice_event.turn_id)
+                    _voice_listener.set_processing(False)
 
-        # Skill prompt
-        active_skill = current_skill
-        if prompt.startswith("/skill "):
-            # Inline skill override
-            active_skill = prompt.split(None, 1)[1].strip()
-        if active_skill:
-            skill_prompt = get_skill_prompt(active_skill)
-            if skill_prompt:
-                messages.append({"role": "system", "content": skill_prompt})
-
-        # The planner chooses search/navigation from meaning; do not pre-fetch
-        # URLs or trigger search from a regex before it has understood the goal.
-        history = get_history(session_id, limit=20) if not no_memory else conversation[-20:]
-        messages.extend(history)
-        messages.append({"role": "user", "content": prompt})
-
-        if not no_memory:
-            save_message(session_id, "user", prompt)
-
-        console.print(f"\n[{_theme['primary']}]{_icon} {_kurt_name}[/{_theme['primary']}]")
-
-        response = asyncio.run(stream_response(
-            analysis=analysis,
-            messages=messages,
-            session_id=session_id,
-            no_memory=no_memory,
-            verbose=False,
-            prompt=prompt,
-            temperature=_persona_turn["temperature"],
-        ))
-        if isinstance(response, str) and response:
-            kurt_persona.remember(prompt, response)
-            conversation.extend([{'role': 'user', 'content': prompt},
-                                 {'role': 'assistant', 'content': response}])
-            last_response = response
-
-            # Hands-free (F5) conversation only works if Kurt talks back —
-            # otherwise it's just reading a silent transcript off the screen.
-            if _from_voice and _voice_active:
-                try:
-                    from kurt.core.wake_word import speak as _kurt_speak, strip_markdown_for_speech
-                    _kurt_speak(strip_markdown_for_speech(response), blocking=True)
-                except Exception:
-                    pass
-
-        # Store last response for /save
-        from kurt.core.memory import get_history as _gh
-        _hist = _gh(session_id, limit=1) if not no_memory else []
-        if _hist and _hist[-1]["role"] == "assistant":
-            last_response = _hist[-1]["content"]
+    finally:
+        # Every exit route releases the same resources, including /exit,
+        # EOF, Ctrl+C and unexpected errors. Do not speak the goodbye on exit.
+        _voice_input_bridge.unbind()
+        if _proactive:
+            try:
+                _proactive.stop()
+            except Exception:
+                pass
+        if _voice_listener:
+            try:
+                from kurt.core.wake_word import stop_listening
+                stop_listening()
+            except Exception:
+                pass
+        close_browser_session()
 
 
 # ══════════════════════════════════════
@@ -853,6 +933,12 @@ def voice(
     _persona = load_persona()
     _kurt_name = _persona.get("kurt_name", "KURT")
     session_id = str(uuid.uuid4())
+    from kurt.core.execution_preferences import ExecutionSession, run_default_cli, CLIQuotaExhausted
+    try:
+        voice_execution = ExecutionSession.load(model=model if isinstance(model, str) else None)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
 
     console.print(Panel(
         f"[bold cyan]🎤 {_kurt_name} — Voice Mode[/bold cyan]\n"
@@ -877,6 +963,10 @@ def voice(
                 console.print("[red]Cannot run voice mode without STT.[/red]")
                 return
 
+        if deps.get("can_detect_speech") is False:
+            console.print("[red]Speech detection needs faster-whisper and onnxruntime. Install the voice dependencies before using voice mode.[/red]")
+            return
+
     except ImportError:
         console.print("[red]❌ Voice module not available.[/red]")
         return
@@ -892,13 +982,11 @@ def voice(
         direct_action = _try_local_request(text, session_id)
         if direct_action is not None:
             if speak:
-                kurt_speak(direct_action['message'], blocking=False)
+                kurt_speak(direct_action['message'], blocking=True)
             return
 
         # Unmatched speech uses the same goal-directed tool planner as chat.
-        analysis = conversation_analysis()
-        if model:
-            analysis.model = model
+        analysis = voice_execution.analysis()
 
         messages = [
             {"role": "system", "content": (
@@ -909,30 +997,23 @@ def voice(
             {"role": "user", "content": text},
         ]
 
-        # Get AI response synchronously
-        import asyncio as _asyncio
-        full_response = ""
-
-        async def _get_response():
-            nonlocal full_response
-            from kurt.capabilities.bridge import NativeToolRouter
-            router = NativeToolRouter(ModelRouter(), on_status=lambda message: console.print(message, markup=False))
-            async for chunk in router.route(
-                provider=analysis.provider,
-                model=analysis.model,
-                messages=messages,
-            ):
-                full_response += chunk
-
+        # F5 uses chat directly; standalone voice follows the same saved defaults.
         try:
-            _asyncio.run(_get_response())
-        except Exception as e:
-            full_response = f"Sorry, may error: {e}"
+            if voice_execution.cli != "auto" and not voice_execution.exhausted:
+                full_response = run_default_cli(voice_execution.cli, messages)
+            else:
+                full_response = asyncio.run(stream_response(analysis, messages, session_id, True, False,
+                                                           prompt=text, execution=voice_execution)) or "Request incomplete."
+        except CLIQuotaExhausted:
+            voice_execution.exhausted = True
+            full_response = "CLI quota exhausted. Auto routing is enabled for the next request; the current task was not replayed."
+        except (ValueError, OSError, RuntimeError) as exc:
+            full_response = f"Selected CLI failed: {redact(str(exc))[:500]}. Task was not replayed."
 
         console.print(f"\n[bold green]🤖 {_kurt_name}[/bold green]: {full_response}")
 
         if speak and full_response:
-            kurt_speak(full_response, blocking=False)
+            kurt_speak(full_response, blocking=True)
 
         save_message(session_id, "user", text)
         save_message(session_id, "assistant", full_response)
@@ -2140,6 +2221,10 @@ def connect_app_cmd(app_name: str = typer.Argument(..., help="App to connect")):
 def config_callback(ctx: typer.Context):
     """🎨 Personalize KURT — themes, language, name, greeting, AI mode"""
     if ctx.invoked_subcommand is None:
+        if sys.stdin.isatty():
+            from kurt.core.command_palette import pick_execution_default
+            pick_execution_default()
+            return
         config_show()
         console.print(f"\n[dim]Run [cyan]kurt setting setup[/cyan] for full wizard[/dim]")
         console.print(f"[dim]Or use: kurt setting theme / language / name / icon / aimode / projects[/dim]")
@@ -2149,6 +2234,76 @@ def config_callback(ctx: typer.Context):
 def config_show_cmd():
     """📋 Show current persona settings"""
     config_show()
+
+
+@config_app.command("model")
+def config_default_model_cmd(model: Optional[str] = typer.Argument(None),
+                             provider: Optional[str] = typer.Option(None, "--provider")):
+    """Show or save the default conversational model; auto enables routing."""
+    from kurt.core.execution_preferences import save_default_model
+    if model is None:
+        if sys.stdin.isatty():
+            from kurt.core.command_palette import pick_execution_default
+            pick_execution_default("model")
+            return
+        console.print(f"Default model: {load_persona().get('default_model', 'auto')}")
+        console.print("Set: kurt setting model <model-id> --provider <provider>")
+        return
+    try:
+        selected = save_default_model(model, provider)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"Default model saved: {selected}. CLI mode: auto. Applies to new chats.")
+
+
+@config_app.command("cli")
+def config_default_cli_cmd(cli: Optional[str] = typer.Argument(None)):
+    """Show or save the default CLI; auto uses the saved model selection."""
+    from kurt.core.execution_preferences import save_default_cli, DEFAULT_CLIS
+    if cli is None:
+        if sys.stdin.isatty():
+            from kurt.core.command_palette import pick_execution_default
+            pick_execution_default("cli")
+            return
+        console.print(f"Default CLI: {load_persona().get('default_cli', 'auto')}")
+        console.print("Choices: " + ", ".join(DEFAULT_CLIS))
+        return
+    try:
+        save_default_cli(cli)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"Default CLI saved: {cli}. Applies to new chats; login/setup must be ready.")
+
+
+def _setting_media(kind, model, provider):
+    from kurt.core.execution_preferences import save_default_media, media_label
+    if model is None:
+        if sys.stdin.isatty():
+            from kurt.core.command_palette import pick_execution_default
+            pick_execution_default(kind)
+            return
+        console.print(f"Default {kind}: {media_label(kind)}")
+        console.print(f"Set: kurt setting {kind} <model-id> --provider fal|replicate")
+        return
+    try:
+        save_default_media(kind, model, provider)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"Default {kind} saved: {media_label(kind)}")
+
+
+@config_app.command("image")
+def config_default_image_cmd(model: Optional[str] = typer.Argument(None),
+                             provider: Optional[str] = typer.Option(None, "--provider")):
+    """Show or save the default image generator."""
+    _setting_media("image", model, provider)
+
+
+@config_app.command("video")
+def config_default_video_cmd(model: Optional[str] = typer.Argument(None),
+                             provider: Optional[str] = typer.Option(None, "--provider")):
+    """Show or save the default video generator."""
+    _setting_media("video", model, provider)
 
 
 @config_app.command("setup")

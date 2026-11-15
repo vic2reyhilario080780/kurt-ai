@@ -40,9 +40,11 @@ class ClickAtCoordinatesTests(unittest.TestCase):
     def test_reports_focus_failure_without_raising(self):
         with patch("kurt.core.computer_use.get_screen_size", return_value=(1920, 1080)), \
              patch("kurt.core.computer_use.focus_window", return_value=MagicMock(success=False)), \
-             patch("kurt.core.computer_use.click", return_value=MagicMock(success=True, message="ok")):
+             patch("kurt.core.computer_use.click", return_value=MagicMock(success=True, message="ok")) as click:
             result = invoke_assistant("click_at_coordinates", {"app": "Ghost App", "x": 1, "y": 1})
         self.assertFalse(result["focus_verified"])
+        self.assertEqual(result["status"], "blocked")
+        click.assert_not_called()
 
 
 class AnalyzeScreenTests(unittest.TestCase):

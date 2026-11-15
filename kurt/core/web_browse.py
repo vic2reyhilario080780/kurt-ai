@@ -39,6 +39,12 @@ class BrowseResult:
     links: list[dict] = field(default_factory=list)
     screenshot_b64: str = ""
     error: str = ""
+    status_code: int = 0
+    content_type: str = ""
+    truncated: bool = False
+    fetched_at: str = ""
+    controls: list[dict] = field(default_factory=list)
+    backend: str = ""
 
 
 @dataclass
@@ -211,11 +217,11 @@ def search_web(query: str, max_results: int = 5) -> SearchResult:
         if key and key not in seen_urls:
             seen_urls.add(key)
             combined.append(item)
-        if len(combined) >= max(max_results, 6):
+        if len(combined) >= max_results:
             break
 
     if combined:
-        return SearchResult(success=True, query=query, results=combined[:max(max_results, 6)])
+        return SearchResult(success=True, query=query, results=combined[:max_results])
 
     # 4. Last resort: ddgs library
     try:
@@ -310,68 +316,64 @@ def _ddg_scrape(query: str, max_results: int = 5) -> list[dict]:
 # Page Reader — simple version without Playwright
 # ─────────────────────────────────────────────────────────────
 
+MAX_FETCH_BYTES = 2 * 1024 * 1024
+
+
 def read_page(url: str, extract_text: bool = True) -> BrowseResult:
-    """
-    Read a web page content.
-    Uses requests + BeautifulSoup if available, else urllib.
-    """
+    """Bounded HTTP(S) fetch with final URL, text extraction and usable links."""
+    import httpx
+    from datetime import datetime, timezone
+    from kurt.utils.security import redact
+    status, content_type = 0, ""
     try:
-        # Try with requests + bs4 (best)
-        try:
-            import requests
-            from bs4 import BeautifulSoup
-
-            headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
-            resp = requests.get(url, headers=headers, timeout=15)
-            resp.raise_for_status()
-            html = resp.text
-            title = ""
-            content = html
-
-            if extract_text:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("Use an HTTP(S) URL without embedded credentials.")
+        with httpx.Client(timeout=15, follow_redirects=True, max_redirects=5) as client:
+            with client.stream("GET", url, headers={"User-Agent": "Kurt/3 WebReader"}) as response:
+                status = response.status_code
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
+                if content_type and not (content_type.startswith("text/") or content_type in {
+                    "application/json", "application/ld+json", "application/xml", "application/xhtml+xml"}):
+                    raise ValueError("This URL returns a binary document; use its dedicated file reader.")
+                chunks, size = [], 0
+                for chunk in response.iter_bytes():
+                    size += len(chunk)
+                    if size > MAX_FETCH_BYTES:
+                        raise ValueError("Page exceeds the 2 MiB fetch limit; request a smaller resource.")
+                    chunks.append(chunk)
+                html = b"".join(chunks).decode(response.encoding or "utf-8", errors="replace")
+                final_url = str(response.url)
+        title, content, links = "", html, []
+        if extract_text and (content_type in ("text/html", "application/xhtml+xml") or (not content_type and "<" in html)):
+            try:
+                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(html, "html.parser")
-                title = soup.title.string if soup.title else ""
-                # Remove scripts/styles
-                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                title = soup.title.get_text(" ", strip=True) if soup.title else ""
+                base = soup.find("base", href=True)
+                base_url = urllib.parse.urljoin(final_url, base["href"]) if base else final_url
+                for tag in soup(["script", "style", "noscript", "nav", "footer", "header"]):
                     tag.decompose()
+                for anchor in soup.find_all("a", href=True):
+                    href = urllib.parse.urljoin(base_url, anchor["href"])
+                    if urllib.parse.urlsplit(href).scheme in ("http", "https"):
+                        links.append({"text": anchor.get_text(" ", strip=True)[:100], "url": href})
+                    if len(links) >= 30:
+                        break
                 content = soup.get_text(separator="\n", strip=True)
-                # Clean up blank lines
-                content = "\n".join(l for l in content.splitlines() if l.strip())
-                content = content[:8000]  # Limit
-
-            # Extract links
-            links = []
-            if extract_text:
-                for a in soup.find_all("a", href=True)[:20]:
-                    href = a["href"]
-                    if href.startswith("http"):
-                        links.append({"text": a.get_text(strip=True)[:50], "url": href})
-
-            return BrowseResult(
-                success=True, url=url, title=title,
-                content=content, links=links
-            )
-        except ImportError:
-            pass
-
-        # Fallback: urllib only
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            html = resp.read().decode("utf-8", errors="ignore")
-
-        # Basic text extraction
-        content = re.sub(r"<[^>]+>", " ", html)
-        content = re.sub(r"\s+", " ", content).strip()[:5000]
-        title_match = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
-        title = title_match.group(1).strip() if title_match else ""
-
-        return BrowseResult(success=True, url=url, title=title, content=content)
-
-    except Exception as e:
-        return BrowseResult(success=False, url=url, error=str(e))
+            except ImportError:
+                content = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
+                content = re.sub(r"<[^>]+>", " ", content)
+                import html as html_module
+                content = html_module.unescape(content)
+        if extract_text:
+            content = "\n".join(line.strip() for line in content.splitlines() if line.strip())
+        return BrowseResult(success=True, url=final_url, title=title, content=content[:8000], links=links,
+                            status_code=status, content_type=content_type, truncated=len(content) > 8000,
+                            fetched_at=datetime.now(timezone.utc).isoformat())
+    except Exception as exc:
+        return BrowseResult(success=False, url=url, error=redact(str(exc)), status_code=status, content_type=content_type)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -404,10 +406,26 @@ class KurtBrowser:
         try:
             from playwright.sync_api import sync_playwright
             self._pw = sync_playwright().__enter__()
+            import os
+            from pathlib import Path
+            channel = os.getenv("KURT_BROWSER_CHANNEL", "").strip()
+            if channel and channel not in ("chromium", "chrome", "msedge"):
+                raise ValueError("KURT_BROWSER_CHANNEL must be chromium, chrome or msedge.")
+            if not channel and not Path(self._pw.chromium.executable_path).exists():
+                import platform
+                if platform.system() == "Darwin":
+                    from kurt.core.app_launcher import application_paths
+                    apps = application_paths()
+                    channel = "chrome" if "google chrome" in apps else ("msedge" if "microsoft edge" in apps else "")
+                else:
+                    import shutil
+                    channel = "chrome" if any(shutil.which(c) for c in ("google-chrome", "chrome")) else ("msedge" if shutil.which("msedge") else "")
             self._browser = self._pw.chromium.launch(
                 headless=self.headless,
-                slow_mo=self.slow_mo
+                slow_mo=self.slow_mo,
+                **({"channel": channel} if channel else {}),
             )
+            self.backend = channel or "bundled-chromium"
             self._context = self._browser.new_context(
                 viewport={"width": 1280, "height": 800},
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -420,6 +438,9 @@ class KurtBrowser:
                 "Playwright not installed.\n"
                 "Run: pip install playwright && playwright install chromium"
             )
+        except Exception:
+            self.close()
+            raise
 
     def close(self):
         """Close browser"""
@@ -439,7 +460,7 @@ class KurtBrowser:
         """Navigate to URL"""
         try:
             self._page.goto(url, wait_until=wait_for, timeout=30000)
-            return BrowseResult(success=True, url=url, title=self._page.title())
+            return self.read()
         except Exception as e:
             return BrowseResult(success=False, url=url, error=str(e))
 
@@ -449,9 +470,12 @@ class KurtBrowser:
             title = self._page.title()
             # Get text content
             content = self._page.evaluate("() => document.body.innerText")
-            content = content[:8000] if content else ""
+            content = content or ""
+            controls = self._page.locator("input, textarea, select, button, [role=button]").evaluate_all("""els => els.filter(e => e.getClientRects().length).slice(0, 40).map(e => ({tag:e.tagName.toLowerCase(), id:e.id, name:e.name || '', type:e.type || '', label:e.getAttribute('aria-label') || e.labels?.[0]?.innerText || '', placeholder:e.getAttribute('placeholder') || '', value:e.type === 'password' ? null : (e.value ?? null), text:(e.innerText || '').slice(0,100)}))""")
             url = self._page.url
-            return BrowseResult(success=True, url=url, title=title, content=content)
+            return BrowseResult(success=True, url=url, title=title, content=content[:8000],
+                                links=self.get_links(), controls=controls, truncated=len(content) > 8000,
+                                backend=getattr(self, 'backend', ''))
         except Exception as e:
             return BrowseResult(success=False, error=str(e))
 
@@ -459,11 +483,13 @@ class KurtBrowser:
         """Click element by CSS selector, visible text, or coordinates"""
         try:
             if selector:
-                self._page.click(selector, timeout=5000)
+                self._page.locator(selector).click(timeout=5000)
             elif text:
-                self._page.get_by_text(text).first.click(timeout=5000)
+                self._page.get_by_text(text, exact=True).click(timeout=5000)
             elif x is not None and y is not None:
                 self._page.mouse.click(x, y)
+            else:
+                return False
             return True
         except Exception as e:
             logger.warning(f"Click failed: {e}")
@@ -473,9 +499,9 @@ class KurtBrowser:
         """Type text into input field"""
         try:
             if clear_first:
-                self._page.fill(selector, text)
+                self._page.locator(selector).fill(text, timeout=5000)
             else:
-                self._page.type(selector, text)
+                self._page.locator(selector).press_sequentially(text, timeout=5000)
             return True
         except Exception as e:
             logger.warning(f"Type failed: {e}")
@@ -596,3 +622,36 @@ def check_dependencies() -> dict[str, bool]:
     deps["can_read_pages"] = True  # urllib always works
     deps["can_automate"] = deps.get("playwright", False)
     return deps
+
+
+class BrowserSession:
+    """Keep all Playwright creation/actions/cleanup on one dedicated thread."""
+    def __init__(self, **options):
+        from concurrent.futures import ThreadPoolExecutor
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Kurt-Browser")
+        self._options = options
+        self._browser = None
+        self._closed = False
+
+    def _call(self, name, args, kwargs):
+        if self._browser is None:
+            self._browser = KurtBrowser(**self._options)
+        return getattr(self._browser, name)(*args, **kwargs)
+
+    def __getattr__(self, name):
+        if name not in {"start", "go", "read", "click", "type", "screenshot_b64", "get_links", "search", "wait_for_text", "new_tab", "execute_js"}:
+            raise AttributeError(name)
+        def invoke(*args, **kwargs):
+            if self._closed:
+                raise RuntimeError("Browser session is closed.")
+            return self._executor.submit(self._call, name, args, kwargs).result()
+        return invoke
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._executor.submit(self._call, "close", (), {}).result()
+        finally:
+            self._executor.shutdown(wait=True)

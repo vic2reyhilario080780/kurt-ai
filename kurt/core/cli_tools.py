@@ -94,7 +94,7 @@ def _read_output(stream):
     return content[:MAX_OUTPUT].decode("utf-8", errors="replace").strip(), len(content) > MAX_OUTPUT
 
 
-def run_cli(tool, args, timeout=180):
+def run_cli(tool, args, timeout=180, *, cwd=None):
     if not isinstance(args, list) or not all(isinstance(a, str) and "\0" not in a for a in args):
         raise ValueError("CLI args must be a list of strings without NUL bytes.")
     if type(timeout) not in (int, float) or not 1 <= timeout <= 600:
@@ -105,7 +105,7 @@ def run_cli(tool, args, timeout=180):
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
             process = subprocess.Popen(service_argv([executable, *args], tool), stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                       env=cli_env(tool), start_new_session=True)
+                                       env=cli_env(tool), start_new_session=True, **({"cwd": str(cwd)} if cwd is not None else {}))
         except OSError as exc:
             return CLIResult(tool, "failed", stderr=str(exc), hint="Check the CLI installation and runtime requirements.")
         try:
@@ -142,7 +142,7 @@ def run_cli(tool, args, timeout=180):
     return CLIResult(tool, status, redact(stdout), redact(stderr), code, redact(parsed), out_cut or err_cut, hint)
 
 
-def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=None, timeout=180):
+def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=None, timeout=180, *, cwd=None):
     """OpenClaw accepts a task; Peekaboo defaults to direct CLI commands."""
     if args is not None:
         if prompt:
@@ -156,7 +156,7 @@ def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=No
             raise ValueError("OpenClaw agent must be a nonempty name.")
         if managed_openclaw() and agent == "main" and session_id is None:
             # Keep one-shot delegation lean enough for Kurt's free-tier model.
-            command = ["agent", "exec", "--config", str(MANAGED_CONFIG), "--cwd", str(PROJECT_ROOT),
+            command = ["agent", "exec", "--config", str(MANAGED_CONFIG), "--cwd", str(cwd or PROJECT_ROOT),
                        "--local-model-lean", "--json", "--", prompt]
         else:
             command = ["agent", "--agent", agent, "--message", prompt, "--json"]
@@ -166,7 +166,7 @@ def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=No
             if not isinstance(session_id, str) or not session_id.strip():
                 raise ValueError("OpenClaw session_id must be nonempty.")
             command += ["--session-id", session_id]
-        return run_cli(tool, command, timeout)
+        return run_cli(tool, command, timeout, **({"cwd": cwd} if cwd is not None else {}))
     if tool == "peekaboo":
         return run_cli(tool, shlex.split(prompt), timeout)
     raise ValueError("Supported tools: openclaw, peekaboo.")

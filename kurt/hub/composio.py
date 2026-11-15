@@ -1,10 +1,11 @@
 """
 KURT Hub — Composio Integration
-250+ app connectors with 1 API key
+App connectors with one project API key
 """
 
 import os
 import time
+import sys
 import webbrowser
 import httpx
 import json
@@ -114,7 +115,7 @@ def get_composio_key() -> str | None:
 
 def composio_list(category: str = None, search: str = None):
     """List available Composio connectors"""
-    console.print(f"\n[bold cyan]🔌 Composio — 250+ App Connectors[/bold cyan]")
+    console.print(f"\n[bold cyan]🔌 Composio — App Connectors[/bold cyan]")
 
     api_key = get_composio_key()
     if not api_key:
@@ -161,7 +162,7 @@ def composio_list(category: str = None, search: str = None):
 
         console.print(table)
 
-    console.print(f"\n[dim]Total: 250+ apps available. Run [cyan]kurt connect <app>[/cyan] to connect.[/dim]")
+    console.print(f"\n[dim]Full app directory available in the MCP connector picker. Run [cyan]kurt connect <app>[/cyan] to connect.[/dim]")
 
 
 def _composio_error(data: dict, resp: httpx.Response) -> str:
@@ -205,7 +206,7 @@ def _poll_connection(client: httpx.Client, headers: dict, account_id: str,
 def composio_connect(app_name: str, open_browser: bool = True):
     """Connect to a Composio app — mirrors Claude's 'pick a connector, open
     link, log in, authorize' flow:
-    1. Make sure a (Composio-managed) auth config exists for the toolkit.
+    1. Reuse an existing auth config or create a managed one for the toolkit.
     2. Start a connected account against it — Composio hands back a redirect URL.
     3. Open that URL in the user's default browser automatically.
     4. Poll the connection until the user finishes authorizing (or times out),
@@ -215,80 +216,123 @@ def composio_connect(app_name: str, open_browser: bool = True):
     api_key = get_composio_key()
     slug = app_name.strip().lower()
 
+    new_key = False
     if not api_key:
-        console.print(f"[yellow]⚠️  Need Composio API key. Run [cyan]kurt setup[/cyan] first.[/yellow]")
-        return
+        from kurt.core.connector_pages import connector_pages
+        from kurt.core.mcp_commands import _show_setup_pages
+        console.print("Composio needs one project API key before you can connect apps.")
+        _show_setup_pages(connector_pages("composio", slug), open_browser=False)
+        if not sys.stdin.isatty():
+            console.print("Continue in a terminal: /connect " + slug)
+            return
+        if open_browser:
+            try:
+                webbrowser.open("https://dashboard.composio.dev/")
+            except Exception:
+                pass
+        from getpass import getpass
+        try:
+            api_key = getpass("Paste Composio API key (Ctrl-C to cancel): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("Connection cancelled; nothing saved.")
+            return
+        if not api_key:
+            console.print("No key entered; nothing saved.")
+            return
+        new_key = True
 
     console.print(f"[cyan]🔗 Connecting to {slug} via Composio...[/cyan]")
 
     try:
         headers = {"x-api-key": api_key, "Content-Type": "application/json"}
         with httpx.Client(timeout=20) as client:
-            # 1. Get (or create) a Composio-managed OAuth app registration for this toolkit —
-            #    this is what lets us skip asking the user for their own client id/secret.
-            resp = client.post(
-                f"{COMPOSIO_BASE}/auth_configs",
-                headers=headers,
-                json={
-                    "toolkit": {"slug": slug},
-                    "auth_config": {"type": "use_composio_managed_auth"},
-                },
-            )
-            data = resp.json()
+            # Reuse the user's custom or managed auth config instead of creating
+            # a duplicate on every attempt. This also makes dashboard setup usable.
+            configs_resp = client.get(f"{COMPOSIO_BASE}/auth_configs", headers=headers,
+                                      params={"toolkit_slug": slug, "show_disabled": "false", "limit": 200})
+            configs_resp.raise_for_status()
+            configs = [c for c in configs_resp.json().get("items", [])
+                       if c.get("toolkit", {}).get("slug") == slug and c.get("status", "ENABLED") == "ENABLED"]
+            config = None
+            if len(configs) == 1:
+                config = configs[0]
+            elif len(configs) > 1:
+                console.print("Choose the auth config to use (existing scopes and credentials are preserved):")
+                for item in configs:
+                    console.print(f"{item['id']}: {item.get('name', slug)} [{item.get('auth_scheme', 'unknown')}]")
+                if not sys.stdin.isatty():
+                    console.print("Continue in a terminal to choose a configuration.")
+                    return
+                from rich.prompt import Prompt
+                chosen = Prompt.ask("Auth config ID", choices=[c["id"] for c in configs])
+                config = next(c for c in configs if c["id"] == chosen)
+            if config:
+                data = {"auth_config": config}
+                resp = configs_resp
+            else:
+                resp = client.post(
+                    f"{COMPOSIO_BASE}/auth_configs", headers=headers,
+                    json={"toolkit": {"slug": slug},
+                          "auth_config": {"type": "use_composio_managed_auth"}},
+                )
+                data = resp.json()
             if resp.status_code >= 400:
                 if _is_api_key_error(data):
                     console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
                     return
-                # Most likely cause: this toolkit has no Composio-managed
-                # OAuth app (confirmed in Composio's own docs — e.g.
-                # PostHog, Tavily, Perplexity, and many smaller toolkits
-                # require your own OAuth app). Their documented fix is
-                # registering an OAuth app on the provider yourself, then
-                # pasting its Client ID/Secret into a custom auth config —
-                # done through their dashboard, since the exact credential
-                # fields differ per auth scheme and no stable per-toolkit
-                # deep link is published to do this via API blind.
+                from kurt.core.connector_pages import connector_pages
+                from kurt.core.mcp_commands import _show_setup_pages
                 console.print(Panel(
-                    f"[yellow]{_composio_error(data, resp)}[/yellow]\n\n"
-                    f"{slug} most likely has no Composio-managed OAuth app — it needs "
-                    f"[bold]your own OAuth Client ID + Client Secret[/bold] instead:\n\n"
-                    f"1. Register an OAuth app on {slug}'s own developer site\n"
-                    f"2. Set its redirect URI to:\n"
-                    f"   [cyan]https://backend.composio.dev/api/v3/toolkits/auth/callback[/cyan]\n"
-                    f"3. In the Composio dashboard: Auth Configs → Create Auth Config → "
-                    f"pick {slug} → toggle 'Use your own developer credentials' → paste the "
-                    f"Client ID/Secret\n\n"
-                    f"[dim]Opening dashboard.composio.dev…[/dim]",
-                    title=f"🔑 {slug} needs its own OAuth app", box=box.ROUNDED, border_style="yellow",
+                    f"{_composio_error(data, resp)}\n\n"
+                    f"Managed sign-in is unavailable for {slug}. Check the app's authentication "
+                    "instructions: it may need an API key, bearer token, or your own OAuth app.\n"
+                    "For OAuth only: register a Client ID/Secret with the provider and use redirect URI "
+                    "https://backend.composio.dev/api/v3/toolkits/auth/callback.\n"
+                    "Choose the supported authentication method under Auth Configs in the Composio dashboard. "
+                    "Then connect an account for user_id 'default'.",
+                    title=f"{slug} — authentication setup required", box=box.ROUNDED, border_style="yellow",
                 ))
+                _show_setup_pages(connector_pages("composio", slug), open_browser=False)
                 if open_browser:
                     try:
+                        webbrowser.open(f"https://composio.dev/toolkits/{slug}")
                         webbrowser.open("https://dashboard.composio.dev/")
                     except Exception:
                         pass
                 return
             auth_config_id = data["auth_config"]["id"]
+            if new_key:
+                from dotenv import set_key
+                KURT_DIR.mkdir(parents=True, exist_ok=True)
+                env_path = KURT_DIR / ".env"
+                env_path.touch(mode=0o600, exist_ok=True)
+                set_key(str(env_path), "COMPOSIO_API_KEY", api_key)
+                os.environ["COMPOSIO_API_KEY"] = api_key
 
-            # 2. Start linking an account under that auth config.
+            # Hosted auth links support browser credential collection. Managed
+            # OAuth must use /link: the old create-account path is retired.
             resp = client.post(
-                f"{COMPOSIO_BASE}/connected_accounts",
-                headers=headers,
-                json={
-                    "auth_config": {"id": auth_config_id},
-                    "connection": {"user_id": "default"},
-                },
+                f"{COMPOSIO_BASE}/connected_accounts/link", headers=headers,
+                json={"auth_config_id": auth_config_id, "user_id": "default"},
             )
             data = resp.json()
             if resp.status_code >= 400:
                 console.print(f"[red]❌ {_composio_error(data, resp)}[/red]")
                 return
 
-            account_id = data.get("id")
-            redirect_url = (data.get("connectionData") or {}).get("val", {}).get("redirectUrl")
+            account_id = data.get("connected_account_id") or data.get("id")
+            redirect_url = data.get("redirect_url") or (data.get("connectionData") or {}).get("val", {}).get("redirectUrl")
 
             if not redirect_url:
-                # No OAuth step needed (e.g. API-key-only toolkits) — already linked.
-                console.print(f"[green]✅ Connected to {slug}![/green]")
+                status = data.get("status", "UNKNOWN")
+                if account_id:
+                    status = client.get(f"{COMPOSIO_BASE}/connected_accounts/{account_id}", headers=headers)
+                    status.raise_for_status()
+                    status = status.json().get("status", "UNKNOWN")
+                if status == "ACTIVE":
+                    console.print(f"[green]✅ {slug}: account authorization active.[/green]")
+                else:
+                    console.print(f"[yellow]{slug}: authorization is {status}; not connected yet. Check /connect status.[/yellow]")
                 return
 
             console.print(Panel(
@@ -313,7 +357,7 @@ def composio_connect(app_name: str, open_browser: bool = True):
                 status = _poll_connection(client, headers, account_id)
 
         if status == "ACTIVE":
-            console.print(f"[green]✅ {slug} connected and ready to use![/green]")
+            console.print(f"[green]✅ {slug} account authorization active![/green]")
         elif status in ("FAILED", "EXPIRED"):
             console.print(f"[red]❌ Authorization {status.lower()} for {slug}. Run [cyan]kurt connect {slug}[/cyan] to try again.[/red]")
         else:
@@ -322,8 +366,12 @@ def composio_connect(app_name: str, open_browser: bool = True):
                 f"then check [cyan]kurt connect status[/cyan].[/yellow]"
             )
 
-    except Exception as e:
-        console.print(f"[red]❌ Connection failed: {e}[/red]")
+    except (KeyboardInterrupt, EOFError):
+        console.print("Connection cancelled. Check /connect status before retrying.")
+    except httpx.HTTPStatusError as exc:
+        console.print(f"Composio request failed (HTTP {exc.response.status_code}); check your project key and auth configuration.")
+    except Exception:
+        console.print("Connection failed. Check the Composio dashboard and /connect status before retrying.")
 
 
 def composio_status():

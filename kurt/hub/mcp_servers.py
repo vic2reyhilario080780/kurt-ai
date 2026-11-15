@@ -53,10 +53,9 @@ def zapier_open(slug: str):
     console.print(Panel(
         f"[green]Opening {label}'s Zapier integration page…[/green]\n\n"
         f"[link={url}]{url}[/link]\n\n"
-        f"[dim]Build the Zap there — Zapier doesn't expose a way for Kurt "
-        f"to connect a third-party app on your behalf. Once it's built, "
-        f"Kurt can call it through Zapier's own webhook or NLA actions "
-        f"(set a ZAPIER_NLA_API_KEY with [cyan]kurt setup[/cyan]).[/dim]",
+        f"Set up the app account and actions in Zapier, then create a server at "
+        f"https://mcp.zapier.com/. Connect it here with [cyan]/mcp platform zapier[/cyan]. "
+        f"Opening this page does not connect it to Kurt.",
         title=f"⚡ {label}", box=box.ROUNDED, border_style="green",
     ))
     try:
@@ -75,8 +74,9 @@ def n8n_open(slug: str):
     console.print(Panel(
         f"[green]Opening {label}'s n8n integration page…[/green]\n\n"
         f"[link={url}]{url}[/link]\n\n"
-        f"[dim]Build the workflow in your n8n instance, then trigger it "
-        f"from Kurt with [cyan]kurt n8n run <workflow-id>[/cyan].[/dim]",
+        f"Configure app credentials in your n8n instance, enable MCP access and expose "
+        f"the workflows you want. Connect here with [cyan]/mcp platform n8n[/cyan]. "
+        f"Opening this page does not connect it to Kurt.",
         title=f"⚙️  {label}", box=box.ROUNDED, border_style="green",
     ))
     try:

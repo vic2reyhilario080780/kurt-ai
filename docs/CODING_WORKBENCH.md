@@ -21,6 +21,8 @@ Kurt now has an executable coding workflow and an optional installed-Codex backe
 
 No customer-host shell or desktop control was added to the SaaS API. The hosted foundation still accepts only its bounded chat/native endpoints.
 
+Android setup/build/signature verification and download QR tools are now included; see [Android builds](ANDROID_BUILDS.md).
+
 ## Use it
 
 ```sh

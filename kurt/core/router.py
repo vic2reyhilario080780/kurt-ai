@@ -8,8 +8,13 @@ from kurt.utils.security import redact
 import os
 import json
 import asyncio
+import time
 import httpx
 from typing import Optional, AsyncGenerator
+
+
+class NativeToolArgumentsError(RuntimeError):
+    """Provider response was rejected before any tool could execute."""
 
 
 class ModelRouter:
@@ -19,12 +24,15 @@ class ModelRouter:
     def __init__(self):
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
         self.groq_key = os.getenv("GROQ_API_KEY", "")
-        self.google_key = os.getenv("GOOGLE_AI_KEY", "")
+        self.google_key = os.getenv("GOOGLE_AI_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
         self.deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-        self.fal_key = os.getenv("FAL_API_KEY", "")
+        self.fal_key = os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY", "")
         self.replicate_key = os.getenv("REPLICATE_API_TOKEN", "")
+        self.mistral_key = os.getenv("MISTRAL_API_KEY", "")
+        self.strict_selection = False
+        self.excluded_providers = set()
 
     def _has_key(self, provider: str) -> bool:
         """Check if a real API key exists (not empty, not a placeholder)"""
@@ -41,6 +49,7 @@ class ModelRouter:
             "anthropic": self.anthropic_key,
             "fal": self.fal_key,
             "replicate": self.replicate_key,
+            "mistral": self.mistral_key,
         }
         key = keys.get(provider, "")
         if not key:
@@ -88,6 +97,8 @@ class ModelRouter:
                 headers=headers,
                 json=payload,
             ) as response:
+                if response.status_code >= 400:
+                    await response.aread()  # Preserve structured quota/rate diagnostics.
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -147,6 +158,8 @@ class ModelRouter:
                 headers=headers,
                 json=payload,
             ) as response:
+                if response.status_code >= 400:
+                    await response.aread()
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -166,6 +179,11 @@ class ModelRouter:
                         if "error" in chunk:
                             err = chunk["error"]
                             msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                            # Preserve structured billing errors for quota-only failover.
+                            code = err.get("code") if isinstance(err, dict) else None
+                            if code in ("insufficient_quota", "insufficient_credits", "insufficient_balance", "billing_hard_limit_reached"):
+                                response_error = httpx.Response(429, json={"error": err}, request=httpx.Request("POST", endpoint))
+                                raise httpx.HTTPStatusError("Provider quota exhausted", request=response_error.request, response=response_error)
                             raise RuntimeError(f"Model provider API error: {msg}")
                         try:
                             delta = chunk["choices"][0]["delta"]
@@ -184,17 +202,17 @@ class ModelRouter:
                             continue
         if native_tools and calls:
             if len(calls) != 1:
-                raise RuntimeError("Expected one native tool call per response.")
+                raise NativeToolArgumentsError("Expected one native tool call per response.")
             call = next(iter(calls.values()))
             allowed_names = {t["function"]["name"] for t in native_tools}
             if call["name"] not in allowed_names:
-                raise RuntimeError("Model provider returned an undeclared native tool.")
+                raise NativeToolArgumentsError("Model provider returned an undeclared native tool.")
             try:
                 arguments = json.loads(call["arguments"])
                 if not isinstance(arguments, dict):
                     raise ValueError("Expected object arguments.")
             except ValueError as exc:
-                raise RuntimeError("Model provider returned invalid native tool arguments.") from exc
+                raise NativeToolArgumentsError("Model provider returned invalid native tool arguments.") from exc
             yield "```tool\n" + json.dumps({"tool": call["name"], "params": arguments, "call_id": call["id"]}) + "\n```"
             yielded_any = True
         elif native_tools and collected_text:
@@ -234,15 +252,16 @@ class ModelRouter:
         self,
         prompt: str,
         model: str = "fal-ai/flux/schnell",
+        media_kind: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
-        """Generate an image via fal.ai, yield the resulting image URL."""
+        """Generate an image/video via fal.ai and yield the artifact URL."""
         headers = {
             "Authorization": f"Key {self.fal_key}",
             "Content-Type": "application/json",
         }
         payload = {"prompt": redact(prompt)}
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=600.0 if media_kind == "video" else 60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
             try:
                 response.raise_for_status()
@@ -253,10 +272,15 @@ class ModelRouter:
                     detail = 'Request rejected'
                 raise RuntimeError(f"fal.ai HTTP {response.status_code}: {redact(str(detail))[:1000]}") from exc
             data = response.json()
-            images = data.get("images", [])
-            if not images:
-                raise RuntimeError(f"fal.ai returned no images: {data}")
-            yield images[0].get("url", "")
+            video = data.get("video") or {}
+            images = data.get("images") or []
+            url = (video.get("url") if isinstance(video, dict) else None) if media_kind == "video" else (
+                images[0].get("url") if images and isinstance(images[0], dict) else None)
+            if not url and media_kind is None and isinstance(video, dict):
+                url = video.get("url")
+            if not isinstance(url, str) or not url:
+                raise RuntimeError(f"fal.ai returned no {media_kind or 'media'} artifact URL.")
+            yield url
 
     async def call_replicate(
         self,
@@ -289,7 +313,10 @@ class ModelRouter:
             response.raise_for_status()
             data = response.json()
 
-            while data.get("status") in ("starting", "processing"):
+            deadline = time.monotonic() + 600
+            while data.get("status") in ("starting", "processing", "queued"):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Replicate generation is still pending; check the provider before retrying to avoid duplicate charges.")
                 await asyncio.sleep(2)
                 from urllib.parse import urlsplit
                 poll_url = data["urls"]["get"]
@@ -349,6 +376,8 @@ class ModelRouter:
                 headers=headers,
                 json=payload,
             ) as response:
+                if response.status_code >= 400:
+                    await response.aread()
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -388,6 +417,8 @@ class ModelRouter:
                 f"{ollama_host}/api/chat",
                 json=payload,
             ) as response:
+                if response.status_code >= 400:
+                    await response.aread()
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line:
@@ -416,15 +447,21 @@ class ModelRouter:
         file_path: Optional[str] = None,
         native_tools: Optional[list] = None,
         temperature: Optional[float] = None,
+        media_kind: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
 
         messages = redact(messages)
 
         # Check if provider key exists, fallback to openrouter
-        if not self._has_key(provider) and provider not in ("ollama",):
+        supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"}
+        if self.strict_selection and provider not in supported:
+            raise ValueError(f"Unsupported provider: {provider}")
+        if provider in self.excluded_providers or (not self._has_key(provider) and provider not in ("ollama",)):
+            if self.strict_selection:
+                raise RuntimeError(f"Missing API key for selected provider {provider}. Update /setup or choose /model auto.")
             # Try openrouter as universal fallback
-            if self._has_key("openrouter"):
+            if self._has_key("openrouter") and "openrouter" not in self.excluded_providers:
                 provider = "openrouter"
             else:
                 # Last resort: local ollama
@@ -433,6 +470,17 @@ class ModelRouter:
 
         if provider == "openrouter":
             async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools, temperature=temperature):
+                yield chunk
+        elif provider in ("openai", "mistral", "deepseek", "google"):
+            endpoints = {
+                "openai": ("https://api.openai.com/v1/chat/completions", self.openai_key),
+                "mistral": ("https://api.mistral.ai/v1/chat/completions", self.mistral_key),
+                "deepseek": ("https://api.deepseek.com/chat/completions", self.deepseek_key),
+                "google": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", self.google_key),
+            }
+            endpoint, key = endpoints[provider]
+            async for chunk in self._call_tool_chat(model, messages, stream, native_tools, endpoint,
+                    {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, temperature=temperature):
                 yield chunk
         elif provider == "anthropic":
             # Try direct Anthropic API, fallback to OpenRouter
@@ -458,7 +506,7 @@ class ModelRouter:
                     yield chunk
         elif provider == "fal":
             prompt = messages[-1]["content"] if messages else ""
-            async for chunk in self.call_fal(prompt, model):
+            async for chunk in self.call_fal(prompt, model, **({"media_kind": media_kind} if media_kind else {})):
                 yield chunk
         elif provider == "replicate":
             prompt = messages[-1]["content"] if messages else ""
