@@ -1,0 +1,26 @@
+{
+  "live_default_cli": {
+    "status": "completed",
+    "output": "KURT_VIBE_TRIM_OK\n",
+    "bounded_prompt_bytes": 610,
+    "trim_notice": true
+  },
+  "version_probe": {
+    "cli": "vibe",
+    "executable_check": "completed",
+    "version": "vibe 3.1.2",
+    "exit_code": 0,
+    "error": "",
+    "authentication": "Not tested by this version-only probe; no paid model request submitted."
+  },
+  "tests_passed": 381,
+  "full_chat_from_home": {
+    "mode": "real CLI process with piped input, --no-memory --cli vibe",
+    "received_expected_reply": true,
+    "adapter_error": false,
+    "process_exit_code": 0
+  },
+  "original_user_error_reproduced": false,
+  "reproduced_issue": "Old CLI context limit rejected long history before execution; now compacted without truncating policy/latest request",
+  "saved_user_defaults_changed": false
+}

@@ -14,6 +14,7 @@ Features:
 from __future__ import annotations
 
 from kurt.utils.security import redact
+from .microphone import CaptureCancelled
 
 import logging
 import os
@@ -319,12 +320,19 @@ def _write_audio(chunks, sample_rate):
 
 
 @contextmanager
-def _input_stream(sd, sample_rate):
+def _input_stream(sd, sample_rate, should_cancel=None):
     """Discard queued input on close; never drain it during chat shutdown.
 
     PortAudio's graceful stop can block on macOS and race its atexit
     termination. Input recording has no output buffers to preserve.
     """
+    if sd is None and OS == 'Darwin':
+        from .microphone import MicrophoneStream
+        with MicrophoneStream(sample_rate, should_cancel=should_cancel) as stream:
+            yield stream
+        return
+    if sd is None:
+        import sounddevice as sd
     stream = sd.InputStream(samplerate=sample_rate, channels=1, dtype='float32')
     try:
         stream.start()
@@ -339,13 +347,12 @@ def _input_stream(sd, sample_rate):
 def record_audio(duration: float = 5.0, sample_rate: int = 16000, should_cancel=None) -> Optional[str]:
     """Short wake-word capture, cancellable before playback or a mode switch."""
     try:
-        import sounddevice as sd
         frames = max(1, int(duration * sample_rate / 512))
         buffer = []
         with _microphone_lock:
             if _tts_speaking.is_set() or (should_cancel and should_cancel()):
                 return None
-            with _input_stream(sd, sample_rate) as stream:
+            with _input_stream(None, sample_rate, should_cancel=lambda: _tts_speaking.is_set() or (should_cancel and should_cancel())) as stream:
                 for _ in range(frames):
                     if _tts_speaking.is_set() or (should_cancel and should_cancel()):
                         return None
@@ -367,6 +374,8 @@ def record_audio(duration: float = 5.0, sample_rate: int = 16000, should_cancel=
         if _tts_speaking.is_set() or (should_cancel and should_cancel()):
             return None
         return _write_audio(buffer, sample_rate)
+    except CaptureCancelled:
+        return None
     except Exception as exc:
         logger.error("Audio recording unavailable: %s", type(exc).__name__)
         return None
@@ -392,12 +401,11 @@ def record_until_silence(
     buffer = []
     preroll = deque(maxlen=12)  # 384 ms retains the first syllable before onset confirmation.
     try:
-        import sounddevice as sd
         detector = speech_detector if speech_detector is not None else SileroSpeechDetector()
         with _microphone_lock:
             if _tts_speaking.is_set() or (should_cancel and should_cancel()):
                 return None
-            with _input_stream(sd, sample_rate) as stream:
+            with _input_stream(None, sample_rate, should_cancel=lambda: _tts_speaking.is_set() or (should_cancel and should_cancel())) as stream:
                 while True:
                     if _tts_speaking.is_set() or (should_cancel and should_cancel()):
                         return None
@@ -423,6 +431,8 @@ def record_until_silence(
         return _write_audio(buffer, sample_rate)
     except SpeechLimitReached:
         raise
+    except CaptureCancelled:
+        return None
     except Exception as exc:
         logger.error("Speech capture unavailable: %s", type(exc).__name__)
         return None  # No fixed-length fallback that could execute silence/partial speech.
@@ -808,18 +818,14 @@ def check_dependencies() -> dict[str, bool]:
     """Check which voice dependencies are available"""
     deps = {}
 
-    for dep in ["sounddevice", "soundfile", "numpy"]:
+    import importlib.util
+    # Availability checks must not initialize PortAudio in the chat process:
+    # importing sounddevice registers a native termination handler at atexit.
+    for dep in ["sounddevice", "soundfile", "numpy", "faster_whisper", "whisper",
+                "onnxruntime", "pyttsx3", "edge_tts", "keyboard"]:
         try:
-            __import__(dep.replace("-", "_"))
-            deps[dep] = True
-        except ImportError:
-            deps[dep] = False
-
-    for dep in ["faster_whisper", "whisper", "onnxruntime", "pyttsx3", "edge_tts", "keyboard"]:
-        try:
-            __import__(dep.replace("-", "_"))
-            deps[dep] = True
-        except ImportError:
+            deps[dep] = importlib.util.find_spec(dep) is not None
+        except (ImportError, ValueError):
             deps[dep] = False
 
     deps["can_record"] = deps.get("sounddevice", False) and deps.get("soundfile", False) and deps.get("numpy", False)

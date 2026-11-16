@@ -136,6 +136,8 @@ from kurt.core.coding import register_commands as register_coding_commands
 register_coding_commands(app)
 from kurt.core.android_build import register_commands as register_android_commands
 register_android_commands(app)
+from kurt.core.media_generation import register_commands as register_media_commands
+register_media_commands(app)
 
 console = Console()
 
@@ -591,6 +593,7 @@ def chat(
     current_model = execution.model
     current_skill = skill
     last_response = ""
+    session_images = None  # Latest attachment group retained only in RAM.
     conversation = []  # Session context is retained even when disk memory is off.
     _pending_initial = prompt.strip() if isinstance(prompt, str) and prompt.strip() else None
 
@@ -744,13 +747,37 @@ def chat(
                     break
 
                 if prompt.lower() == "clear":
+                    session_images = None
+                    conversation.clear()
                     session_id = str(uuid.uuid4())
                     console.print(f"[dim]🆕 New session: {session_id[:8]}[/dim]")
                     continue
 
+                # Explicit file attachments are input data, not slash commands
+                # or a keyword-based task classifier. Keep bytes out of history.
+                from kurt.core.attachments import parse_image_input, load_images, image_content
+                images = []
+                try:
+                    first = prompt.split(None, 1)[0].casefold()
+                    attached = parse_image_input(prompt) if first not in SLASH_COMMANDS else None
+                    if attached and attached.paths:
+                        if execution.cli != "auto" and not execution.exhausted:
+                            console.print("Image attachment recognized. This CLI adapter cannot forward image bytes. Use /cli use auto with a vision-capable chat model, or use the CLI's own image attachment flow.", markup=False)
+                            continue
+                        images = load_images(attached.paths)
+                        names = ', '.join(img['name'] for img in images)
+                        console.print(f"Attached image: {names}", markup=False)
+                        prompt = (attached.text or 'Describe the attached image. Say clearly if details are unreadable.') + f"\n[Image attachments: {names}]"
+                except (ValueError, OSError) as exc:
+                    if isinstance(exc, PermissionError):
+                        console.print("Cannot read that photo. Export it from Photos to Pictures/Desktop, then attach the exported copy.", markup=False)
+                    else:
+                        console.print(f"Image attachment failed: {redact(str(exc))}", markup=False)
+                    continue
+
                 # ── Slash command handler ────────────────────────────────────
                 slash_result = handle_slash(
-                    prompt=prompt,
+                    prompt="" if images else prompt,
                     session_id=session_id,
                     current_model="auto (default quota exhausted)" if execution.exhausted else current_model,
                     current_skill=current_skill,
@@ -788,6 +815,7 @@ def chat(
                         session_id = slash_result.new_session_id
                         last_response = ""
                         conversation.clear()
+                        session_images = None
                     if not slash_result.continue_chat:
                         break
                     continue
@@ -799,7 +827,7 @@ def chat(
                 messages = []
 
                 # System prompt: KURT persona (persona.md + memory.md + mode detection)
-                _persona_turn = kurt_persona.build(prompt, mode="auto")
+                _persona_turn = kurt_persona.build(prompt, mode="auto", include_history=execution.cli == "auto" or execution.exhausted)
                 messages.append({"role": "system", "content": _persona_turn["system_prompt"]})
                 # Operational guidance — not personality, so it stays separate from persona.md.
                 messages.append({"role": "system", "content": (
@@ -827,8 +855,20 @@ def chat(
                 # The planner chooses search/navigation from meaning; do not pre-fetch
                 # URLs or trigger search from a regex before it has understood the goal.
                 history = get_history(session_id, limit=20) if not no_memory else conversation[-20:]
+                if images:
+                    session_images = (prompt, images)
+                history = [dict(m) for m in history]
+                if session_images and not images and (execution.cli == 'auto' or execution.exhausted):
+                    marker, retained = session_images
+                    for previous in reversed(history):
+                        if previous.get('role') == 'user' and previous.get('content') == marker:
+                            previous['content'] = image_content(marker, retained)
+                            break
+                    else:
+                        # Keep the latest reference available after history compaction.
+                        history.insert(0, {'role': 'user', 'content': image_content(marker, retained)})
                 messages.extend(history)
-                messages.append({"role": "user", "content": prompt})
+                messages.append({"role": "user", "content": image_content(prompt, images) if images else prompt})
 
                 if not no_memory:
                     save_message(session_id, "user", prompt)
@@ -838,7 +878,8 @@ def chat(
                 if execution.cli != "auto" and not execution.exhausted:
                     try:
                         console.print(f"[dim]Using CLI: {execution.cli}[/dim]")
-                        response = run_default_cli(execution.cli, messages)
+                        with console.status(f"Waiting for {execution.cli} CLI…", spinner="dots"):
+                            response = run_default_cli(execution.cli, messages)
                         console.print(response, markup=False)
                         if not no_memory and response:
                             save_message(session_id, "assistant", response, f"cli:{execution.cli}")
@@ -852,7 +893,7 @@ def chat(
                             save_message(session_id, "assistant", conversation[-1]["content"])
                         continue
                     except (ValueError, OSError, RuntimeError) as exc:
-                        console.print(f"Default CLI failed: {redact(str(exc))[:1000]}", markup=False)
+                        console.print(f"Default CLI failed: {redact(str(exc))[-2200:]}", markup=False)
                         console.print("Task was not replayed. Check the CLI/workspace, or use /cli use auto.", markup=False)
                         _voice_reply("Hindi natapos ng napiling CLI ang request. Hindi ko ito inulit; tingnan muna ang kasalukuyang resulta.")
                         receipt = "Default CLI failed; task outcome unverified. Check current state before continuing; do not automatically replay."
@@ -872,6 +913,8 @@ def chat(
                         execution=execution,
                     ))
                 if response is None:
+                    if images:
+                        console.print("The selected model could not complete image analysis. Choose a vision-capable chat model; no image description was verified.", markup=False)
                     _voice_reply("Hindi natapos ang AI request. Nasa screen ang error; puwede mo akong kausapin ulit.")
                     receipt = "Selected AI request failed; task outcome unverified. Inspect current state before continuing."
                     conversation.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": receipt}])

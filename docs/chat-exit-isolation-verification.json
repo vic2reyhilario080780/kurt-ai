@@ -1,0 +1,111 @@
+{
+  "tested_at": "2026-11-16T05:32:38.889478+00:00",
+  "passed": true,
+  "tests": 356,
+  "live_microphone": {
+    "samples": 512,
+    "overflow": false,
+    "parent_loaded_sounddevice": false,
+    "worker_reaped": true
+  },
+  "terminal_runs": [
+    {
+      "passed": true,
+      "idle_seconds": 3,
+      "scope": "Installed CLI, real zsh/PTYS, bare/home plus chat/picker/EOF/F5 cases; no model requests",
+      "results": [
+        {
+          "case": "bare_plain_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.3
+        },
+        {
+          "case": "bare_deleted_slash",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.33
+        },
+        {
+          "case": "bare_nested_picker",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.55
+        },
+        {
+          "case": "bare_ctrl_d",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.31
+        },
+        {
+          "case": "chat_slash_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.33
+        },
+        {
+          "case": "chat_f5_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.36
+        }
+      ]
+    },
+    {
+      "passed": true,
+      "idle_seconds": 8.0,
+      "scope": "Installed CLI, real zsh/PTYS, bare/home plus chat/picker/EOF/F5 cases; no model requests",
+      "results": [
+        {
+          "case": "bare_plain_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.46
+        },
+        {
+          "case": "bare_deleted_slash",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.45
+        },
+        {
+          "case": "bare_nested_picker",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.44
+        },
+        {
+          "case": "bare_ctrl_d",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.48
+        },
+        {
+          "case": "chat_slash_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.45
+        },
+        {
+          "case": "chat_f5_exit",
+          "passed": true,
+          "returned_to_shell": true,
+          "goodbye_seen": true,
+          "seconds": 1.45
+        }
+      ]
+    }
+  ]
+}

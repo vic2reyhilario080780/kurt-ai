@@ -71,6 +71,14 @@ def sandbox_profile(*, service=None, workspace=None):
         paths = {str(Path(workspace).resolve()), str(Path(tempfile.gettempdir()).resolve()), "/private/tmp", "/tmp"}
         restrictions += "(deny file-write*)\n(allow file-write* " + " ".join("(subpath " + json.dumps(p) + ")" for p in sorted(paths)) + ")\n"
     profile = '(version 1)\n(allow default)\n' + restrictions + '(deny file-read* file-write*\n' + filters + '\n(regex #"' + names + '"))\n'
+    if service == 'openclaw':
+        # This is SDK source code, not a user's credentials file. Node must
+        # stat the directory to import modules below it. Grant the literal
+        # directory only; credential files elsewhere retain their deny rules.
+        root = Path(__file__).resolve().parents[2]
+        sdk = root/'node_modules/@anthropic-ai/sdk/lib/credentials'
+        if sdk.is_dir():
+            profile += '(allow file-read* (literal ' + json.dumps(str(sdk.resolve())) + '))\n'
     if service == 'vibe':
         # The generic *.pem rule must not hide the public TLS trust bundle.
         import ssl

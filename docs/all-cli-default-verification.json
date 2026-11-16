@@ -1,0 +1,66 @@
+{
+  "tested_at": "2026-11-16T09:24:42.769975+00:00",
+  "tests_passed": 391,
+  "version_probes": [
+    {
+      "cli": "codex",
+      "version": "codex-cli 0.169.0",
+      "executable_check": "completed"
+    },
+    {
+      "cli": "claude",
+      "version": "2.1.319 (Claude Code)",
+      "executable_check": "completed"
+    },
+    {
+      "cli": "gemini",
+      "version": "0.67.0",
+      "executable_check": "completed"
+    },
+    {
+      "cli": "openclaw",
+      "version": "OpenClaw 2026.11.2 (b556fdf)",
+      "executable_check": "completed"
+    },
+    {
+      "cli": "vibe",
+      "version": "vibe 3.1.2",
+      "executable_check": "completed"
+    }
+  ],
+  "live_default_adapters": [
+    {
+      "cli": "claude",
+      "status": "completed",
+      "output": "KURT_CLAUDE_FIXED_OK"
+    },
+    {
+      "cli": "codex",
+      "status": "completed",
+      "output": "KURT_CODEX_FIXED_OK"
+    },
+    {
+      "cli": "openclaw",
+      "status": "completed",
+      "output": "KURT_OPENCLAW_FIXED_OK"
+    },
+    {
+      "cli": "vibe",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Verified for this request only; login, credits and provider availability can change."
+    },
+    {
+      "cli": "gemini",
+      "status": "provider_unavailable",
+      "provider_status": 503,
+      "provider_message": "This model is currently experiencing high demand.",
+      "final_reply_verified": false,
+      "upstream_retries_reached_time_limit": true
+    }
+  ],
+  "saved_defaults_changed": false,
+  "accounts_or_models_changed": false,
+  "scope": "Minimal read-only replies; native CLI authentication/configuration used. No deployment or code-edit task was delegated."
+}

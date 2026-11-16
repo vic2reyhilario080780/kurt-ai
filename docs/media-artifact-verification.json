@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-16",
+  "reported_artifact_check": {
+    "http_status": 404,
+    "body": "Specified object does not exist",
+    "historical_job_receipt_available": false,
+    "original_generation_outcome": "unknown"
+  },
+  "full_suite": {
+    "tests": 400,
+    "passed": true,
+    "isolated_persona": true
+  },
+  "final_focused_suite": {
+    "tests": 35,
+    "passed": true
+  },
+  "checks": [
+    "404 and non-media responses rejected",
+    "invalid image rejected",
+    "synthetic PNG downloaded and receipt saved",
+    "synthetic MP4 downloaded and ffprobe stream/duration verified",
+    "invented streamed artifact link suppressed",
+    "photo retained across followup and removed on clear",
+    "Kling start_image_url payload matches attached image",
+    "unsupported reference default blocked before request",
+    "provider/artifact failure not retried"
+  ],
+  "paid_render_submitted": false,
+  "private_photo_uploaded": false,
+  "visual_or_dialogue_content_verified": false
+}

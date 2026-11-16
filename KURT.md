@@ -40,6 +40,18 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-17 — Saved development checkpoint (Codex)
+- Ano: Pinagsamang checkpoint ng November 16 fixes: reliable exit via isolated microphone process, saved media-default routing/pickers, real local-image attachments with RAM follow-up context, at default CLI compatibility/diagnostics para sa Codex, Claude, Gemini, OpenClaw at Vibe.
+- Ano: Kasama ang verified media downloads/receipts, guard laban sa invented artifact links, explicit Kling image-to-video reference support, regression tests at verification reports. Detalye nasa mga November 16 entries at linked docs.
+- Validation: Latest isolated full suite: 400 tests passed; final focused media/attachment suite: 35 passed. Walang bagong paid render o personal photo upload sa media verification.
+- Pending: Gemini live reply remained unverified dahil sa provider HTTP 503/high demand. Video file verification does not verify exact dialogue/lip sync. SaaS billing/shared-provider-credit design remains parked.
+
+## 2026-11-16 — Media receipts at photo follow-up (Codex)
+- Bakit: Ang reported video link ay HTTP 404; walang historical job receipt para patunayang nag-render. Image bytes ay nawawala rin sa follow-up at text-only ang dating generator contract.
+- Ano: Latest photo retained in RAM across follow-up (cleared with session); explicit Kling Standard/Pro image-to-video picker choices and exact `start_image_url` reference dispatch. Unsupported defaults block before payment, without silently changing selection.
+- Ano: Download, bounded size, image/container/stream verification, local file plus SHA-256 receipt before completion. Deterministic native media result and structural guard against newly invented video/CDN links. Failed/indeterminate paid requests are not automatically replayed. File verification does not establish exact dialogue/lip sync.
+- Validation: 400 tests passed in isolated full suite; 35 final focused checks passed. Fixture-based provider tests, synthetic PNG/MP4 download/inspection, 404 failure, reference payload, RAM follow-up/clear, no repeat. No paid render or private photo upload. Details: [docs/MEDIA_ARTIFACT_VERIFICATION.md](docs/MEDIA_ARTIFACT_VERIFICATION.md).
+
 ## graphify
 
 Ang codebase na ito ay me-queryable knowledge graph via [graphify](https://github.com/safishamsi/graphify)
@@ -68,6 +80,35 @@ module.
 ## Log
 
 <!-- Bagong entries dito, pinakabago sa pinakataas. -->
+
+## 2026-11-16 — All default CLI adapters audited and fixed; Gemini provider unavailable (Codex)
+- Live results: Codex, Claude, OpenClaw and Vibe returned expected replies through actual default adapters. Gemini is installed and reached Google, but returned HTTP 503/high demand and timed out during upstream retries; its model/account was not changed and response readiness is not claimed.
+- Fixes: Codex non-Git/home startup with permission profile retained; exact OpenClaw SDK credentials-directory read access; structured Claude/Gemini final-response decoding; empty/error/queued responses no longer masquerade as success; private helper PATH isolation; clear provider diagnostics and waiting spinner. Uninstalled picker options are disabled.
+- Checks: Added /cli probe all|name and kurt cli probe for non-billable version checks; /cli test name and kurt cli test submit one minimal live request and may use credits. Probes/tests preserve saved defaults. Legacy desktop probes remain available.
+- Validation: 391 tests passed plus actual version probes for all five and live reply tests. Details: docs/DEFAULT_CLI_AUDIT.md and docs/all-cli-default-verification.json. No CLI/account login, configured model, or saved user default was changed.
+
+## 2026-11-16 — Default Vibe CLI diagnostics and bounded conversation context (Codex)
+- Findings: Current Vibe default adapter returned KURT_VIBE_DEFAULT_OK; full Kurt chat --cli vibe from home returned KURT_VIBE_CHAT_OK and exited normally. The reported earlier error text is still unknown; no claim that every possible original error was reproduced.
+- Reproduced/fixed: Long conversations exceeded the old 30 KB CLI limit before Vibe could run. CLI requests now drop complete oldest turns to fit while preserving system instructions and the latest request. CLI persona prompts no longer embed the same history twice. Oversized policy/latest request still fail explicitly rather than truncating instructions.
+- Diagnostics: Failures retain exit code, actionable stderr tail and partial stdout, without replaying the task or switching providers. Added /cli probe vibe for a version-only non-billable check. Removed local json import shadowing that could obscure media/probe receipts.
+- Validation: 381 tests passed; actual default Vibe answered KURT_VIBE_TRIM_OK after oversized old history was reduced to a 610-byte request. Version probe reported Vibe 3.1.2. Existing saved defaults were not changed. Details: docs/EXECUTION_DEFAULTS.md and docs/vibe-default-verification.json.
+
+## 2026-11-16 — Pasted local image paths become real chat attachments (Codex)
+- Fix: Filesystem paths no longer enter slash-command dispatch or trap Enter in the picker. Supports quoted Photos Library paths, spaces, Finder escaping/file:// URLs and questions with image paths; shows an attachment indicator.
+- Execution: Sends bounded JPEG/PNG/GIF/WebP bytes to the selected vision-capable Chat AI with correct provider formats (OpenAI-compatible, Anthropic, Ollama). Only question/filename markers enter stored history; image payloads stay transient. Protected paths, invalid data, oversized files and Photo Library permissions have explicit handling. A selected external CLI is not silently replaced; its current attachment limitation is explained.
+- Validation: 375 tests passed; final attachment/native/security focused checks passed. Actual installed CLI plus local HTTP fixture received exact synthetic image bytes from a Photos Library-style path and returned a response. No private photo upload, paid API call or live model image-understanding claim. Details: docs/IMAGE_ATTACHMENTS.md and docs/image-attachment-verification.json.
+
+## 2026-11-16 — Media defaults: named pickers, exact dispatch and no generic bypass (Codex)
+- Ano: Added bundled Nano Banana/Nano Banana 2.1 and Kling 3.0 Standard/Pro choices; fixed case-insensitive picker search. Known image/video models cannot be saved under the wrong role. Generic call_model can no longer bypass saved fal/Replicate media selections; native/coding agents use generate_media.
+- Execution: Added /image and /video plus kurt generate image|video; these use the same saved targets even with a CLI selected. --dry-run reports model/provider/key configuration without paid generation. CLI context explains that external CLI permissions may not support native media tools.
+- Validation: 365 tests passed. Picker -> saved settings -> banner -> real HTTP request serialization tested with Nano Banana 2.1 and Kling 3.0 Standard, plus pinned Mistral planner plumbing, no duplicate/alternate POST on failure, missing keys, wrong roles, and empty prompts. All provider HTTP generation responses were mocked; no billable job or live balance/output-quality test.
+- Details: docs/EXECUTION_DEFAULTS.md and docs/media-default-routing-verification.json. Tests used temporary persona files; choose the preferred model/version through /setting.
+
+## 2026-11-16 — Isolate microphone driver so exit cannot hang in PortAudio (Codex)
+- Problema: Yesterday's abort/close fix and short terminal tests were insufficient. A sample of an actual terminal Kurt process still showed its microphone worker stuck in CoreAudio FinishStoppingStream; a timed thread join cannot safely prevent PortAudio's interpreter-exit callback from hanging.
+- Fix: On macOS, only a dedicated child process imports sounddevice/PortAudio. The main process receives bounded float32 frames over a pipe, checks cancellation, and closes/reaps only its owned microphone worker with graceful stop then bounded terminate/kill escalation. Dependency checks discover packages without importing native audio libraries into the parent. Voice turn/VAD logic remains in Kurt.
+- Validation: 356 tests passed, including real subprocess PCM transport, stripped credentials, cancellation, startup failure and forced shutdown of a worker ignoring SIGTERM. Live microphone returned 512 samples and parent sounddevice remained unloaded; worker was reaped. Real terminal coverage now includes bare kurt from home, idle recording cycles, nested pickers, Ctrl+D and F5. Reproducible harness: `tools/verify_chat_exit.py`.
+- Note: Already-running sessions retain the older imported code and need restarting. No existing user session was terminated. Results: `docs/chat-exit-isolation-verification.json`.
 
 ## 2026-11-15 — End-of-session checkpoint: defaults, connectors, automation and Android (Codex)
 - Na-save: Connector setup/API/source links and Composio/n8n/Zapier flows; Chat/CLI/Image/Video defaults and pickers/banner; hands-free voice; computer/web execution fixes; Android APK/AAB/QR tools; working Vibe CLI integration; reliable exit cleanup.

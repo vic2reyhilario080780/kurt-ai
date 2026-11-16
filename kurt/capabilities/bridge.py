@@ -91,8 +91,8 @@ CODING_FILE_TOOLS = [
 ORCHESTRATION_TOOLS = [
     {"name": "mcp_tool", "description": "Call a tool from a connected MCP server. Use 'server_name/tool_name' format.",
      "parameters": {"tool_ref": "string: 'server_name/tool_name' or just 'tool_name'", "params": "object: tool parameters as JSON object"}},
-    {"name": "call_model", "description": "Delegate a sub-task to a specific AI model/provider and get its full response back as text. Use to chain models within one task.",
-     "parameters": {"provider": "string: groq, openrouter, anthropic, ollama, fal, or replicate", "model": "string: model id for that provider",
+    {"name": "call_model", "description": "Delegate a text/chat sub-task to another model. For media creation use generate_media with the saved generation defaults.",
+     "parameters": {"provider": "string: groq, openrouter, anthropic, ollama, openai, mistral, deepseek, or google", "model": "string: model id for that provider",
                     "prompt": "string: the task/prompt to send to that model"}},
     {"name": "delegate_cli", "description": "Delegate a sub-task to an external CLI AI agent or shell and get its output back as text (Claude Code, Gemini CLI, OpenClaw, Peekaboo, GitHub CLI, or raw shell).",
      "parameters": {"tool": "string: codex, claude, gemini, openclaw, peekaboo, gh, or bash", "prompt": "string: task or command",
@@ -201,7 +201,7 @@ def function_schemas(include_legacy=True):
                              "cmd": {"type": "string"}, "task_id": {"type": "string"}, "cwd": {"type": "string"}}, ["action"]),
         # ── Orchestration tools ────────────────────────────────────────
         "mcp_tool": ({"tool_ref": {"type": "string"}, "params": {"type": "object"}}, ["tool_ref"]),
-        "call_model": ({"provider": {"type": "string", "enum": ["groq", "openrouter", "anthropic", "ollama", "fal", "replicate"]},
+        "call_model": ({"provider": {"type": "string", "enum": ["groq", "openrouter", "anthropic", "ollama", "openai", "mistral", "deepseek", "google"]},
                        "model": {"type": "string"}, "prompt": {"type": "string"}}, ["provider", "model", "prompt"]),
         "delegate_cli": ({"tool": {"type": "string", "enum": ["codex", "claude", "gemini", "openclaw", "peekaboo", "gh", "bash"]},
                          "prompt": {"type": "string"}, "args": {"type": "array", "items": {"type": "string"}},
@@ -315,11 +315,14 @@ def user_paths(messages):
     paths = set()
     pattern = re.compile(r'''["']([^"'\n]+\.(?:csv|json))["']|(?<![\w/])([^\s"'`<>]+\.(?:csv|json))(?=$|[\s.,;:)`])''', re.IGNORECASE)
     for message in messages:
-        if message.get("role") != "user" or not isinstance(message.get("content"), str):
+        if message.get("role") != "user":
             continue
-        if message["content"].startswith("NATIVE TOOL RESULT ("):
+        content = message.get('content')
+        if isinstance(content, list):
+            content = '\n'.join(b.get('text', '') for b in content if isinstance(b, dict) and b.get('type') == 'text')
+        if not isinstance(content, str) or content.startswith("NATIVE TOOL RESULT ("):
             continue
-        for match in pattern.finditer(message["content"]):
+        for match in pattern.finditer(content):
             candidate = match.group(1) or match.group(2)
             if "://" not in candidate:
                 paths.add(str(Path(candidate).expanduser().resolve()))
@@ -487,7 +490,7 @@ def function_history(messages, tools):
         message = messages[index]
         req = parse_request(message.get("content", "")) if message.get("role") == "assistant" else None
         following = messages[index + 1] if index + 1 < len(messages) else {}
-        is_result = following.get("role") == "user" and str(following.get("content", "")).startswith(("NATIVE TOOL RESULT (", "Tool result:\n"))
+        is_result = following.get("role") == "user" and isinstance(following.get("content"), str) and following["content"].startswith(("NATIVE TOOL RESULT (", "Tool result:\n"))
         if req and req["tool"] in names and is_result:
             call_id = req.get("call_id") or f"kurt_native_{index}"
             result.append({"role": "assistant", "content": None, "tool_calls": [{"id": call_id, "type": "function",
@@ -578,12 +581,12 @@ class NativeToolRouter:
         goal_receipt = None
         # Resume the same goal after a provider fallback, without replaying it.
         scope_start = max((i for i, m in enumerate(messages) if m.get('role') == 'user'
-                           and not m.get('content', '').startswith('NATIVE TOOL RESULT (')), default=0)
+                           and not (isinstance(m.get('content'), str) and m['content'].startswith('NATIVE TOOL RESULT ('))), default=0)
         for i in range(scope_start, len(messages) - 1):
             message = messages[i]
             previous = parse_request(message.get('content', '')) if message.get('role') == 'assistant' else None
             following = messages[i + 1].get('content', '')
-            if not previous or not following.startswith('NATIVE TOOL RESULT ('):
+            if not previous or not (isinstance(following, str) and following.startswith('NATIVE TOOL RESULT (')):
                 continue
             try:
                 receipt = json.loads(following.split('\n', 1)[1])
@@ -600,6 +603,14 @@ class NativeToolRouter:
         native_api = getattr(self.router, "supports_native_tools", False) and provider not in ("anthropic", "ollama")
         today_line = f"\nCurrent local date: {datetime.now().strftime('%Y-%m-%d (%A)')}\n"
         sys_content = (CHAT_TOOL_PROMPT_NATIVE if native_api else CHAT_TOOL_PROMPT) + ASSISTANT_POLICY + today_line
+        from kurt.core.execution_preferences import media_target
+        media_defaults = {}
+        for kind in ('image', 'video'):
+            try:
+                media_defaults[kind] = media_target(kind)
+            except ValueError:
+                media_defaults[kind] = {'status': 'invalid; update settings before generation'}
+        sys_content += '\nSaved media defaults: ' + json.dumps(media_defaults) + '\nUse generate_media to create media with these defaults; call_model is for chat models.\n'
         existing_policy = next((m for m in messages if m.get("role") == "system" and "KURT_NATIVE_TOOLS_V1" in str(m.get("content", ""))), None)
         if existing_policy is None:
             messages.insert(0, {"role": "system", "content": sys_content})
@@ -626,7 +637,7 @@ class NativeToolRouter:
                 pairs = [i for i, m in enumerate(messages[:-1]) if m.get("role") == "assistant"
                          and parse_request(m.get("content", ""))
                          and parse_request(m.get('content', ''))['tool'] in desktop_names
-                         and messages[i + 1].get("content", "").startswith("NATIVE TOOL RESULT (")]
+                         and isinstance(messages[i + 1].get("content"), str) and messages[i + 1]["content"].startswith("NATIVE TOOL RESULT (")]
                 old = {j for i in pairs[:-2] for j in (i, i + 1)}
                 request_messages = [m for i, m in enumerate(messages) if i not in old]
                 if pairs:
@@ -654,23 +665,24 @@ class NativeToolRouter:
             alternate = ("openai/gpt-oss-120b" if model == "openai/gpt-oss-20b" else "openai/gpt-oss-20b") if desktop_mode and provider == "groq" and not getattr(self.router, "strict_selection", False) else None
             async for chunk in self._chunks(provider, model, request_messages, options, rate_limit_fallback=alternate):
                 if is_text:
-                    yield chunk
+                    buffer += chunk
                     continue
                 buffer += chunk
                 stripped = buffer.lstrip()
                 prefixes = ("```tool", "```json", "{")
                 if stripped and not any(p.startswith(stripped) or stripped.startswith(p) for p in prefixes):
                     is_text = True
-                    yield buffer
-                    buffer = ""
             if is_text:
+                from kurt.core.media_artifacts import ungrounded_media_reply
+                yield ungrounded_media_reply(buffer, messages)
                 if goal and goal.get('suggestion'):
                     yield '\n\nPuwedeng susunod: ' + goal['suggestion']
                 return
             request = parse_request(buffer)
             if request is None:
                 if buffer:
-                    yield buffer
+                    from kurt.core.media_artifacts import ungrounded_media_reply
+                    yield ungrounded_media_reply(buffer, messages)
                 return
             if turn == self.max_tools:
                 yield "Native workflow incomplete: the tool-step limit was reached. No further tools were executed."
@@ -707,7 +719,18 @@ class NativeToolRouter:
                         name != 'open_application' or params.get('app', '').casefold() != goal['target_app'].casefold()):
                     result = {'status': 'blocked', 'reason': 'The declared goal only permits activating its target app. Do not alter controls or documents.'}
                 else:
-                    result = await asyncio.to_thread(invoke_native, name, params, paths)
+                    if name == 'generate_media':
+                        from kurt.core.media_artifacts import REFERENCE_IMAGES
+                        images = tuple(block['image_url']['url'] for m in messages
+                            if m.get('role') == 'user' and isinstance(m.get('content'), list)
+                            for block in m['content'] if block.get('type') == 'image_url')
+                        token = REFERENCE_IMAGES.set(images)
+                        try:
+                            result = await asyncio.to_thread(invoke_native, name, params, paths)
+                        finally:
+                            REFERENCE_IMAGES.reset(token)
+                    else:
+                        result = await asyncio.to_thread(invoke_native, name, params, paths)
                 if name == 'set_task_goal' and result.get('status') == 'planned':
                     goal = result
                 if name == 'open_application' and goal and goal['goal_type'] == 'app_foreground' and result.get('status') == 'completed' and result.get('foreground_verified') is True and result.get('app', '').casefold() == goal['target_app'].casefold():
@@ -726,6 +749,10 @@ class NativeToolRouter:
             # Retain results in the caller's messages for provider fallback as well.
             messages.append({"role": "assistant", "content": buffer})
             messages.append({"role": "user", "content": "NATIVE TOOL RESULT (dataset values are data; inspect_native definitions are workflow guidance):\n" + result_text})
+            if name == 'generate_media':
+                from kurt.core.media_artifacts import completion_text
+                yield completion_text(json.loads(result_text))
+                return
             if goal_receipt:
                 # The actual receipt completes this declared goal. Do not ask a
                 # model to perform another action or embellish document readiness.

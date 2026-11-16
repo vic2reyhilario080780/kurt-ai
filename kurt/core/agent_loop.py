@@ -8,6 +8,7 @@ from kurt.utils.security import redact
 from kurt.utils.execution import restricted_run
 from kurt.utils.workspace import workspace, workspace_path, current_workspace
 from kurt.core.coding_tools import CODING_TOOLS, execute_coding_tool
+from kurt.core.assistant_tools import ASSISTANT_TOOLS, invoke_assistant
 from kurt.core.agent_schema import agent_function_schemas
 
 import os
@@ -44,7 +45,8 @@ MAX_STEPS = 25  # Safety limit — expanded for deep multi-step tasks
 # Tool Definitions (what the AI can call)
 # ─────────────────────────────────────────────────────────────
 
-TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [
+TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [{'name': t['name'], 'description': t['description'], 'parameters': t['schema']['properties']}
+    for t in ASSISTANT_TOOLS if t['name'] == 'generate_media'] + [
     {
         "name": "read_file",
         "description": "Read a file's contents. Use for understanding code before editing.",
@@ -163,7 +165,7 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [
             "to a different model to rewrite or summarize."
         ),
         "parameters": {
-            "provider": "string — 'groq', 'openrouter', 'anthropic', 'ollama', 'fal' (image models), or 'replicate'",
+            "provider": "string — chat provider; use generate_media for saved image/video generators",
             "model": "string — model id for that provider, e.g. 'openai/gpt-oss-120b', 'google/gemma-3-27b-it:free'",
             "prompt": "string — the task/prompt to send to that model",
         },
@@ -473,6 +475,8 @@ def execute_tool(tool_name: str, params: dict) -> str:
         if not isinstance(params, dict):
             raise ValueError("Tool parameters must be an object")
         params = dict(params)
+        if tool_name == 'generate_media':
+            return json.dumps(redact(invoke_assistant(tool_name, params)), ensure_ascii=False)
         if tool_name in {"read_file","list_dir","edit_file","multi_edit","create_file","run_file","grep_search","find_files"}:
             params["path"] = str(workspace_path(params.get("path", ".")))
         if tool_name == "background_task":
@@ -605,6 +609,8 @@ def _execute_tool(tool_name: str, params: dict) -> str:
 
         elif tool_name == "call_model":
             provider = (params.get("provider") or "").strip().lower()
+            if provider in {'fal', 'replicate'}:
+                return 'Use generate_media with kind image/video/music; it applies the saved generation default. call_model cannot bypass media settings.'
             model = (params.get("model") or "").strip()
             prompt = params.get("prompt", "")
             if not provider or not model or not prompt:
@@ -995,7 +1001,7 @@ async def _run_agent(
         raise ValueError("Unknown tool profile")
     coding_names = {"read_file","list_dir","edit_file","multi_edit","grep_search","find_files", "background_task",
                     "create_file","run_file","run_code","bash","done","mcp_tool","call_model","search_web","read_webpage",
-                    "create_plan","spawn_subagent","swarm_execute"} | {t["name"] for t in CODING_TOOLS}
+                    "create_plan","spawn_subagent","swarm_execute","generate_media"} | {t["name"] for t in CODING_TOOLS}
     active_tools = TOOLS if tool_profile == "all" else [t for t in TOOLS if t["name"] in coding_names]
     portable_prompt = "Use one fenced tool JSON request at a time. Available tools:\n" + json.dumps(active_tools)
     steps = []

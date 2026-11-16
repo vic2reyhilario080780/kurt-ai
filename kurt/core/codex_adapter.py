@@ -29,10 +29,10 @@ def permission_args(mode):
     if mode not in ('read-only','workspace-write'):
         raise ValueError('Codex mode must be read-only or workspace-write')
     scope={'.':'write' if mode=='workspace-write' else 'read'}
-    for pattern in ('**/.env*','**/*.env','**/*.key','**/*.pem','**/*.kurt-token','**/credentials.json','**/credentials','**/auth.json','**/.credentials.json','**/.npmrc','**/.netrc','**/mcp_connections.json','**/control.db','**/.kurt/**','**/.kurt-saas/**','**/.codex/**','**/.claude/**','**/.aws/**','**/.openclaw-kurt/**'):
+    for pattern in ('**/.env*','**/*.env','**/*.key','**/*.pem','**/*.kurt-token','**/credentials.json','**/credentials','**/auth.json','**/.credentials.json','**/.npmrc','**/.netrc','**/mcp_connections.json','**/control.db','**/.kurt/**','**/.kurt-saas/**','**/.codex/**','**/.claude/**','**/.vibe/**','**/.aws/**','**/.openclaw-kurt/**'):
         scope[pattern]='deny'
     fs={':root':'deny',':minimal':'read',':workspace_roots':scope,'glob_scan_max_depth':8}
-    for name in ('.kurt','.kurt-saas','.aws','.ssh','.gnupg','.config','.claude','.gemini','.codex','.openclaw','Library/Keychains'):
+    for name in ('.kurt','.kurt-saas','.aws','.ssh','.gnupg','.config','.claude','.gemini','.vibe','.codex','.openclaw','Library/Keychains'):
         fs[str(Path.home()/name)]='deny'
     # Homebrew and local Node runtimes are outside Codex's minimal system roots.
     for runtime in (Path('/opt/homebrew'), Path.home()/'.nvm/versions/node'):
@@ -73,13 +73,13 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
     policy=permission_args(mode)
     binary=executable()
     if not binary:return {'status':'missing','hint':'Install Codex CLI and run codex login.','changes_verified':False}
-    command=[binary,'exec','--ignore-user-config','--ignore-rules','--ephemeral','--json','--color','never',
+    command=[binary,'exec','--ignore-user-config','--ignore-rules','--ephemeral','--json','--skip-git-repo-check','--color','never',
              '--cd',str(root),*policy,'-']
     # Only Codex's own auth mechanism is available, never all Kurt provider keys.
     result=run_bounded(command,env=child_env(allow=('OPENAI_API_KEY','CODEX_HOME')),cwd=str(root),
                        timeout=timeout,input_text=redact(task),max_output=1024*1024)
     messages,events,changed=[],[],[]
-    error_codes = []
+    error_codes, errors = [], []
     completed,failed=False,False
     for line in result.pop('stdout').splitlines():
         try:event=json.loads(line)
@@ -90,6 +90,8 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
         if kind in ('error','turn.failed'):failed=True
         if kind in ('error', 'turn.failed'):
             error = event.get('error')
+            message = error.get('message') if isinstance(error, dict) else event.get('message')
+            if isinstance(message, str): errors.append(message[:1200])
             code = error.get('code') if isinstance(error, dict) else event.get('code')
             if isinstance(code, str):error_codes.append(code)
         item=event.get('item',{})
@@ -107,5 +109,6 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
     result.update({'backend':'codex','mode':mode,'workspace':str(root),'final_text':'\n'.join(messages)[-16384:],
                    'reported_files_changed':sorted(set(changed)),'events':events,'changes_verified':False,
                    'provider_error_codes':error_codes,
+                   'errors':errors[-5:],
                    'hint':'Inspect the diff and check results. A timeout/output limit can leave partial edits; do not retry automatically.'})
     return redact(result)

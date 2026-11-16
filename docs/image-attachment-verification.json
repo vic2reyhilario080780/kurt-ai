@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "checks": {
+    "process_exited": true,
+    "attachment_indicator": true,
+    "image_response": true,
+    "not_unknown_command": true,
+    "exact_image_bytes_delivered": true
+  },
+  "requests": [
+    {
+      "path": "/api/chat",
+      "model": "fixture-vision",
+      "image_count": 1,
+      "bytes_match": true
+    }
+  ],
+  "scope": "Real installed CLI and local HTTP protocol fixture; no model inference, private photo upload or paid API call"
+}

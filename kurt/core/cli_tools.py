@@ -198,11 +198,14 @@ def cli_status(probe=False):
 
 def register_commands(app, console):
     import typer
-    group = typer.Typer(help="Orchestrate OpenClaw tasks and Peekaboo desktop commands")
+    group = typer.Typer(help="Inspect AI CLIs, test default adapters, and run desktop delegates")
     app.add_typer(group, name="cli")
+    from kurt.core.cli_readiness import register_commands as register_readiness
+    register_readiness(group)
 
     @group.command("status")
     def status(probe: bool = typer.Option(False, help="Also check Gateway health and desktop permissions")):
+        """Desktop runtimes/permissions; use cli probe all for AI CLI versions."""
         print(json.dumps(cli_status(probe), indent=2, ensure_ascii=False))
 
     @group.command("setup-openclaw")

@@ -1,0 +1,26 @@
+{
+  "tested_at": "2026-11-16T05:53:03.689117+00:00",
+  "tests_passed": 365,
+  "paid_generation_submitted": false,
+  "method": "Temporary persona settings, scripted planner, real provider adapter with mocked HTTP transport",
+  "verified_paths": [
+    "picker -> saved setting -> banner -> exact fal request path/prompt",
+    "pinned chat model -> generate_media -> saved image target",
+    "CLI-selected session -> explicit /image or /video -> saved media path",
+    "generic call_model media bypass blocked",
+    "provider failure -> single POST, no alternate model",
+    "dry-run -> no generation call",
+    "wrong role and empty prompt -> no provider request"
+  ],
+  "models": [
+    "google/nano-banana-2.1",
+    "fal-ai/nano-banana",
+    "fal-ai/kling-video/v3/standard/text-to-video"
+  ],
+  "limitations": [
+    "No live provider balance checked",
+    "No paid artifact generated or quality inspected",
+    "External CLI natural-language execution depends on its own tools; explicit media commands use Kurt defaults",
+    "Advanced endpoint input schemas are not universally validated"
+  ]
+}

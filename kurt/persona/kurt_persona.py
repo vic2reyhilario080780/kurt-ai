@@ -70,7 +70,7 @@ class KurtPersona:
                 return name
         return "casual"
 
-    def build(self, user_input: str, mode: str = "auto") -> dict:
+    def build(self, user_input: str, mode: str = "auto", *, include_history: bool = True) -> dict:
         """Returns {"system_prompt": str, "temperature": float, "mode": str}."""
         resolved_mode = self.detect_mode(user_input, mode)
         now = datetime.now().strftime("%Y-%m-%d (%A), %H:%M")
@@ -80,7 +80,7 @@ class KurtPersona:
             f"=== MEMORY TUNGKOL KAY DADDY TITO ===\n{self._memory_text()}",
             f"=== CONTEXT ===\nPetsa/oras ngayon: {now}\nKasalukuyang mode: {resolved_mode}",
         ]
-        if self.history:
+        if include_history and self.history:
             recent = "\n".join(
                 f"Daddy Tito: {u}\nKURT: {r}" for u, r in self.history[-HISTORY_IN_PROMPT:]
             )

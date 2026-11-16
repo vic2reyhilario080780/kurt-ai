@@ -96,3 +96,34 @@ and Ctrl+C. Input streams explicitly abort queued input and close; graceful
 PortAudio stop previously hung intermittently during interpreter termination.
 Exit does not play a goodbye response. Six real terminal sessions returned to
 the shell in about 1.3 seconds; see `chat-exit-verification.json`.
+
+## Follow-up: native microphone process isolation (2026-11-16)
+
+The prior abort/close fix did not eliminate native CoreAudio stop hangs. A live
+terminal process still had a microphone thread blocked in FinishStoppingStream.
+A three-second join cannot safely unwind that native call, and importing
+sounddevice in the parent also registers a PortAudio termination callback.
+
+On macOS, recording now runs in an owned child process. Only that child imports
+sounddevice. Kurt receives 512-sample float32 frames through a pipe with bounded
+startup/read waits and cancellation checks. The worker first gets a normal stop
+request; a stuck worker is terminated, then killed and reaped with bounded waits.
+Provider keys are excluded from its environment. Dependency discovery uses
+find_spec so it does not initialize audio in the parent. Other platforms keep
+the existing in-process recording implementation.
+
+Regression coverage includes a real child deliberately ignoring SIGTERM, plus
+PCM transport, credential filtering, cancellation and failed startup. A live
+microphone frame was received and the worker reaped, with sounddevice absent
+from the parent. Full suite: **356 tests passed**.
+
+Run the terminal check explicitly (it starts owned shells and microphone sessions):
+
+```sh
+python3 tools/verify_chat_exit.py --live --idle-seconds 8 --output /tmp/kurt-exit-check.json
+```
+
+This covers bare kurt from the home directory, picker text replacement, nested
+exit, Ctrl+D, explicit chat and F5 conversation mode. The shell prompt itself is
+required for success. Already-running Kurt sessions need restarting to load the
+new implementation. No existing user terminal process was killed by this change.

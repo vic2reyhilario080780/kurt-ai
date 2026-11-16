@@ -52,8 +52,8 @@ ASSISTANT_TOOLS = [
     spec('pause_library_music', 'Pause Music and verify playback state.', {}),
     spec('download_url', 'Download an explicit user-supplied HTTP(S) URL, max 10 MiB, no overwrite or execution.',
          {'url': STRING, 'output': STRING}, ['url']),
-    spec('generate_media', 'Generate new image/music/video content through the configured generation provider. Use for creation, not playback or app opening. Requires provider credits; reports errors.',
-         {'kind': {'type': 'string', 'enum': ['image', 'music', 'video']}, 'prompt': STRING}, ['kind', 'prompt']),
+    spec('generate_media', 'Generate new image/music/video content through the configured generation provider. Use for creation, not playback or app opening. Requires provider credits. With attached images choose reference_image=0+ or explicitly -1 for text-only. Only supported image-to-video defaults accept a photo. Verified file receipt is required for completion; dialogue/lip sync remains unverified.',
+         {'kind': {'type': 'string', 'enum': ['image', 'music', 'video']}, 'prompt': STRING, 'reference_image': {'type': 'integer', 'description': 'Index of attached image, starting at 0. Use -1 only for explicitly text-only generation.'}}, ['kind', 'prompt']),
 ]
 ASSISTANT_NAMES = {tool['name'] for tool in ASSISTANT_TOOLS}
 DESKTOP_NAMES = ASSISTANT_NAMES - {'download_url', 'check_email', 'play_library_music', 'pause_library_music', 'generate_media'}
@@ -93,17 +93,44 @@ def invoke_assistant(name, params):
         from .router import ModelRouter
         if params['kind'] not in ('image', 'music', 'video'):
             raise ValueError('Use image, music or video.')
+        if not isinstance(params['prompt'], str) or not params['prompt'].strip():
+            raise ValueError('Provide a nonempty generation prompt.')
         target = media_target(params['kind'])
         router = ModelRouter()
         router.strict_selection = True
         if not router._has_key(target['provider']):
             return {'status': 'blocked', 'reason': f"No configured {target['provider']} generation key."}
+        from .media_artifacts import REFERENCE_IMAGES, FAL_REFERENCE, I2V_MODELS, finalize_artifact
+        from kurt.utils.security import redact
+        images = REFERENCE_IMAGES.get()
+        index = params.get('reference_image', -1 if not images else None)
+        if type(index) is not int or index < -1 or index >= len(images):
+            return {'status': 'blocked', 'reason': 'Choose reference_image index 0+ from attached images, or -1 for explicitly text-only generation.'}
+        reference = images[index] if index >= 0 else None
+        if reference and (target['provider'] != 'fal' or target['model'] not in I2V_MODELS):
+            return {'status': 'blocked', 'reason': 'This saved default has no supported reference-image contract. Choose Kling 3 image-to-video in /video-model first. No paid request was sent.'}
+        if target['model'] in I2V_MODELS and not reference:
+            return {'status': 'blocked', 'reason': 'This image-to-video default requires an attached image and reference_image index. No paid request was sent.'}
         async def generate():
             return ''.join([chunk async for chunk in router.route(target['provider'], target['model'],
                 [{'role': 'user', 'content': params['prompt']}], media_kind=params['kind'])])
-        return {'status': 'provider_result', 'output': asyncio.run(generate()),
-                'model': target['model'], 'provider': target['provider'],
-                'note': 'Inspect the returned artifact/link or error before claiming generation succeeded.'}
+        token = FAL_REFERENCE.set(reference)
+        output = None
+        try:
+            output = asyncio.run(generate())
+            from .media_generation import artifact_url
+            if not artifact_url(output):
+                raise RuntimeError('The selected generator did not return an artifact URL.')
+            artifact = finalize_artifact(output, params['kind'])
+            return {**artifact, 'status': 'completed', 'kind': params['kind'],
+                    'model': target['model'], 'provider': target['provider'], 'reference_used': bool(reference)}
+        except Exception as exc:
+            # A timeout may follow a charged request. Never let chat fallback replay it.
+            return {'status': 'unverified', 'kind': params['kind'], 'model': target['model'],
+                    'provider': target['provider'], 'output': output, 'reason': redact(str(exc)),
+                    'retry_safe': False}
+        finally:
+            FAL_REFERENCE.reset(token)
     actions = {'observe_application': 'observe', 'fill_field': 'fill', 'click_element': 'click',
                'move_pointer': 'move', 'press_key': 'press', 'scroll_window': 'scroll'}
     if name in actions:
@@ -168,6 +195,7 @@ def invoke_assistant(name, params):
 
 
 ASSISTANT_POLICY = '''
+Inline image blocks contain the actual attached photo, including in follow-up turns. Do not say the image vanished just because its old disk path is unreadable. A vision-capable model is required to interpret it. For photo-based generation use generate_media with an explicit reference_image index; never pretend text-only output used the photo. File verification alone does not establish the requested scene, exact dialogue or lip sync.
 Act as a goal-directed assistant. Understand meaning and conversation context,
 not trigger words. A request may imply an action without naming an app or saying
 "open". Use list_apps to discover available apps and choose a suitable one.

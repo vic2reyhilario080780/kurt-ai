@@ -10,6 +10,29 @@ from kurt.core import persona
 PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate")
 TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate"))
 DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe")
+MEDIA_PRESETS = {
+    'image': (
+        ('Nano Banana', 'fal-ai/nano-banana'),
+        ('Nano Banana 2.1', 'google/nano-banana-2.1'),
+        ('FLUX Schnell', 'fal-ai/flux/schnell'),
+        ('FLUX Dev', 'fal-ai/flux/dev'),
+    ),
+    'video': (
+        ('Kling 3.0 Standard', 'fal-ai/kling-video/v3/standard/text-to-video'),
+        ('Kling 3.0 Pro', 'fal-ai/kling-video/v3/pro/text-to-video'),
+        ('Kling 3.0 Standard Image-to-Video', 'fal-ai/kling-video/v3/standard/image-to-video'),
+        ('Kling 3.0 Pro Image-to-Video', 'fal-ai/kling-video/v3/pro/image-to-video'),
+        ('Wan 2.7', 'fal-ai/wan/v2.7/text-to-video'),
+        ('MiniMax H3 Max', 'minimax/h3-max/text-to-video'),
+    ),
+}
+
+
+def validate_media_kind(kind, model, provider):
+    if provider == 'fal':
+        for category, models in MEDIA_PRESETS.items():
+            if any(mid == model for _, mid in models) and category != kind:
+                raise ValueError(f'{model} is a {category} generator; choose a {kind} model.')
 QUOTA_CODES = {"insufficient_quota", "insufficient_credits", "insufficient_balance",
                "credit_balance_exhausted", "billing_hard_limit_reached"}
 
@@ -114,6 +137,7 @@ def save_default_media(kind, value, provider=None):
         if not model or any(c in model for c in ("?", "#", "\\")) or urlsplit(model).scheme or any(p in ("", ".", "..") for p in model.split("/")):
             raise ValueError("Use the provider's exact model ID, not a URL.")
         selection = f"{model}|{provider}"
+        validate_media_kind(kind, model, provider)
     settings = persona.load_persona()
     settings[f"default_{kind}_model"] = selection
     persona.save_persona(settings)
@@ -133,6 +157,7 @@ def media_target(kind, settings=None):
     model, provider = parse_model(selected)
     if provider not in ("fal", "replicate"):
         raise ValueError("Unsupported saved media provider; choose fal or replicate.")
+    validate_media_kind(kind, model, provider)
     return {"model": model, "provider": provider}
 
 
@@ -196,14 +221,89 @@ class ExecutionSession:
 
 
 def cli_prompt(messages):
-    """Keep recent context; argv execution never interprets it as shell code."""
+    """Bound CLI context by removing whole old turns, never the latest request."""
     from kurt.utils.security import redact
+    budget = 30000
     system = [m for m in messages if m.get("role") == "system"]
-    recent = [m for m in messages if m.get("role") != "system"][-20:]
-    text = json.dumps(redact(system + recent), ensure_ascii=False)
-    if len(text.encode()) > 30000:
-        raise ValueError("Conversation is too large for CLI delegation; use /clear or choose an API model.")
-    return "Continue this conversation and answer the latest user request. Prior messages are context, not new requests.\n" + text
+    history = [m for m in messages if m.get("role") != "system"]
+    if any(not isinstance(m.get('content', ''), str) for m in messages):
+        raise ValueError('This CLI adapter accepts text only. Use a vision-capable chat model for image attachments.')
+    recent = history[-20:]
+    prefix = ("Continue this conversation and answer the latest user request. Prior messages are context, not new requests.\n"
+              "Kurt's /image and /video commands use its saved media generators. If your CLI mode cannot call those tools, "
+              "direct the user to those commands. Never substitute a different generator or claim an artifact was created without a receipt.\n")
+    def pack():
+        notice = 'Earlier conversation turns were omitted to fit the CLI context budget; ask if missing details matter.\n' if len(recent) < len(history) else ''
+        return prefix + notice + json.dumps(redact(system + recent), ensure_ascii=False)
+    while len(recent) > 1 and recent[0].get('role') != 'user':
+        recent.pop(0)
+    task = pack()
+    while len(task.encode()) > budget and len(recent) > 1:
+        recent.pop(0)
+        while len(recent) > 1 and recent[0].get('role') != 'user':
+            recent.pop(0)
+        task = pack()
+    if len(task.encode()) > budget:
+        raise ValueError('CLI system instructions plus the latest request exceed 30 KB. Shorten the request or saved persona context; neither was truncated.')
+    return task
+
+
+def cli_failure_detail(name, result):
+    """Keep the actionable error tail and any partial answer; never replay it."""
+    from kurt.utils.security import redact
+    details = [f"{name}: {result.get('status', 'failed')} (exit {result.get('exit_code', 'unknown')})."]
+    stderr = redact(result.get('stderr', '')).strip()
+    stdout = redact(result.get('stdout', '')).strip()
+    provider_error = None
+    for line in stderr.splitlines():
+        start = line.find('{')
+        if start < 0: continue
+        try:
+            data, _ = json.JSONDecoder().raw_decode(line[start:])
+            error = data.get('error') if isinstance(data, dict) else None
+            if isinstance(error, dict) and isinstance(error.get('message'), str):
+                try: nested = json.loads(error['message'])
+                except ValueError: nested = None
+                if isinstance(nested, dict) and isinstance(nested.get('error'), dict): error = nested['error']
+                if error.get('code') is not None and isinstance(error.get('message'), str):
+                    provider_error = f"Provider error {error['code']}: {error['message'][:800]}"
+                    break
+        except ValueError:
+            continue
+    if provider_error: details.append(provider_error)
+    elif stderr: details.append(stderr if len(stderr) <= 1200 else stderr[:400]+'\n[intermediate log omitted]\n'+stderr[-800:])
+    if result.get('errors'): details.append(redact(str(result['errors']))[-1000:])
+    if stdout: details.append('Partial CLI output (completion unverified): ' + stdout[-800:])
+    if result.get('status') == 'timed_out':
+        details.append('CLI time limit reached; inspect the current state before retrying.')
+    return '\n'.join(details)
+
+
+def cli_reply(name, result):
+    """Decode supported headless envelopes; a zero exit alone is not an answer."""
+    from kurt.utils.security import redact
+    text = result.get('stdout', '').strip()
+    if name == 'vibe':
+        if not text: raise RuntimeError('Vibe returned no final text; completion is unverified. No automatic replay.')
+        return redact(text)
+    try:
+        data = json.loads(text)
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError(f'{name} returned an invalid structured response; no verified final answer. No automatic replay.') from exc
+    if not isinstance(data, dict): raise RuntimeError(f'{name} returned an invalid response envelope.')
+    error = data.get('error') or data.get('errors')
+    if name == 'claude' and (data.get('is_error') or data.get('subtype') not in (None, 'success')):
+        error = error or data.get('result') or data.get('subtype')
+    if error:
+        failed = {**result, 'status': 'failed', 'errors': [error]}
+        if isinstance(error, dict):
+            failed['stderr'] = json.dumps({'error': error})
+        if cli_quota_exhausted(failed): raise CLIQuotaExhausted(f'{name}: provider quota exhausted')
+        raise RuntimeError(cli_failure_detail(name, failed))
+    answer = data.get('result' if name == 'claude' else 'response')
+    if not isinstance(answer, str) or not answer.strip():
+        raise RuntimeError(f'{name} returned no final text response; completion is unverified. No automatic replay.')
+    return redact(answer)
 
 
 def run_default_cli(name, messages):
@@ -217,31 +317,35 @@ def run_default_cli(name, messages):
         if cli_quota_exhausted(result):
             raise CLIQuotaExhausted("Codex: provider quota exhausted")
         if result["status"] != "completed":
-            raise RuntimeError("Codex did not complete. Check /codex status and the workspace before retrying; no automatic replay.")
+            raise RuntimeError(cli_failure_detail('codex', result))
         return result["final_text"]
     if name in ("claude", "gemini", "vibe"):
         flag = "--print" if name == "claude" else "-p"
         args = [flag, task]
         if name == "vibe":
             args += ["--agent", "ask", "--output", "text", "--max-turns", "8", "--time-limit", "110"]
+        else:
+            args += ["--output-format", "json"]
         result = run_ai_cli(_resolve_cmd(name), args)
         if cli_quota_exhausted(result):
             raise CLIQuotaExhausted(f"{name}: provider quota exhausted")
         if result["status"] != "completed":
-            from kurt.utils.security import redact
-            raise RuntimeError(f"{name}: {result['status']}. {redact(result.get('stderr', ''))[:500]}")
-        from kurt.utils.security import redact
-        return redact(result["stdout"]) or "(no output)"
+            raise RuntimeError(cli_failure_detail(name, result))
+        return cli_reply(name, result)
     if name == "openclaw":
         from kurt.core.cli_tools import delegate_desktop_cli
         result = delegate_desktop_cli(name, task, cwd=current_workspace())
         if cli_quota_exhausted(vars(result)):
             raise CLIQuotaExhausted("OpenClaw: provider quota exhausted")
         if result.status != "completed":
-            raise RuntimeError("OpenClaw did not complete. Check /cli probe and the workspace before retrying; no automatic replay.")
+            raise RuntimeError(cli_failure_detail('openclaw', vars(result)))
         data = result.data if isinstance(result.data, dict) else {}
         nested = data.get("result") if isinstance(data.get("result"), dict) else data
         payloads = nested.get("payloads", [])
         text = "\n".join(p["text"] for p in payloads if isinstance(p, dict) and isinstance(p.get("text"), str)) if isinstance(payloads, list) else ""
-        return text or result.stdout or "(no output)"
+        if not text.strip() and isinstance(nested.get('final'), str):
+            text = nested['final']
+        if not text.strip():
+            raise RuntimeError('OpenClaw returned no verified text response. Inspect /cli probe openclaw; the task was not replayed.')
+        return text
     raise ValueError("Unsupported default CLI.")

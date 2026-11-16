@@ -4,6 +4,7 @@ Supports: OpenRouter, Groq, Google AI, DeepSeek, Ollama (local)
 """
 
 from kurt.utils.security import redact
+from kurt.core.attachments import redact_messages, provider_image_messages
 
 import os
 import json
@@ -84,7 +85,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": redact(messages),
+            "messages": redact_messages(messages),
             "stream": stream,
         }
         if temperature is not None:
@@ -136,7 +137,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": redact(messages),
+            "messages": redact_messages(messages),
             "stream": stream,
         }
         if temperature is not None:
@@ -147,7 +148,7 @@ class ModelRouter:
         calls = {}
         if native_tools:
             from kurt.capabilities.bridge import function_history
-            payload["messages"] = function_history(redact(messages), native_tools)
+            payload["messages"] = function_history(redact_messages(messages), native_tools)
             payload["tools"] = native_tools
             payload["tool_choice"] = "auto"
             payload["parallel_tool_calls"] = False
@@ -260,6 +261,11 @@ class ModelRouter:
             "Content-Type": "application/json",
         }
         payload = {"prompt": redact(prompt)}
+        from .media_artifacts import FAL_REFERENCE, I2V_MODELS
+        reference = FAL_REFERENCE.get()
+        if reference and model in I2V_MODELS:
+            payload['start_image_url'] = reference
+
 
         async with httpx.AsyncClient(timeout=600.0 if media_kind == "video" else 60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
@@ -352,7 +358,7 @@ class ModelRouter:
         # Separate system messages from user/assistant messages
         system_parts = []
         chat_messages = []
-        for m in redact(messages):
+        for m in provider_image_messages(redact_messages(messages), "anthropic"):
             if m["role"] == "system":
                 system_parts.append(m["content"])
             else:
@@ -405,7 +411,7 @@ class ModelRouter:
 
         payload = {
             "model": model,
-            "messages": redact(messages),
+            "messages": provider_image_messages(redact_messages(messages), "ollama"),
             "stream": stream,
         }
         if temperature is not None:
@@ -451,7 +457,7 @@ class ModelRouter:
     ) -> AsyncGenerator[str, None]:
         """Main routing function - picks the right provider"""
 
-        messages = redact(messages)
+        messages = redact_messages(messages)
 
         # Check if provider key exists, fallback to openrouter
         supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"}

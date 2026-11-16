@@ -28,7 +28,7 @@ def _resolve_cmd(name: str) -> str:
     This way LAHAT ng tools nasa project folder, hindi sa iMac globally.
     """
     local = NODE_BIN / name
-    if local.exists():
+    if local.is_file() and os.access(local, os.X_OK):
         return str(local)
     # Return an executable path, never a compound shell command.
     resolved = shutil.which(name)
@@ -68,6 +68,8 @@ SLASH_COMMANDS = {
     # ── AI Tools — models, skills, and native workflows ─────────────
     "/image-model": "Choose default image generator: /image-model <model-id> fal|replicate",
     "/video-model": "Choose default video generator: /video-model <model-id> fal|replicate",
+    "/image": "Generate an image using the saved image default: /image <prompt>",
+    "/video": "Generate a video using the saved video default: /video <prompt>",
     "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
     "/models":    "Show the live model routing table  e.g. /models",
     "/skill":     "Apply a skill to the next message  e.g. /skill tiktok",
@@ -83,7 +85,7 @@ SLASH_COMMANDS = {
     "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
     "/openclaw":  "Delegate a task to OpenClaw  e.g. /openclaw summarize the task results",
     "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
-    "/cli":       "CLI availability/readiness  e.g. /cli status | /cli probe",
+    "/cli":       "CLI defaults/readiness: /cli status | /cli probe all | /cli test <name> (may use credits)",
     "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
     "/connect":   "Connect an app (Gmail, Slack, Shopify...) — opens the login page for you  e.g. /connect gmail",
     "/zapier":    "Browse 9,000+ Zapier app integrations  e.g. /zapier search shopify | /zapier open gmail",
@@ -103,7 +105,7 @@ SLASH_COMMANDS = {
 
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
-    ("🧠 AI Tools", ["/model", "/models", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
+    ("🧠 AI Tools", ["/model", "/models", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
     ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
@@ -145,7 +147,7 @@ def _get_browser_session():
 def _cmd_exists(cmd: str) -> bool:
     """Check if a CLI tool is available — local node_modules first, then global"""
     local = NODE_BIN / cmd
-    if local.exists():
+    if local.is_file() and os.access(local, os.X_OK):
         return True
     return shutil.which(cmd) is not None
 
@@ -155,6 +157,17 @@ def _ai_cli_env(cmd):
     name = Path(cmd).name
     allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else ("GH_TOKEN", "GITHUB_TOKEN")
     env = child_env(allow=allowed)
+    # Agent hosts can prepend private helper binaries (e.g. ~/.codex) to
+    # PATH. A different CLI must not try to resolve tools through that vault.
+    from kurt.utils.execution import _protected_paths
+    protected, _ = _protected_paths(service=name)
+    entries = []
+    for entry in env.get('PATH', '').split(os.pathsep):
+        if not entry: continue
+        path = Path(entry).expanduser().resolve()
+        if not any(path == root.resolve() or root.resolve() in path.parents for root in protected):
+            entries.append(entry)
+    env['PATH'] = os.pathsep.join([str(NODE_BIN), *(entries or os.defpath.split(os.pathsep))])
     if name == 'vibe':
         import ssl
         cert = ssl.get_default_verify_paths().cafile
@@ -240,6 +253,9 @@ def handle_slash(
     """
 
     p = prompt.strip()
+    from kurt.core.attachments import is_local_path_input
+    if is_local_path_input(p):
+        return SlashResult(handled=False, output='', continue_chat=True)
 
     # Typing the literal CLI invocation instead of the in-chat command is an
     # easy slip — the chat's own prompt line also just reads "kurt ...".
@@ -285,6 +301,18 @@ def handle_slash(
     if cmd in ("/exit", "/quit"):
         close_browser_session()
         return SlashResult(handled=True, output="👋 Bye! K.U.R.T. signing off.", continue_chat=False)
+
+    if cmd in ('/image', '/video'):
+        from kurt.core.media_generation import generate_selected_media
+        kind = cmd[1:]
+        if not args.strip():
+            return SlashResult(True, f'Usage: {cmd} <generation prompt>. Uses the saved {kind} model.', True)
+        try:
+            result = generate_selected_media(kind, args)
+            output = json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            output = f'Generation failed; no alternate model was used. {redact(str(exc))[:1000]}'
+        return SlashResult(True, output, True, feed_to_ai=True)
 
     if cmd in ("/image-model", "/video-model"):
         from kurt.core.execution_preferences import save_default_media, media_label
@@ -557,6 +585,17 @@ def handle_slash(
     if cmd == "/cli":
         from kurt.core.execution_preferences import DEFAULT_CLIS, save_default_cli
         parts = args.split()
+        if len(parts) == 2 and parts[0] in ('probe', 'test'):
+            from kurt.core.cli_readiness import probe_clis, test_default_cli
+            try:
+                if parts[0] == 'probe':
+                    entries = probe_clis(parts[1])
+                    report = entries if parts[1] == 'all' else entries[0]
+                else:
+                    report = test_default_cli(parts[1])
+            except ValueError as exc:
+                return SlashResult(True, str(exc), True)
+            return SlashResult(True, json.dumps(report, indent=2), True)
         if parts and parts[0] in ("default", "use"):
             if len(parts) != 2 or parts[1] not in DEFAULT_CLIS:
                 return SlashResult(True, "Usage: /cli default|use " + "|".join(DEFAULT_CLIS), True)
@@ -572,12 +611,11 @@ def handle_slash(
             rows = [f"Current CLI: {current_cli}", f"Saved default CLI: {settings.get('default_cli', 'auto')}",
                     f"Saved default model: {settings.get('default_model', 'auto')}"]
             rows.extend(f"{name}: {'installed' if _cmd_exists(name) else 'not installed'}" for name in DEFAULT_CLIS if name != "auto")
-            rows.append("Set default: /cli default <name> | Session only: /cli use <name> | Readiness: /cli probe")
+            rows.append("Set default: /cli default <name> | Session only: /cli use <name> | Versions: /cli probe all | Live response: /cli test <name> (may use credits)")
             return SlashResult(True, "\n".join(rows), True)
         from kurt.core.cli_tools import cli_status
-        import json
         if args not in ("", "status", "probe"):
-            return SlashResult(True, "Usage: /cli status | /cli probe | /cli default <name> | /cli use <name>", True)
+            return SlashResult(True, "Usage: /cli status | /cli probe [all|name] | /cli test <name> (may use credits) | /cli default <name> | /cli use <name>", True)
         return SlashResult(True, json.dumps(cli_status(probe=args == "probe"), indent=2), True)
 
     if cmd in ("/openclaw", "/peekaboo"):
@@ -594,7 +632,6 @@ def handle_slash(
 
     if cmd == "/codex":
         from kurt.core.codex_adapter import run_codex, codex_status
-        import json
         if args in ("", "status"):
             return SlashResult(True, json.dumps(codex_status(),ensure_ascii=False),True)
         try:

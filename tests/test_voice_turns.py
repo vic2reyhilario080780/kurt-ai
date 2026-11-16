@@ -63,7 +63,8 @@ class CaptureTests(unittest.TestCase):
                 level = samples[index] if index < len(samples) else 0.0
                 return np.full((count, 1), level, dtype=np.float32), False
         writer = Mock(return_value="fixture.wav")
-        with patch.dict("sys.modules", {"sounddevice": SimpleNamespace(InputStream=Stream)}), \
+        real_stream = voice._input_stream
+        with patch.object(voice, '_input_stream', lambda sd, rate, **kw: real_stream(SimpleNamespace(InputStream=Stream), rate)), \
              patch.object(voice, "_write_audio", writer):
             result = voice.record_until_silence(speech_detector=lambda a: .95 if float(a[0, 0]) > 0 else .01,
                                                 start_timeout=1, **kwargs)
@@ -96,7 +97,7 @@ class CaptureTests(unittest.TestCase):
         fallback.assert_not_called()
 
     def test_capture_error_never_falls_back_to_partial_recording(self):
-        with patch.dict("sys.modules", {"sounddevice": SimpleNamespace(InputStream=Mock(side_effect=OSError))}), \
+        with patch.object(voice, '_input_stream', side_effect=OSError), \
              patch.object(voice, "record_audio") as fallback:
             result = voice.record_until_silence(speech_detector=lambda a: .9)
         self.assertIsNone(result)

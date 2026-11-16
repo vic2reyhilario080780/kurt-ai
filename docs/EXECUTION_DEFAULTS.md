@@ -114,8 +114,8 @@ or change settings to retry it after topping up.
 
 Image and video have independent saved defaults. In the picker, open
 `/config` → **image** / **video**, or open `/image-model` / `/video-model`.
-Bundled choices include FLUX Schnell/Dev for images and Wan 2.7/MiniMax H3
-Max for video. The fal catalog adds entries filtered to `text-to-image`
+Bundled choices include Nano Banana / Nano Banana 2.1 and FLUX Schnell/Dev
+for images; Kling 3.0 Standard/Pro and Wan 2.7/MiniMax H3 Max for video. The fal catalog adds entries filtered to `text-to-image`
 or `text-to-video`; editing/upscaling and reference-image models are not
 offered as prompt-only generators. Exact fal or Replicate model IDs can
 also be entered manually. Other providers require separate media adapters.
@@ -199,3 +199,85 @@ API references: [Mistral](https://docs.mistral.ai/api/endpoint/chat),
 [DeepSeek error codes](https://api-docs.deepseek.com/quick_start/error_codes/),
 [Google compatibility](https://ai.google.dev/gemini-api/docs/openai),
 [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+## Media execution checks (2026-11-16)
+
+The picker, saved setting, banner and request dispatcher were tested together
+with named Nano Banana 2.1 and Kling 3.0 Standard selections. Their exact fal
+model IDs become the requested endpoint paths; the generation router is strict
+and cannot silently substitute another provider. Known bundled models cannot
+be saved under the wrong image/video role. Advanced manually entered endpoints
+are not universally schema-validated; prompt-only compatibility still matters.
+
+Examples of the official endpoint IDs:
+
+- [Nano Banana](https://fal.ai/models/fal-ai/nano-banana/api): `fal-ai/nano-banana`
+- [Nano Banana 2.1](https://fal.ai/models/google/nano-banana-2.1): `google/nano-banana-2.1`
+- [Kling 3.0 Standard](https://fal.ai/models/fal-ai/kling-video/v3/standard/text-to-video/api): `fal-ai/kling-video/v3/standard/text-to-video`
+
+Use `/setting` → Image AI / Video AI to select them. Empty catalogs still
+include these bundled choices. Picker search is case-insensitive.
+
+Explicit generation commands bypass chat/CLI model selection and call the same
+saved-default generation tool:
+
+```text
+/image A blue bird sitting on a branch
+/video A blue bird flying through a forest
+kurt generate image "A blue bird sitting on a branch"
+kurt generate video "A blue bird flying through a forest"
+kurt generate image --dry-run
+kurt generate video --dry-run
+```
+
+The dry run prints the resolved model/provider and key-configuration status
+without submitting a paid job. Key configuration does not prove available credits.
+Actual generation uses the selected API provider's credits, not a consumer
+subscription on a model's website. No user defaults are changed by these commands.
+
+Native chat uses `generate_media` even when a chat model is pinned. Generic
+`call_model` cannot bypass media defaults through fal/Replicate; the coding agent
+also exposes the saved-default generation tool. An external CLI has its own
+tools and permissions: if it cannot invoke media generation, use `/image` or
+`/video` for deterministic dispatch rather than assuming it has generated media.
+CLI prompts now explain this distinction.
+
+Validation used mocked provider HTTP responses with real request serialization,
+including exact endpoint/prompt and a failure with no alternate model or duplicate
+POST. No billable image/video job was submitted. No live provider balance or
+artifact quality claim is made.
+
+## Default CLI troubleshooting (2026-11-16)
+
+`/cli probe vibe` checks the installed Vibe executable/version through Kurt's
+service adapter. It does not submit a model request or prove authentication,
+credits or task completion. `/cli status` shows the active and saved CLI.
+
+Long CLI conversations are now reduced by dropping complete oldest turns until
+the full prompt fits within 30 KB. System instructions and the latest request
+are never truncated. A notice in the CLI context says that earlier turns were
+omitted. CLI persona construction does not repeat conversation history inside
+the system prompt, since that same history is already sent as separate context.
+Oversized instructions/latest requests still fail with a specific error.
+
+CLI failures show the process status/exit code, the useful end of stderr and any
+partial answer, marked unverified. This does not auto-replay a failed task or
+change the selected CLI. Restart a running Kurt session to load code updates.
+
+The live default adapter and a full chat from the home directory both returned
+expected Vibe response markers. A deliberately oversized old history also passed
+a real Vibe response after compaction. Full suite: 381 tests passed. The user's
+original error text was not supplied during these checks, so its exact cause is
+not established.
+
+## All default CLI adapters (2026-11-16)
+
+See [the full CLI audit](DEFAULT_CLI_AUDIT.md) for current live results and fixes.
+Use `/cli probe all` for version checks and `/cli test <name>` for a minimal
+response test that may consume credits. Missing executables cannot be selected
+from the picker; installed does not mean authenticated or funded. Claude and
+Gemini structured replies are parsed, and zero-exit errors/empty responses are
+not accepted as final answers. Existing saved defaults remain unchanged by tests.
+
+Codex, Claude, OpenClaw and Vibe passed live response tests. Gemini returned
+Google HTTP 503/high demand, so its provider readiness remains unverified.

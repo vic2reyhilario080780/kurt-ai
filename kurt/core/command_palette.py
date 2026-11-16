@@ -118,7 +118,7 @@ def _matches(query: str, *haystacks: str) -> bool:
     if not query:
         return True
     blob = " ".join(haystacks).casefold()
-    return all(word in blob for word in query.split())
+    return all(word in blob for word in query.casefold().split())
 
 
 def _flat_commands(query: str) -> list[str]:
@@ -435,29 +435,30 @@ def _cli_default_items(query):
     from kurt.core.cli_orchestrator import _cmd_exists
     rows = []
     for name in DEFAULT_CLIS:
-        status = "use selected API model" if name == "auto" else ("installed; requires working login" if _cmd_exists(name) else "not installed")
+        installed = name == 'auto' or _cmd_exists(name)
+        status = "use selected API model" if name == "auto" else ("installed; auth/credits not verified" if installed else "not installed — install before selecting")
         if name in {"codex", "vibe"}:
             status += "; read-only by default"
         if name == "vibe":
             status += "; Mistral Vibe"
-        rows.append({"label": f"{name} — {status} — save default", "kind": "leaf", "value": f"/cli default {name}"})
+        action = 'save default' if installed else 'unavailable'
+        rows.append({"label": f"{name} — {status} — {action}", "kind": "leaf" if installed else "info", "value": f"/cli default {name}"})
     return [row for row in rows if _matches(query, row["label"])]
 
 
 def _media_model_items(kind, query):
-    from kurt.core.execution_preferences import media_label
+    from kurt.core.execution_preferences import media_label, MEDIA_PRESETS
     command = f"/{kind}-model"
     rows = [
         {"label": f"Current: {media_label(kind)}", "kind": "info"},
         {"label": "Auto — use Kurt's generation default", "kind": "leaf", "value": f"{command} auto"},
         {"label": "Choose provider + exact model ID (fal / Replicate)", "kind": "leaf", "value": f"{command} choose"},
     ]
-    presets = (("FLUX Schnell", "fal-ai/flux/schnell"), ("FLUX Dev", "fal-ai/flux/dev")) if kind == "image" else (
-        ("Wan 2.7", "fal-ai/wan/v2.7/text-to-video"), ("MiniMax H3 Max", "minimax/h3-max/text-to-video"))
+    presets = MEDIA_PRESETS[kind]
     seen = set()
     for label, mid in presets:
         seen.add(mid)
-        rows.append({"label": f"{label} [{mid}] [fal] — text-to-{kind}", "kind": "leaf", "value": f"{command} {mid} fal"})
+        rows.append({"label": f"{label} [{mid}] [fal] — {'image-to-video' if mid.endswith('/image-to-video') else 'text-to-' + kind}", "kind": "leaf", "value": f"{command} {mid} fal"})
     for model in _fal_models():
         if model.get("category") != f"text-to-{kind}" or not model.get("id") or model["id"] in seen:
             continue
@@ -682,6 +683,11 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     @kb.add("enter", filter=palette_open, eager=True)
     def _select(event):
         buf_text = event.current_buffer.text
+        from kurt.core.attachments import is_local_path_input
+        if not state.settings_only and is_local_path_input(buf_text):
+            state.is_open = False
+            event.app.exit(result=buf_text)
+            return
         if not state.settings_only and buf_text.strip().casefold() in {'exit', 'quit', 'bye', '/exit', '/quit'}:
             state.is_open = False
             event.app.exit(result=buf_text.strip())
@@ -729,7 +735,8 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     def sync_palette(buffer):
         # A deleted/replaced slash must not leave Enter trapped in an empty
         # picker. Standalone settings deliberately accept plain search text.
-        if state.is_open and not state.settings_only and not buffer.text.startswith('/'):
+        from kurt.core.attachments import is_local_path_input
+        if state.is_open and not state.settings_only and (not buffer.text.startswith('/') or is_local_path_input(buffer.text)):
             state.is_open = False
             state.stack = []
             state.index = 0
