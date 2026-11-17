@@ -218,6 +218,8 @@ from kurt.capabilities.commands import register_commands as register_native_comm
 register_native_commands(app, skill_app, plugin_app, console)
 from kurt.core.cli_tools import register_commands as register_desktop_cli_commands
 register_desktop_cli_commands(app, console)
+from kurt.billing.commands import register_commands as register_wallet_commands
+register_wallet_commands(app)
 app.add_typer(hub_app, name="hub", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(connect_app, name="connect", rich_help_panel="🧩 Extend Kurt")
 app.add_typer(models_app, name="models", rich_help_panel="🧩 Extend Kurt")
@@ -321,6 +323,10 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         console.print()
 
     except Exception as e:
+        from kurt.billing.client import active as wallet_active
+        if wallet_active() or getattr(e, 'no_replay', False):
+            console.print(f"Wallet request incomplete: {redact(str(e))[:500]} Check /wallet history before retrying.", markup=False)
+            return
         if execution and execution.pinned:
             from kurt.core.execution_preferences import quota_exhausted
             if not quota_exhausted(e):
@@ -547,6 +553,9 @@ def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_mode
         chat_default = f"{model_id} [{provider}]"
     defaults_table.add_row("Chat default:", Text(chat_default))
     defaults_table.add_row("CLI default:", Text(settings.get("default_cli", "auto")))
+    wallet_mode = os.environ.get('KURT_WALLET_MODE')
+    if wallet_mode == '1' or (wallet_mode is None and settings.get('wallet_enabled') is True):
+        defaults_table.add_row('Billing:', Text('Kurt Wallet · USD · 0% markup'))
     for kind in ("image", "video"):
         try:
             label = media_label(kind, settings)
@@ -561,7 +570,7 @@ def chat(
     prompt: Optional[str] = typer.Argument(None, help="Optional one-off message — Kurt answers it, then keeps the conversation open"),
     skill: Optional[str] = typer.Option(None, "--skill", "-s", help="Start with a skill active, e.g. tiktok, seo, trading"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
-    cli: Optional[str] = typer.Option(None, "--cli", help="Use a CLI for this chat: auto, codex, claude, gemini, openclaw, vibe"),
+    cli: Optional[str] = typer.Option(None, "--cli", help="Use a CLI for this chat: auto, codex, claude, gemini, openclaw, vibe, deepseek, deepseek-cli"),
     session: Optional[str] = typer.Option(None, "--session", help="Continue an existing session ID"),
     no_memory: Annotated[bool, typer.Option("--no-memory", help="Do not read or save conversation history")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Show tool receipts and routing diagnostics")] = False,

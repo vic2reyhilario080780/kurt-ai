@@ -63,11 +63,12 @@ class SavedDefaultsTests(unittest.TestCase):
         self.assertEqual(cmd, '/test/vibe')
         self.assertEqual(args[0], '-p')
         self.assertEqual(args[args.index('--agent') + 1], 'ask')
+        self.assertEqual(args[args.index('--model') + 1], 'mistral-medium-3.5')
         self.assertNotIn('--auto-approve', args)
 
     def test_vibe_only_receives_its_provider_key(self):
         from kurt.core.cli_orchestrator import _ai_cli_env
-        with patch.dict(os.environ, {'MISTRAL_API_KEY': 'fixture-mistral', 'OPENAI_API_KEY': 'fixture-openai', 'GROQ_API_KEY': 'fixture-groq'}, clear=True):
+        with patch.dict(os.environ, {'MISTRAL_API_KEY': 'stale-shell', 'OPENAI_API_KEY': 'fixture-openai', 'GROQ_API_KEY': 'fixture-groq'}, clear=True), patch('kurt.utils.env_loader.setup_mistral_key', return_value='fixture-mistral'):
             env = _ai_cli_env('/test/vibe')
         self.assertEqual(env['MISTRAL_API_KEY'], 'fixture-mistral')
         self.assertNotIn('OPENAI_API_KEY', env)

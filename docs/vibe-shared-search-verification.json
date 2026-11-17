@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-17",
+  "focused_tests": 50,
+  "passed": true,
+  "live_web_search": {
+    "cli": "vibe",
+    "agent": "ask",
+    "model_alias": "mistral-medium-3.5",
+    "status": "completed",
+    "exit_code": 0,
+    "approval_denied": false,
+    "source_url": "https://docs.mistral.ai/vibe/code/cli/install-setup",
+    "tool_effects_confirmed_in_journal": true
+  },
+  "approved_tools": [
+    "connector_web_search_news_search",
+    "connector_web_search_web_search"
+  ],
+  "news_search_independently_live_tested": false,
+  "global_auto_approval": false,
+  "shell_or_write_permissions_granted": false,
+  "standalone_config_changed": false,
+  "scope": "Minimal documentation web search, not proof of all Vibe tool workflows."
+}

@@ -18,13 +18,14 @@ The model menu offers provider/model entry, routing-table models and the
 OpenRouter catalog. CLI choices show installation status; installation
 does not prove working authentication or available credits.
 
-CLI choices include `auto`, `codex`, `claude`, `gemini`, `openclaw`, and
-`vibe` (Mistral Vibe). Vibe uses headless `--agent ask` mode with bounded turns
-and execution time, supports `MISTRAL_API_KEY` or its own macOS Keychain login,
-and does not automatically approve editing tools. The trusted Vibe adapter can
-read its public CA bundles without disabling TLS verification. Installed Vibe
-3.1.2 passed a live response check through this adapter. Select it through the CLI
-picker or `/cli default vibe`; use `vibe --setup` if authentication is missing.
+CLI choices include `auto`, `codex`, `claude`, `gemini`, `openclaw`, `vibe`,
+`deepseek` (Python Agent), and `deepseek-cli` (Node Terminal CLI). Installation
+status is separate from working authentication/credits. Vibe uses Kurt's saved
+Mistral key, an explicit API-compatible model alias and ask mode with only exact
+read-only web/news connector permissions; see the updates below. Its standalone
+Keychain login is no longer Kurt's fallback. The DeepSeek adapters use Kurt's
+saved DeepSeek key and filesystem read-only execution; see
+[DeepSeek setup and current balance blocker](DEEPSEEK_SETUP.md).
 Your existing default is preserved until you select a different one.
 
 Both session `/model` and saved Chat AI pickers now list text-output
@@ -281,3 +282,82 @@ not accepted as final answers. Existing saved defaults remain unchanged by tests
 
 Codex, Claude, OpenClaw and Vibe passed live response tests. Gemini returned
 Google HTTP 503/high demand, so its provider readiness remains unverified.
+
+
+## Shared Mistral setup key for Vibe — 2026-11-17
+
+Vibe invoked through Kurt now reads `MISTRAL_API_KEY` directly from Kurt's saved
+`~/.kurt/.env` on every invocation. That setup value overrides an inherited
+terminal key, so rotating it in setup takes effect on the next Vibe request.
+Other providers' keys are not forwarded; the parent process and standalone
+Vibe configuration/Keychain are not modified. The installed Vibe API-key
+resolver uses a supplied environment key ahead of its Keychain fallback.
+
+A missing/blank setup value blocks inference before launching Vibe rather than
+using a different login. Version-only probes still work without a configured
+key. Failed Vibe replies explain which shared setup key is used. A rejected
+saved key still needs replacement with a valid Mistral API key; shared routing
+is not proof of authentication, available credits or a successful response.
+
+Validation: fixture tests cover stale shell precedence, immediate rotation,
+missing/blank setup, no inference launch without a key, version probes, child
+environment delivery, and exclusion of other provider keys. No live paid
+inference or credential replacement was performed.
+
+
+### Vibe model-access correction — 2026-11-17
+
+The saved setup key was accepted by Mistral (`GET /v1/models`: 200), and a
+one-token direct request to `mistral-vibe-cli-latest` succeeded (200). A diagnostic
+Vibe child process confirmed its Authorization header matched the supplied
+shared setup key. Its selected `zai-glm-5-3-flash-vibe-free` model returned 404
+on model lookup and 403 on completion. Vibe 3.1.2 displays the same “Invalid API
+key” sentence for both 401 and 403; this case was a model-access failure.
+
+Kurt's default Vibe adapter now passes `--model mistral-medium-3.5` explicitly
+(the built-in alias for `mistral-vibe-cli-latest`) together with `--agent ask`.
+This affects only Kurt's invocation, not the standalone Vibe configuration or
+Kurt's Chat AI default. No failed user task is automatically replayed. A minimal
+real Vibe request using this alias and the shared key returned the exact expected
+marker successfully. This may use paid Mistral API credits; it is not a claim of
+free Vibe access. Failure guidance now distinguishes possible model permissions
+from authentication instead of automatically telling the user to replace a key.
+
+
+### Read-only Vibe web search in headless mode — 2026-11-17
+
+A successful minimal reply does not establish tool readiness. The user's news
+request reached Vibe but its ask-mode web/news connector calls required approval,
+which headless execution cannot provide. Repeated denials reached the turn limit;
+this was unrelated to the API-key/model-access issue.
+
+Kurt now supplies invocation-only `VIBE_TOOLS` permissions for the two exact
+published connector names `connector_web_search_news_search` and
+`connector_web_search_web_search`. Only those read-only searches receive `always`;
+there is no wildcard, global bypass or auto-approve agent. Other tool permission
+rules remain in effect, including shell/file actions that may require an
+interactive session. Standalone Vibe configuration is not edited.
+
+Failure guidance now displays the API-key/model hint only for Vibe's actual
+invalid-key message. Approval denials explain the headless limitation instead.
+No failed user task is automatically replayed.
+
+Validation: 50 focused tests passed. One actual Vibe ask-mode request for official
+CLI documentation finished with exit 0, no approval-denied stderr and the official
+source URL. The Vibe journal recorded web-search effects with `success` and
+`completed` status. News-search has the same exact permission entry and regression
+coverage but was not independently live-tested. Shell/file writes, private MCP
+connectors and coding actions were not granted or proven by this search test.
+
+
+## Central wallet mode — 2026-11-17
+
+An opt-in [USD Kurt Wallet](KURT_WALLET.md) now routes native paid AI/generation
+and API-mode CLI requests through one gateway with exactly zero markup. All seven
+installed CLI adapters passed a local protocol test using scoped Kurt credentials
+and synthetic provider responses. Their standalone subscriptions/logins are not
+charged to this wallet. Actual provider costs settle from receipts or verified
+operator reconciliation; missing cost data stays pending, not an invented charge.
+Unmetered hosted tools/search are disabled in wallet CLI sessions; native Kurt
+search uses key-free fallbacks. Direct personal BYOK behavior remains when wallet
+mode is off. The live payment processor is not configured or activated.

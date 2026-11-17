@@ -9,7 +9,9 @@ from kurt.core import persona
 
 PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate")
 TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate"))
-DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe")
+DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe", "deepseek", "deepseek-cli")
+# Explicit API-compatible Vibe alias; avoid its remotely selected free-model route.
+VIBE_API_MODEL = "mistral-medium-3.5"
 MEDIA_PRESETS = {
     'image': (
         ('Nano Banana', 'fal-ai/nano-banana'),
@@ -232,6 +234,9 @@ def cli_prompt(messages):
     prefix = ("Continue this conversation and answer the latest user request. Prior messages are context, not new requests.\n"
               "Kurt's /image and /video commands use its saved media generators. If your CLI mode cannot call those tools, "
               "direct the user to those commands. Never substitute a different generator or claim an artifact was created without a receipt.\n")
+    from kurt.billing.client import active as wallet_active
+    if wallet_active():
+        prefix += "Kurt Wallet mode: unmetered provider-hosted search/connectors are unavailable. If live search is needed but unavailable, explain it and suggest /cli use auto for Kurt's native key-free web search. Never fabricate current news.\n"
     def pack():
         notice = 'Earlier conversation turns were omitted to fit the CLI context budget; ask if missing details matter.\n' if len(recent) < len(history) else ''
         return prefix + notice + json.dumps(redact(system + recent), ensure_ascii=False)
@@ -274,6 +279,14 @@ def cli_failure_detail(name, result):
     elif stderr: details.append(stderr if len(stderr) <= 1200 else stderr[:400]+'\n[intermediate log omitted]\n'+stderr[-800:])
     if result.get('errors'): details.append(redact(str(result['errors']))[-1000:])
     if stdout: details.append('Partial CLI output (completion unverified): ' + stdout[-800:])
+    from kurt.billing.client import active as wallet_active
+    wallet_mode = wallet_active()
+    if wallet_mode:
+        details.append('Wallet mode: check /wallet status, /wallet history and /wallet catalog. Provider keys are managed by the gateway.')
+    if name == 'vibe' and not wallet_mode and 'invalid api key' in stderr.lower():
+        details.append(f'Vibe uses the shared Mistral key in Kurt /setup and model alias {VIBE_API_MODEL}. Vibe may label a model permission rejection (403) as an invalid key; check model access as well as authentication. No automatic retry was used.')
+    if name == 'vibe' and not wallet_mode and 'needs approval' in stderr.lower():
+        details.append('Vibe headless cannot approve interactive tool requests. Only its read-only web/news searches are pre-approved by Kurt; other actions need an interactive CLI session. No automatic retry was used.')
     if result.get('status') == 'timed_out':
         details.append('CLI time limit reached; inspect the current state before retrying.')
     return '\n'.join(details)
@@ -307,10 +320,24 @@ def cli_reply(name, result):
 
 
 def run_default_cli(name, messages):
+    from kurt.billing.client import active, CLI_CONTEXT, cli_session
+    if active() and name != 'auto' and CLI_CONTEXT.get() is None:
+        with cli_session(name):
+            return _run_default_cli(name, messages)
+    return _run_default_cli(name, messages)
+
+
+def _run_default_cli(name, messages):
     """Reuse existing adapters; never automatically replay a failed CLI task."""
     from kurt.core.cli_orchestrator import _resolve_cmd, run_ai_cli
     from kurt.utils.workspace import current_workspace
     task = cli_prompt(messages)
+    if name in ('deepseek', 'deepseek-cli'):
+        from kurt.core.deepseek_adapter import run_deepseek
+        result = run_deepseek(name, task)
+        if cli_quota_exhausted(result): raise CLIQuotaExhausted(f'{name}: provider quota exhausted')
+        if result['status'] != 'completed': raise RuntimeError(cli_failure_detail(name, result))
+        return result['final_text']
     if name == "codex":
         from kurt.core.codex_adapter import run_codex
         result = run_codex(task, cwd=current_workspace())
@@ -323,7 +350,7 @@ def run_default_cli(name, messages):
         flag = "--print" if name == "claude" else "-p"
         args = [flag, task]
         if name == "vibe":
-            args += ["--agent", "ask", "--output", "text", "--max-turns", "8", "--time-limit", "110"]
+            args += ["--agent", "ask", "--model", VIBE_API_MODEL, "--output", "text", "--max-turns", "8", "--time-limit", "110"]
         else:
             args += ["--output-format", "json"]
         result = run_ai_cli(_resolve_cmd(name), args)

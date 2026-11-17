@@ -94,8 +94,8 @@ class AllCLIDefaultTests(unittest.TestCase):
         with patch.object(readiness, 'probe_default_cli', side_effect=lambda n: {'cli': n}) as probe, \
              patch('kurt.core.execution_preferences.run_default_cli') as live:
             result = handle_slash('/cli probe all', 's', 'auto', None)
-        self.assertEqual(len(json.loads(result.output)), 5)
-        self.assertEqual(probe.call_count, 5)
+        self.assertEqual(len(json.loads(result.output)), len(prefs.DEFAULT_CLIS) - 1)
+        self.assertEqual(probe.call_count, len(prefs.DEFAULT_CLIS) - 1)
         live.assert_not_called()
         self.assertFalse(persona.PERSONA_PATH.exists())
 

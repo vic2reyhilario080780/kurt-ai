@@ -1,0 +1,494 @@
+{
+  "native": [
+    {
+      "provider": "openrouter",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "openai",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "mistral",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "deepseek",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "groq",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "anthropic",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "google",
+      "passed": true,
+      "request_count": 1
+    },
+    {
+      "provider": "fal",
+      "passed": true,
+      "request_count": 2
+    },
+    {
+      "provider": "replicate",
+      "passed": true,
+      "request_count": 2
+    }
+  ],
+  "cli": [
+    {
+      "cli": "deepseek",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 1
+    },
+    {
+      "cli": "deepseek-cli",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 1
+    },
+    {
+      "cli": "vibe",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 2
+    },
+    {
+      "cli": "claude",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 1
+    },
+    {
+      "cli": "gemini",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 2
+    },
+    {
+      "cli": "codex",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 1
+    },
+    {
+      "cli": "openclaw",
+      "status": "verified",
+      "expected_reply": true,
+      "model_request_submitted": true,
+      "note": "Installed CLI protocol verified through the local wallet and mocked upstream. Real provider login/credits/inference were not tested in this wallet run.",
+      "provider_requests": 1
+    }
+  ],
+  "upstream": [
+    {
+      "provider": "openrouter",
+      "path": "/api/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "openai",
+      "path": "/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "mistral",
+      "path": "/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "deepseek",
+      "path": "/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "groq",
+      "path": "/openai/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "anthropic",
+      "path": "/v1/messages",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "google",
+      "path": "/v1beta/openai/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "fal",
+      "path": "/fixture/model",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "fal",
+      "path": "/v1/models/billing-events",
+      "method": "GET",
+      "server_key_matches": true
+    },
+    {
+      "provider": "replicate",
+      "path": "/v1/models/owner/model",
+      "method": "GET",
+      "server_key_matches": true
+    },
+    {
+      "provider": "replicate",
+      "path": "/v1/predictions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "deepseek",
+      "path": "/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "deepseek",
+      "path": "/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "mistral",
+      "path": "/v1/models/mistral-vibe-cli-latest",
+      "method": "GET",
+      "server_key_matches": true
+    },
+    {
+      "provider": "mistral",
+      "path": "/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "anthropic",
+      "path": "/v1/messages",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "google",
+      "path": "/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "google",
+      "path": "/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "openai",
+      "path": "/v1/responses",
+      "method": "POST",
+      "server_key_matches": true
+    },
+    {
+      "provider": "groq",
+      "path": "/openai/v1/chat/completions",
+      "method": "POST",
+      "server_key_matches": true
+    }
+  ],
+  "client_requests": [
+    {
+      "path": "/wallet/proxy/openrouter/api/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/openai/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/deepseek/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/groq/openai/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/anthropic/v1/messages",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/google/v1beta/openai/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/fal/fixture/model",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/replicate/v1/models/owner/model",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/replicate/v1/predictions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/deepseek/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/deepseek/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/mistral/api/v1/code/managed-config",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/connectors/bootstrap",
+      "query_keys": [
+        "include_auth_actionable_connectors",
+        "builtin_connectors",
+        "supports_mcp"
+      ],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/connectors/bootstrap",
+      "query_keys": [
+        "include_auth_actionable_connectors",
+        "builtin_connectors",
+        "supports_mcp"
+      ],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/models/mistral-vibe-cli-latest",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/users/me",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/wallet/proxy/mistral/api/vibe/whoami",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "GET"
+    },
+    {
+      "path": "/v1/datalake/events",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/v1/datalake/events",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/v1/datalake/events",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/mistral/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/v1/datalake/events",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/v1/datalake/events",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/anthropic/v1/messages",
+      "query_keys": [
+        "beta"
+      ],
+      "beta_true": true,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/google/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/google/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/google/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent",
+      "query_keys": [
+        "alt"
+      ],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/openai/v1/responses",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/sessions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    },
+    {
+      "path": "/wallet/proxy/groq/openai/v1/chat/completions",
+      "query_keys": [],
+      "beta_true": false,
+      "method": "POST"
+    }
+  ],
+  "wallet": {
+    "currency": "USD",
+    "markup_percent": 0,
+    "balance_usd": "999.998999",
+    "reserved_usd": "39",
+    "available_usd": "960.998999"
+  },
+  "financial_entries": 3,
+  "payment_processor_used": false,
+  "real_provider_credentials_used": false,
+  "passed": true,
+  "date": "2026-11-17",
+  "verification_scope": "Real loopback HTTP gateway and installed CLI executables; mocked upstream providers and synthetic credits only.",
+  "currency": "USD",
+  "markup_percent": 0,
+  "real_payment_performed": false,
+  "real_provider_topups_performed": false,
+  "wallet_activated_for_user": false,
+  "full_suite": {
+    "tests": 475,
+    "passed": true,
+    "isolated_settings": true
+  },
+  "financial_and_security_tests": "tests/test_wallet_*.py; signed fixture webhooks, ledger races, replay/corrections, key custody and pending outcomes",
+  "automatic_actual_cost_settlement": [
+    "openrouter_usage_or_generation_receipt",
+    "fal_matching_billed_event"
+  ],
+  "other_provider_costs": "Pending reservation until operator reconciles an actual provider bill; estimates are not debited."
+}

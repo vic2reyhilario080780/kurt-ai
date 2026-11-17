@@ -7,12 +7,16 @@ from kurt.utils.workspace import current_workspace
 
 def probe_default_cli(name):
     if name not in DEFAULT_CLIS or name == 'auto':
-        raise ValueError('Choose codex, claude, gemini, openclaw or vibe.')
+        raise ValueError('Choose codex, claude, gemini, openclaw, vibe, deepseek or deepseek-cli.')
     from kurt.core.cli_orchestrator import _resolve_cmd, run_ai_cli
     from kurt.core import codex_adapter, cli_tools
     binary = None
     try:
-        if name == 'codex':
+        if name in ('deepseek', 'deepseek-cli'):
+            from kurt.core.deepseek_adapter import run_deepseek
+            binary = _resolve_cmd(name)
+            result = run_deepseek(name, probe=True)
+        elif name == 'codex':
             binary = codex_adapter.executable()
             if not binary: raise FileNotFoundError('Codex CLI not installed.')
             result = run_bounded([binary, '--version'], env=child_env(), cwd=str(current_workspace()), timeout=20, max_output=8192)

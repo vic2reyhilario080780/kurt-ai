@@ -133,7 +133,10 @@ def _flat_commands(query: str) -> list[str]:
     # Match on the command name only (not its description) — this is a
     # single-word command-name fragment, so matching description text too
     # causes false hits (e.g. "skill" matching "/info"'s "...active skill").
-    return [t for t in tokens if _matches(query, t)]
+    matches = [t for t in tokens if _matches(query, t)]
+    # Exact commands win over substrings such as /cli inside /deepseek-cli.
+    exact = query.strip().lstrip('/').casefold()
+    return sorted(matches, key=lambda t: t.lstrip('/').casefold() != exact)
 
 
 # ── Data providers — every item here is just the pre-existing function
@@ -392,7 +395,7 @@ def _chat_choices():
             if provider in TEXT_PROVIDERS and (model, provider) not in seen:
                 seen.add((model, provider))
                 rows.append((model, provider, f"{model} [{provider}]"))
-    for model, provider in (("mistral-small-latest", "mistral"), ("deepseek-flash", "deepseek")):
+    for model, provider in (("mistral-small-latest", "mistral"), ("deepseek-flash", "deepseek"), ("deepseek-v4-pro", "deepseek")):
         if (model, provider) not in seen:
             seen.add((model, provider))
             rows.append((model, provider, f"{model} [{provider}]"))
@@ -437,10 +440,12 @@ def _cli_default_items(query):
     for name in DEFAULT_CLIS:
         installed = name == 'auto' or _cmd_exists(name)
         status = "use selected API model" if name == "auto" else ("installed; auth/credits not verified" if installed else "not installed — install before selecting")
-        if name in {"codex", "vibe"}:
+        if name in {"codex", "vibe", "deepseek", "deepseek-cli"}:
             status += "; read-only by default"
         if name == "vibe":
             status += "; Mistral Vibe"
+        if name == 'deepseek': status += '; DeepSeek Agent (Python)'
+        if name == 'deepseek-cli': status += '; DeepSeek Terminal CLI (Node)'
         action = 'save default' if installed else 'unavailable'
         rows.append({"label": f"{name} — {status} — {action}", "kind": "leaf" if installed else "info", "value": f"/cli default {name}"})
     return [row for row in rows if _matches(query, row["label"])]

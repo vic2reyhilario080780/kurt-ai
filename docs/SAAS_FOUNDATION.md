@@ -2,6 +2,15 @@
 
 Status: implemented and tested locally; **not deployed and not approved for paid production launch**. This is an execution/authentication foundation, not a finished billing system, website, mobile app or desktop distribution. No cloud resources or payment accounts were created.
 
+## Personal wallet addition — 2026-11-17
+
+A separate zero-markup USD wallet/gateway is now implemented and tested locally.
+See [Kurt Wallet](KURT_WALLET.md) for actual-cost receipts, reservations, CLI routing,
+operator reconciliation and the prepared Stripe integration. The legacy routes
+and deployment below remain the earlier foundation; no paid production launch or
+live payment is implied. Wallet mode blocks legacy `cloud ask` to avoid bypassing
+its monetary ledger. No real processor account/payment was configured.
+
 ## Shared product boundary
 
 Web/mobile/desktop/CLI clients authenticate to one hosted API using revocable Kurt tokens. Provider API keys stay in the server secret environment. Each authenticated token resolves to a server-owned tenant and subscription; the client cannot supply its own tenant, plan, provider URL, model, worker image, command or host file path.

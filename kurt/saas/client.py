@@ -24,6 +24,10 @@ class CloudClient:
         self.url, self._token = url.rstrip("/"), token
 
     def request(self, route, payload=None):
+        from kurt.billing.client import active
+        if active() and route == '/v1/chat':
+            from kurt.billing import WalletError
+            raise WalletError('legacy_cloud_chat_not_metered_use_wallet_routed_chat',403)
         if route not in ("/v1/me", "/v1/chat", "/v1/native/run"):
             raise ValueError("Unknown hosted route")
         raw = json.dumps(payload, allow_nan=False).encode() if payload is not None else None

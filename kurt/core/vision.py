@@ -350,7 +350,15 @@ def describe_screen_claude(image_b64: str, prompt: str = "") -> VisionResult:
         return VisionResult(success=False, error="Cloud vision is disabled. Use local Ollama, or explicitly enable KURT_ALLOW_CLOUD_VISION=1.")
     try:
         import anthropic
-        client = anthropic.Anthropic()
+        from kurt.billing.client import active, from_env
+        if active():
+            import uuid
+            wallet = from_env()
+            client = anthropic.Anthropic(api_key=wallet._token,
+                base_url=wallet.url+'/wallet/proxy/anthropic', max_retries=0,
+                default_headers={'X-Kurt-Request-ID':str(uuid.uuid4())})
+        else:
+            client = anthropic.Anthropic()
 
         default_prompt = (
             "Describe what you see on this computer screen. "

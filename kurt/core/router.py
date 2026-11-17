@@ -35,8 +35,19 @@ class ModelRouter:
         self.strict_selection = False
         self.excluded_providers = set()
 
+    def _http_client(self, **kwargs):
+        from kurt.billing.client import active, WalletTransport
+        if active():
+            kwargs['transport'] = WalletTransport()
+            kwargs['follow_redirects'] = False
+            kwargs['trust_env'] = False
+        return httpx.AsyncClient(**kwargs)
+
     def _has_key(self, provider: str) -> bool:
         """Check if a real API key exists (not empty, not a placeholder)"""
+        from kurt.billing.client import active
+        if active() and provider != 'ollama':
+            return provider in {'openrouter','openai','anthropic','groq','mistral','deepseek','google','fal','replicate'}
         PLACEHOLDER_PREFIXES = (
             "sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your",
             "sk-ant-your", "your-key", "r8_your", "placeholder",
@@ -91,7 +102,7 @@ class ModelRouter:
         if temperature is not None:
             payload["temperature"] = temperature
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with self._http_client(timeout=60.0) as client:
             async with client.stream(
                 "POST",
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -152,7 +163,7 @@ class ModelRouter:
             payload["tools"] = native_tools
             payload["tool_choice"] = "auto"
             payload["parallel_tool_calls"] = False
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with self._http_client(timeout=60.0) as client:
             async with client.stream(
                 "POST",
                 endpoint,
@@ -238,7 +249,7 @@ class ModelRouter:
         files = {"file": (os.path.basename(file_path), file_bytes)}
         data = {"model": model}
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with self._http_client(timeout=120.0) as client:
             response = await client.post(
                 "https://api.groq.com/openai/v1/audio/transcriptions",
                 headers=headers,
@@ -267,7 +278,7 @@ class ModelRouter:
             payload['start_image_url'] = reference
 
 
-        async with httpx.AsyncClient(timeout=600.0 if media_kind == "video" else 60.0) as client:
+        async with self._http_client(timeout=600.0 if media_kind == "video" else 60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
             try:
                 response.raise_for_status()
@@ -301,7 +312,7 @@ class ModelRouter:
         }
         payload = {"input": redact(input_params)}
 
-        async with httpx.AsyncClient(timeout=600.0) as client:
+        async with self._http_client(timeout=600.0) as client:
             # Not every model (official or community) supports the
             # /v1/models/{owner}/{name}/predictions shorthand — look up the
             # latest version hash and create the prediction the universal way.
@@ -375,7 +386,7 @@ class ModelRouter:
         if temperature is not None:
             payload["temperature"] = temperature
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with self._http_client(timeout=120.0) as client:
             async with client.stream(
                 "POST",
                 "https://api.anthropic.com/v1/messages",
@@ -417,7 +428,7 @@ class ModelRouter:
         if temperature is not None:
             payload["options"] = {"temperature": temperature}
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with self._http_client(timeout=120.0) as client:
             async with client.stream(
                 "POST",
                 f"{ollama_host}/api/chat",

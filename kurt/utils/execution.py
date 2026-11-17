@@ -36,7 +36,7 @@ from kurt.utils.security import child_env
 def _protected_paths(service=None):
     """Sensitive directories and credential-filename pattern, shared by the
     macOS Seatbelt profile and the Windows lexical guard."""
-    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.vibe', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
+    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.kurt-wallet', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.vibe', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
     if service:
         # Service adapters keep only their own login/state directories usable.
         own = {"openclaw": ".openclaw", "claude": ".claude", "gemini": ".gemini", "vibe": ".vibe"}.get(service)
@@ -49,9 +49,13 @@ def _protected_paths(service=None):
     return roots, names
 
 
-def sandbox_profile(*, service=None, workspace=None):
+def sandbox_profile(*, service=None, workspace=None, write_paths=None):
     # Deny rules apply to descendants as well, including symlink-resolved reads.
     roots, names = _protected_paths(service=service)
+    from kurt.billing.client import CLI_CONTEXT
+    if CLI_CONTEXT.get() is not None:
+        # Wallet children must not fall back to a personal subscription login.
+        roots.extend(Path.home()/name for name in ('.claude','.vibe','.codex','.gemini','.openclaw','Library/Keychains'))
     if service and service not in {"claude", "vibe"}:
         roots.append(Path.home()/"Library/Keychains")
         # claude is exempted: Claude Code's own OAuth/Pro login is stored in
@@ -65,6 +69,9 @@ def sandbox_profile(*, service=None, workspace=None):
     filters = '\n'.join('(subpath ' + json.dumps(str(p.resolve())) + ')' for p in roots)
     # SBPL regex literals use ordinary backslashes, unlike Scheme string literals.
     restrictions = '' if service else '(deny network*)\n(deny appleevent-send)\n(deny mach-lookup)\n(deny process-info*)\n'
+    if write_paths is not None:
+        if not write_paths: raise ValueError('A private runtime directory is required.')
+        restrictions += '(deny file-write*)\n(deny appleevent-send)\n(allow file-write* (literal "/dev/null") ' + ' '.join('(subpath ' + json.dumps(str(Path(p).resolve())) + ')' for p in write_paths) + ')\n'
     if service == 'git':
         restrictions = '(deny network*)\n(deny appleevent-send)\n(deny file-write*)\n(allow file-write* (literal "/dev/null"))\n'
     if workspace is not None and not service:
@@ -79,13 +86,19 @@ def sandbox_profile(*, service=None, workspace=None):
         sdk = root/'node_modules/@anthropic-ai/sdk/lib/credentials'
         if sdk.is_dir():
             profile += '(allow file-read* (literal ' + json.dumps(str(sdk.resolve())) + '))\n'
-    if service == 'vibe':
+    if service in {'vibe', 'deepseek', 'deepseek-cli'}:
         # The generic *.pem rule must not hide the public TLS trust bundle.
         import ssl
         cert = ssl.get_default_verify_paths().cafile
         if cert:
             for path in {str(Path(cert)), str(Path(cert).resolve())}:
                 profile += '(allow file-read* (literal ' + json.dumps(path) + '))\n'
+        if service in {'deepseek', 'deepseek-cli'}:
+            try:
+                import certifi
+                profile += '(allow file-read* (literal ' + json.dumps(str(Path(certifi.where()).resolve())) + '))\n'
+            except ImportError:
+                pass
         # Python Vibe creates a Certifi context before adding SSL_CERT_FILE.
         # Its isolated uv installation has a separate public root bundle.
         executable = shutil.which('vibe')
@@ -150,7 +163,7 @@ def restricted_run(command, *, shell=False, **kwargs):
     return subprocess.run(argv,**kwargs)
 
 
-def service_argv(argv, service):
+def service_argv(argv, service, *, write_paths=None):
     """Third-party tools get network access but cannot directly read Kurt's vault.
 
     Desktop/IPC capabilities remain trusted; this is not a separate OS identity.
@@ -160,9 +173,11 @@ def service_argv(argv, service):
     if system == 'Darwin':
         if not shutil.which('sandbox-exec'):
             raise RuntimeError('External service execution requires the supported OS sandbox on this host.')
-        return ['/usr/bin/sandbox-exec', '-p', sandbox_profile(service=service), *argv]
+        return ['/usr/bin/sandbox-exec', '-p', sandbox_profile(service=service, write_paths=write_paths), *argv]
 
     if system == 'Windows':
+        if write_paths is not None:
+            raise RuntimeError('Read-only DeepSeek adapters require the supported macOS filesystem sandbox.')
         violation = _windows_guard_violation(argv, service=service)
         if violation:
             raise RuntimeError(f'Refused: command references a protected path ({violation}).')

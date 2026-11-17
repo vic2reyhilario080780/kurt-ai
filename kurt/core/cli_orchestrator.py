@@ -82,9 +82,12 @@ SLASH_COMMANDS = {
     "/gh":        "Run GitHub CLI  e.g. /gh pr list",
     "/codex":     "Delegate a coding task to installed Codex CLI (read-only by default)",
     "/claude":    "Delegate to Claude Code CLI  e.g. /claude \"review main.py for bugs\"",
+    "/deepseek":  "Use installed DeepSeek Agent with Kurt setup key (filesystem read-only)",
+    "/deepseek-cli": "Use installed DeepSeek Terminal CLI with Kurt setup key (filesystem read-only)",
     "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
     "/openclaw":  "Delegate a task to OpenClaw  e.g. /openclaw summarize the task results",
     "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
+    "/wallet":    "USD balance/history/top-up: actual provider costs with zero markup",
     "/cli":       "CLI defaults/readiness: /cli status | /cli probe all | /cli test <name> (may use credits)",
     "/mcp":       "Connect to & call outside tools  e.g. /mcp list   |   /mcp tools filesystem",
     "/connect":   "Connect an app (Gmail, Slack, Shopify...) — opens the login page for you  e.g. /connect gmail",
@@ -106,7 +109,7 @@ SLASH_COMMANDS = {
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
     ("🧠 AI Tools", ["/model", "/models", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
-    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/openclaw", "/peekaboo", "/cli", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
+    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/deepseek", "/deepseek-cli", "/openclaw", "/peekaboo", "/cli", "/wallet", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -155,7 +158,7 @@ def _cmd_exists(cmd: str) -> bool:
 def _ai_cli_env(cmd):
     """Keep CLI login usable and translate Kurt's Google key name explicitly."""
     name = Path(cmd).name
-    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else ("GH_TOKEN", "GITHUB_TOKEN")
+    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else () if name in {"deepseek", "deepseek-cli"} else ("GH_TOKEN", "GITHUB_TOKEN")
     env = child_env(allow=allowed)
     # Agent hosts can prepend private helper binaries (e.g. ~/.codex) to
     # PATH. A different CLI must not try to resolve tools through that vault.
@@ -168,7 +171,34 @@ def _ai_cli_env(cmd):
         if not any(path == root.resolve() or root.resolve() in path.parents for root in protected):
             entries.append(entry)
     env['PATH'] = os.pathsep.join([str(NODE_BIN), *(entries or os.defpath.split(os.pathsep))])
+    from kurt.billing.client import active, cli_environment
+    if active():
+        return cli_environment(name, env) or child_env(source=env)
+    if name in {'deepseek', 'deepseek-cli'}:
+        from kurt.utils.env_loader import setup_api_key
+        from kurt.core.deepseek_adapter import MODEL, BASE_URL
+        env['DEEPSEEK_MODEL'] = MODEL
+        env['DEEPSEEK_BASE_URL'] = BASE_URL
+        key = setup_api_key('DEEPSEEK_API_KEY')
+        if key: env['DEEPSEEK_API_KEY'] = key
+        if name == 'deepseek':
+            env['TAVILY_API_KEY'] = setup_api_key('TAVILY_API_KEY') or 'not-configured'
+        import ssl
+        cert = ssl.get_default_verify_paths().cafile
+        if cert: env['SSL_CERT_FILE'] = cert
     if name == 'vibe':
+        # The user's shared Kurt setup is authoritative, even after key rotation
+        # in a running chat. Never inherit a stale shell key or use Vibe Keychain.
+        from kurt.utils.env_loader import setup_mistral_key
+        env.pop('MISTRAL_API_KEY', None)
+        key = setup_mistral_key()
+        if key:
+            env['MISTRAL_API_KEY'] = key
+        # Exact, read-only connector tools. Other tool permissions remain intact.
+        env['VIBE_TOOLS'] = json.dumps({
+            'connector_web_search_news_search': {'permission': 'always'},
+            'connector_web_search_web_search': {'permission': 'always'},
+        })
         import ssl
         cert = ssl.get_default_verify_paths().cafile
         if cert:
@@ -198,10 +228,17 @@ def run_ai_cli(cmd, args):
     """Return structured process status for the existing AI CLI adapters."""
     from kurt.utils.process import run_bounded
     from kurt.utils.workspace import current_workspace
+    from kurt.billing.client import active, CLI_CONTEXT, cli_session
+    if active() and CLI_CONTEXT.get() is None and args not in (['--version'], ['--help']):
+        with cli_session(Path(cmd).name):
+            return run_ai_cli(cmd, args)
     if Path(cmd).name not in {"claude", "gemini", "vibe"}:
         raise ValueError("Expected Claude Code, Gemini or Vibe CLI.")
+    env = _ai_cli_env(cmd)
+    if Path(cmd).name == 'vibe' and args != ['--version'] and not env.get('MISTRAL_API_KEY'):
+        raise ValueError('Vibe CLI uses the Mistral API key from Kurt /setup. Configure MISTRAL_API_KEY there first; no Vibe request was sent.')
     return run_bounded(service_argv([cmd, *args], Path(cmd).name),
-                       env=_ai_cli_env(cmd), cwd=str(current_workspace()), timeout=120, max_output=65536)
+                       env=env, cwd=str(current_workspace()), timeout=120, max_output=65536)
 
 
 def _run_shell(cmd: str, args: str) -> str:
@@ -301,6 +338,12 @@ def handle_slash(
     if cmd in ("/exit", "/quit"):
         close_browser_session()
         return SlashResult(handled=True, output="👋 Bye! K.U.R.T. signing off.", continue_chat=False)
+
+    if cmd == '/wallet':
+        from kurt.billing.commands import slash
+        try: output = json.dumps(slash(args), ensure_ascii=False, indent=2)
+        except (ValueError, OSError, RuntimeError) as exc: output = str(exc)
+        return SlashResult(True, output, True)
 
     if cmd in ('/image', '/video'):
         from kurt.core.media_generation import generate_selected_media
@@ -641,6 +684,16 @@ def handle_slash(
             return SlashResult(True,"Codex delegation failed: "+redact(str(exc)),True)
 
     # ── /claude ─────────────────────────────────────────────────────
+    if cmd in ('/deepseek', '/deepseek-cli'):
+        if not args.strip():
+            return SlashResult(True, f'Usage: {cmd} <task>. Uses DEEPSEEK_API_KEY from Kurt /setup; project files are read-only.', True)
+        from kurt.core.execution_preferences import run_default_cli
+        try:
+            output = run_default_cli(cmd[1:], [{'role': 'user', 'content': args}])
+        except (ValueError, OSError, RuntimeError) as exc:
+            output = f'DeepSeek request incomplete; task was not replayed. {redact(str(exc))}'
+        return SlashResult(True, output, True, feed_to_ai=True)
+
     if cmd == "/claude":
         if not _cmd_exists("claude"):
             return SlashResult(

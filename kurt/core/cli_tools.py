@@ -50,6 +50,14 @@ def resolve_cli(tool):
 
 
 def cli_env(tool="openclaw"):
+    from kurt.billing.client import active, CLI_CONTEXT, cli_environment
+    if active() and tool == 'openclaw':
+        if CLI_CONTEXT.get() is None:
+            # Metadata probes need no provider credentials.
+            return child_env(extra={'PATH':str(NODE_BIN)+os.pathsep+os.environ.get('PATH',''),'NO_COLOR':'1'})
+        env = cli_environment('openclaw', child_env())
+        env['PATH'] = str(NODE_BIN)+os.pathsep+env.get('PATH','')
+        return env
     # Upstream Node entrypoints and their child processes use this runtime.
     from dotenv import dotenv_values
     from kurt.utils.env_loader import ENV_PATH
@@ -95,6 +103,10 @@ def _read_output(stream):
 
 
 def run_cli(tool, args, timeout=180, *, cwd=None):
+    from kurt.billing.client import active, CLI_CONTEXT, cli_session
+    if active() and tool == 'openclaw' and args != ['--version'] and CLI_CONTEXT.get() is None:
+        with cli_session('openclaw'):
+            return run_cli(tool, args, timeout, cwd=cwd)
     if not isinstance(args, list) or not all(isinstance(a, str) and "\0" not in a for a in args):
         raise ValueError("CLI args must be a list of strings without NUL bytes.")
     if type(timeout) not in (int, float) or not 1 <= timeout <= 600:
@@ -144,6 +156,15 @@ def run_cli(tool, args, timeout=180, *, cwd=None):
 
 def delegate_desktop_cli(tool, prompt="", args=None, agent="main", session_id=None, timeout=180, *, cwd=None):
     """OpenClaw accepts a task; Peekaboo defaults to direct CLI commands."""
+    from kurt.billing.client import active, CLI_CONTEXT, cli_session
+    if active() and tool == 'openclaw' and CLI_CONTEXT.get() is None:
+        with cli_session('openclaw'):
+            return delegate_desktop_cli(tool, prompt, args, agent, session_id, timeout, cwd=cwd)
+    if active() and tool == 'openclaw' and args is None:
+        env = cli_env('openclaw')
+        command = ['agent', 'exec', '--config', env['OPENCLAW_CONFIG_PATH'], '--cwd', str(cwd or PROJECT_ROOT),
+                   '--local-model-lean', '--json', '--', redact(prompt)]
+        return run_cli(tool, command, timeout, cwd=cwd)
     if args is not None:
         if prompt:
             raise ValueError("Provide a task/command string or args, not both.")

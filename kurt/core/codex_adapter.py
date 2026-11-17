@@ -29,10 +29,10 @@ def permission_args(mode):
     if mode not in ('read-only','workspace-write'):
         raise ValueError('Codex mode must be read-only or workspace-write')
     scope={'.':'write' if mode=='workspace-write' else 'read'}
-    for pattern in ('**/.env*','**/*.env','**/*.key','**/*.pem','**/*.kurt-token','**/credentials.json','**/credentials','**/auth.json','**/.credentials.json','**/.npmrc','**/.netrc','**/mcp_connections.json','**/control.db','**/.kurt/**','**/.kurt-saas/**','**/.codex/**','**/.claude/**','**/.vibe/**','**/.aws/**','**/.openclaw-kurt/**'):
+    for pattern in ('**/.env*','**/*.env','**/*.key','**/*.pem','**/*.kurt-token','**/credentials.json','**/credentials','**/auth.json','**/.credentials.json','**/.npmrc','**/.netrc','**/mcp_connections.json','**/control.db','**/.kurt/**','**/.kurt-saas/**','**/.kurt-wallet/**','**/.codex/**','**/.claude/**','**/.vibe/**','**/.aws/**','**/.openclaw-kurt/**'):
         scope[pattern]='deny'
     fs={':root':'deny',':minimal':'read',':workspace_roots':scope,'glob_scan_max_depth':8}
-    for name in ('.kurt','.kurt-saas','.aws','.ssh','.gnupg','.config','.claude','.gemini','.vibe','.codex','.openclaw','Library/Keychains'):
+    for name in ('.kurt','.kurt-saas','.kurt-wallet','.aws','.ssh','.gnupg','.config','.claude','.gemini','.vibe','.codex','.openclaw','Library/Keychains'):
         fs[str(Path.home()/name)]='deny'
     # Homebrew and local Node runtimes are outside Codex's minimal system roots.
     for runtime in (Path('/opt/homebrew'), Path.home()/'.nvm/versions/node'):
@@ -55,6 +55,10 @@ def codex_status():
 
 
 def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
+    from kurt.billing.client import active, CLI_CONTEXT, cli_session, cli_environment, codex_arguments
+    if active() and CLI_CONTEXT.get() is None:
+        with cli_session('codex'):
+            return run_codex(task, cwd=cwd, mode=mode, timeout=timeout)
     if not isinstance(task,str) or not task.strip() or len(task.encode())>32768:
         raise ValueError('Codex task must be nonempty text, at most 32 KiB')
     if type(timeout) is not int or not 1<=timeout<=600:
@@ -74,9 +78,11 @@ def run_codex(task, *, cwd='.', mode='read-only', timeout=180):
     binary=executable()
     if not binary:return {'status':'missing','hint':'Install Codex CLI and run codex login.','changes_verified':False}
     command=[binary,'exec','--ignore-user-config','--ignore-rules','--ephemeral','--json','--skip-git-repo-check','--color','never',
-             '--cd',str(root),*policy,'-']
+             '--cd',str(root),*policy,*codex_arguments(),'-']
     # Only Codex's own auth mechanism is available, never all Kurt provider keys.
-    result=run_bounded(command,env=child_env(allow=('OPENAI_API_KEY','CODEX_HOME')),cwd=str(root),
+    env = child_env(allow=('OPENAI_API_KEY','CODEX_HOME'))
+    if active(): env = cli_environment('codex', env)
+    result=run_bounded(command,env=env,cwd=str(root),
                        timeout=timeout,input_text=redact(task),max_output=1024*1024)
     messages,events,changed=[],[],[]
     error_codes, errors = [], []

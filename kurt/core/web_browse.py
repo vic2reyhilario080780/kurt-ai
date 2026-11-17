@@ -90,6 +90,8 @@ def _clean_search_query(query: str) -> str:
 def _brave_search(query: str, max_results: int) -> list[dict]:
     """Brave Search API — needs BRAVE_API_KEY. 2,000 free queries/month."""
     import os, requests
+    from kurt.billing.client import active
+    if active(): raise RuntimeError("Brave API is not wallet-metered; using key-free search fallback.")
     key = os.getenv("BRAVE_API_KEY", "")
     if not key:
         raise RuntimeError("BRAVE_API_KEY not set")
@@ -110,6 +112,8 @@ def _brave_search(query: str, max_results: int) -> list[dict]:
 def _serper_search(query: str, max_results: int) -> list[dict]:
     """Serper (Google results as JSON) — needs SERPER_API_KEY. 2,500 free searches on signup."""
     import os, requests
+    from kurt.billing.client import active
+    if active(): raise RuntimeError("Serper API is not wallet-metered; using key-free search fallback.")
     key = os.getenv("SERPER_API_KEY", "")
     if not key:
         raise RuntimeError("SERPER_API_KEY not set")

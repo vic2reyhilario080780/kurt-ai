@@ -26,6 +26,20 @@ def load_env():
     return True
 
 
+def setup_api_key(variable):
+    """Read one configured provider key without stale inherited env precedence."""
+    if variable not in {'MISTRAL_API_KEY', 'DEEPSEEK_API_KEY', 'TAVILY_API_KEY'}:
+        raise ValueError('Unsupported setup credential.')
+    if not ENV_PATH.is_file(): return ''
+    from dotenv import dotenv_values
+    value = dotenv_values(ENV_PATH, interpolate=False).get(variable)
+    return value.strip() if isinstance(value, str) else ''
+
+
+def setup_mistral_key():
+    return setup_api_key('MISTRAL_API_KEY')
+
+
 def check_setup() -> dict:
     """Check which providers are configured"""
     load_env()

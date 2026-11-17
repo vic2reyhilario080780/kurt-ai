@@ -40,6 +40,41 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-17 — Saved Vibe, DeepSeek at wallet checkpoint (Codex)
+- Ano: Saved the shared-setup Vibe credential/model/search fixes, both installed DeepSeek adapters and picker/shortcut integration, and the centralized USD wallet/payment gateway. Detailed task entries and verification reports follow below.
+- User decision: Actual provider costs only, 0% markup, USD; prepare payment integration because no processor account is configured yet.
+- Validation: 475 isolated project tests passed. Local wallet protocol checks passed for nine provider routes and all seven installed CLI adapters, using synthetic credits and mocked upstreams. Real Vibe reply/search checks are separately documented; wallet fixture checks are not claimed as real paid inference.
+- Pending: DeepSeek live reply remains blocked by insufficient API balance; payment integration/wallet mode are not activated in the user's account. Provider funding, real merchant checkout and invoices without automatic cost receipts require the documented setup/reconciliation steps. No real payment or provider top-up was performed.
+
+## 2026-11-17 — Central USD wallet, actual cost, zero markup (Codex)
+- User decision: USD, actual provider costs only, no markup; no payment processor account yet, prepare integration first.
+- Ano: Added a private integer-money ledger, atomic reservations, idempotent settlement/corrections, scoped CLI credentials, provider-key gateway and wallet commands/banner. Native paid AI, media, transcription and optional cloud vision route through it; all seven CLI API adapters have gateway profiles. No silent direct-provider/subscription fallback in wallet mode.
+- Ano: OpenRouter and matching fal billed events finalize actual reported costs; other/unknown bills stay pending until verified reconciliation. Token-rate estimates are not debited as actual costs. Unmetered paid search/tool routes are blocked or use native key-free search; standalone CLI usage remains separate.
+- Ano: Prepared Stripe Checkout and signed/idempotent paid-webhook credits, refunds/disputes and private local operator commands. Manual credits are clearly not purchases. No real payment, merchant account, provider funding, deployment or automatic activation was performed.
+- Validation: 475 tests passed in the isolated full suite. Nine native provider routes and all seven installed CLIs passed the real-local-server/mock-upstream protocol test with synthetic credits. Financial/security regressions cover precision, replay, concurrency, scope/tenant boundaries, key custody and payment verification. Details: [docs/KURT_WALLET.md](docs/KURT_WALLET.md).
+
+## 2026-11-17 — DeepSeek Agent at Terminal CLI setup (Codex)
+- Ano: Connected the already installed Python DeepSeek Agent 0.6.6 (`deepseek`) and Node Terminal CLI 1.3.0 (`deepseek-cli`) to shared Kurt setup credentials, CLI pickers/defaults, direct slash shortcuts, readiness checks and agent delegation. Official API endpoint and `deepseek-flash`; native chat picker also includes `deepseek-v4-pro`. Existing defaults/accounts/installations were not changed.
+- Ano: Python worker omits the package CLI's unsolicited auto-test follow-ups and disables SDK retries/thinking for its legacy tool history. Node stdin adapter rejects step-limit/unfinished output. Both use isolated temporary state, bounded execution and enforced read-only project files; no global approval bypass.
+- Bakit: The packages have different protocols; Node piped mode lacks interactive confirmations and Python read-only flags do not cover arbitrary shell writes. Local fixtures verified actual tool round trips and kernel blocking of attempted writes. Exact-command picker priority also prevents `/cli` selecting the new `/deepseek-cli` substring match.
+- Validation: 419 isolated full-suite tests and 64 focused checks passed; both installed adapters passed local two-request tool fixtures with project writes blocked.
+- Pending: Live Terminal CLI API test returned 402 Insufficient Balance; no verified live reply from either adapter. API top-up is required before explicit live readiness retests. Details: [docs/DEEPSEEK_SETUP.md](docs/DEEPSEEK_SETUP.md).
+
+## 2026-11-17 — Headless Vibe read-only search permissions (Codex)
+- Bakit: News request reached the model but ask-mode connector calls required interactive approval; repeated tool denials hit the turn limit. This was not an authentication failure.
+- Ano: Invocation-only permissions for the exact web_search and news_search connector tools. No wildcard/global auto-approval; other permissions and standalone Vibe config remain unchanged. Approval errors no longer show unrelated invalid-key guidance.
+- Validation: 50 focused tests passed; actual read-only web search finished successfully with official source URL, journal-confirmed successful tool effects and no approval denial. News permission is fixture-tested; no independent live news test or shell/file write authorization.
+
+## 2026-11-17 — Vibe false invalid-key error traced to model access (Codex)
+- Bakit: Saved Mistral key passed models lookup and exact Vibe API model request (200). Actual Vibe child used that same key but chose `zai-glm-5-3-flash-vibe-free`, receiving 404 on model lookup and 403 on completion. Vibe maps 403 to its generic invalid-key message.
+- Ano: Kurt default Vibe invocation explicitly selects `mistral-medium-3.5` (API-compatible built-in alias), retaining ask mode and shared setup key. Standalone Vibe defaults and Chat AI selection are unchanged. Failure guidance now mentions model access instead of assuming the key is invalid.
+- Validation: 48 focused tests passed; final installed `kurt cli test vibe` returned verified with the exact expected reply. No failed user task replay or credential replacement. API usage can consume credits. Detailed evidence: [docs/EXECUTION_DEFAULTS.md](docs/EXECUTION_DEFAULTS.md).
+
+## 2026-11-17 — Shared setup API key for Vibe CLI (Codex)
+- Ano: Vibe requests through Kurt read the current Mistral API key directly from Kurt setup, overriding stale inherited shell credentials. Key rotation applies on the next invocation; no duplicate Vibe credential copy or standalone login change.
+- Ano: Missing/blank saved key blocks inference before launch; version probes remain available. Vibe failures identify Kurt setup as the shared credential source. Invalid saved credentials still require a valid replacement; no silent login fallback or paid retry.
+- Validation: 47 focused tests passed across shared-key, defaults, adapters and orchestration; no paid inference or key replacement. Details: [docs/EXECUTION_DEFAULTS.md](docs/EXECUTION_DEFAULTS.md).
+
 ## 2026-11-17 — Saved development checkpoint (Codex)
 - Ano: Pinagsamang checkpoint ng November 16 fixes: reliable exit via isolated microphone process, saved media-default routing/pickers, real local-image attachments with RAM follow-up context, at default CLI compatibility/diagnostics para sa Codex, Claude, Gemini, OpenClaw at Vibe.
 - Ano: Kasama ang verified media downloads/receipts, guard laban sa invented artifact links, explicit Kling image-to-video reference support, regression tests at verification reports. Detalye nasa mga November 16 entries at linked docs.

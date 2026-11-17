@@ -18,7 +18,7 @@ MASK = "[REDACTED]"
 _REGISTERED = set()
 _SECRET_NAME = re.compile(r"(?:api.?key|access.?key|private.?key|secret|password|passwd|credential|authorization|(?:access|refresh|auth|bot|bearer|session).?token|(?:^|_)token$|cookie|database_url|connection_string)", re.I)
 _PLACEHOLDER = re.compile(r"(?:\$\{|\{[\w.-]+\}|your[_ -]|placeholder|example|dummy|REDACTED|^<.*>$)", re.I)
-_TOKEN = re.compile(r"\b(?:sk-(?:proj-|ant-|or-v1-)?[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{25,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[A-Z0-9]{16})\b")
+_TOKEN = re.compile(r"\b(?:sk-(?:proj-|ant-|or-v1-)?[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{25,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[A-Z0-9]{16}|kurt_(?:live|cli)_[A-Za-z0-9_-]{30,})\b")
 _QUOTED = re.compile(r'''(?<![A-Za-z0-9_.-])(?P<prefix>["']?(?:[A-Za-z0-9_.-]{0,128}(?:api[_-]?key|token|secret|password|authorization|credential)[A-Za-z0-9_.-]{0,128})["']?\s*[:=]\s*)(?P<quote>["'])(?P<value>[^\n]*?)(?P=quote)''', re.I)
 _ENV_LINE = re.compile(r"(?m)^(?P<prefix>\s*(?:export\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*)(?P<value>[^\s\"'\n]+)")
 _QUERY = re.compile(r"([?&](?:api[_-]?key|key|token|access_token|refresh_token|auth|secret|password)=)[^&#\s\"']+", re.I)
@@ -124,7 +124,7 @@ def sensitive_path(path):
                     "secrets.json", "secrets.yaml", "secrets.yml", "auth.json", ".credentials.json", "auth-profiles.json", "mcp_connections.json", "memory.db", "control.db",
                     "id_rsa", "id_ed25519", "id_ecdsa"} or name.endswith((".pem", ".key", ".p12", ".pfx", ".tfstate", ".kurt-token")):
             return True
-    return any(part.lower() in {".kurt", ".codex", ".claude", ".gemini", ".vibe", ".openclaw", ".aws", ".ssh", ".gnupg", ".openclaw-kurt", ".kurt-saas"} for part in p.resolve().parts)
+    return any(part.lower() in {".kurt", ".codex", ".claude", ".gemini", ".vibe", ".openclaw", ".aws", ".ssh", ".gnupg", ".openclaw-kurt", ".kurt-saas", ".kurt-wallet"} for part in p.resolve().parts)
 
 
 def require_public_file(path):

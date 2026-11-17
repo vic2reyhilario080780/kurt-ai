@@ -1,0 +1,126 @@
+{
+  "results": [
+    {
+      "cli": "deepseek",
+      "scenario": "read",
+      "status": "completed",
+      "expected_reply": true,
+      "request_count": 2,
+      "project_file_unchanged": true,
+      "error": ""
+    },
+    {
+      "cli": "deepseek",
+      "scenario": "blocked-write",
+      "status": "completed",
+      "expected_reply": true,
+      "request_count": 2,
+      "project_file_unchanged": true,
+      "error": ""
+    },
+    {
+      "cli": "deepseek-cli",
+      "scenario": "read",
+      "status": "completed",
+      "expected_reply": true,
+      "request_count": 2,
+      "project_file_unchanged": true,
+      "error": ""
+    },
+    {
+      "cli": "deepseek-cli",
+      "scenario": "blocked-write",
+      "status": "completed",
+      "expected_reply": true,
+      "request_count": 2,
+      "project_file_unchanged": true,
+      "error": ""
+    }
+  ],
+  "requests": [
+    {
+      "model": "deepseek-flash",
+      "thinking": {
+        "type": "disabled"
+      },
+      "key_matches": true,
+      "tool_reply_present": false
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": {
+        "type": "disabled"
+      },
+      "key_matches": true,
+      "tool_reply_present": true
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": {
+        "type": "disabled"
+      },
+      "key_matches": true,
+      "tool_reply_present": false
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": {
+        "type": "disabled"
+      },
+      "key_matches": true,
+      "tool_reply_present": true
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": null,
+      "key_matches": true,
+      "tool_reply_present": false
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": null,
+      "key_matches": true,
+      "tool_reply_present": true
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": null,
+      "key_matches": true,
+      "tool_reply_present": false
+    },
+    {
+      "model": "deepseek-flash",
+      "thinking": null,
+      "key_matches": true,
+      "tool_reply_present": true
+    }
+  ],
+  "paid_endpoint_used": false,
+  "passed": true,
+  "date": "2026-11-17",
+  "installed_versions": {
+    "deepseek": "0.6.6",
+    "deepseek-cli": "1.3.0"
+  },
+  "live_tests": {
+    "deepseek": {
+      "reply_verified": false,
+      "status": "failed"
+    },
+    "deepseek-cli": {
+      "reply_verified": false,
+      "http_status": 402,
+      "reason": "Insufficient Balance"
+    }
+  },
+  "defaults_changed": false,
+  "full_suite": {
+    "tests": 419,
+    "passed": true,
+    "isolated_persona": true
+  },
+  "focused_suite": {
+    "tests": 64,
+    "passed": true
+  }
+}

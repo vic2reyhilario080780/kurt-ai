@@ -55,7 +55,7 @@ def scrub(value, secrets=()):
     if isinstance(value, str):
         for secret in sorted((s for s in secrets if s), key=len, reverse=True):
             value = value.replace(secret, "[REDACTED]")
-        return re.sub(r"\b(?:sk-[\w-]{20,}|gsk_[\w-]{20,}|kurt_live_[\w-]{30,})\b", "[REDACTED]", value)
+        return re.sub(r"\b(?:sk-[\w-]{20,}|gsk_[\w-]{20,}|kurt_(?:live|cli)_[\w-]{30,})\b", "[REDACTED]", value)
     if isinstance(value, list):
         return [scrub(item, secrets) for item in value]
     if isinstance(value, dict):
