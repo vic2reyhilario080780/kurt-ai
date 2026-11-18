@@ -1,4 +1,5 @@
 import json
+import io
 import os
 import subprocess
 import sys
@@ -162,3 +163,20 @@ class PortabilityTests(unittest.TestCase):
         self.assertIn('ERR',good['stderr'])
         limited = run_bounded([sys.executable,'-c','import time; time.sleep(30)'],env=env,cwd=str(self.root),timeout=.5)
         self.assertEqual(limited['status'],'timed_out');self.assertIsNotNone(limited['exit_code'])
+
+    def test_windows_cp1252_output_is_reconfigured_before_unicode_rendering(self):
+        from kurt.utils import terminal
+        raw=io.BytesIO();stream=io.TextIOWrapper(raw,encoding='cp1252')
+        with patch.object(terminal.sys,'platform','win32'),patch.object(terminal.sys,'stdout',stream), \
+             patch.object(terminal.sys,'stderr',stream):
+            terminal.configure_windows_output()
+            stream.write('\U0001f916 Kurt');stream.flush()
+        self.assertEqual(raw.getvalue(),'\U0001f916 Kurt'.encode())
+        stream.close()
+
+    def test_non_windows_output_encoding_is_preserved(self):
+        from kurt.utils import terminal
+        raw=io.BytesIO();stream=io.TextIOWrapper(raw,encoding='latin-1')
+        with patch.object(terminal.sys,'platform','linux'),patch.object(terminal.sys,'stdout',stream):
+            terminal.configure_windows_output()
+        self.assertEqual(stream.encoding,'latin-1');stream.close()

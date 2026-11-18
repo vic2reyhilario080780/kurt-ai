@@ -40,6 +40,11 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-18 — Native Windows CI Unicode output fix (Codex)
+- Observed: GitHub's real Windows runner passed dependency installation, fourteen portability tests, eight encrypted credential tests, PowerShell installer syntax and device status, then failed CLI help with a CP1252 UnicodeEncodeError on the robot icon. Linux smoke checks passed; macOS runner was still queued at observation time.
+- Fix: Configure Windows stdout/stderr as UTF-8 before Rich/Typer initialization, including redirected output, without changing OS code pages or non-Windows stream settings.
+- Validation: 508 isolated project tests passed on macOS, including two encoding regressions. Code graph updated; native Windows CI rerun is required before claiming the help failure resolved there. No personal credentials exported or hosting activated.
+
 ## 2026-11-18 — One-command GitHub installer and encrypted owner credentials (Codex)
 - User request: Install from GitHub in one command and reuse the owner's configured provider credentials without entering each key again; future SaaS should use the owner's provider accounts through Kurt billing.
 - Ano: Added a public-source PowerShell installer that resolves main to an immutable source revision, downloads the GitHub archive without requiring Git, and runs the isolated bootstrap. Optional `-CredentialsFile` imports a separately copied private owner backup after one hidden transfer passphrase. Python 3.10+ remains required; existing install directories are not overwritten.

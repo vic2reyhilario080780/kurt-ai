@@ -12,6 +12,9 @@ Usage:
     kurt plugins
 """
 
+from kurt.utils.terminal import configure_windows_output
+configure_windows_output()
+
 from kurt.utils.security import redact
 
 import asyncio
