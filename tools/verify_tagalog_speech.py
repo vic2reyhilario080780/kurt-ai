@@ -50,7 +50,7 @@ async def verify():
                 result=await speech.transcribe_online(wav)
             results.append({'reference':text,**asdict(result),'word_error_rate':word_error(text,result.text)})
     return {'synthetic_audio_only':True,'microphone_recorded':False,'actions_executed':False,
-            'paid_requests':len(results),'results':results,'note':'Synthetic Filipino TTS does not measure the user\'s accent or room/microphone quality.'}
+            'provider_requests':len(results),'actual_provider_cost_verified':False,'results':results,'note':'Synthetic Filipino TTS does not measure the user\'s accent or room/microphone quality.'}
 
 
 if __name__=='__main__':

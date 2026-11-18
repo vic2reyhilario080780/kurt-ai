@@ -778,7 +778,10 @@ def read_chat_input(console, prompt_label: str = "You", *, voice_input=None):
             return pending
     if _session is None:
         _session, _state = _build_session()
-    with patch_stdout():
+    from prompt_toolkit.application import create_app_session
+    # Match stdout to this prompt's output (including redirected/test consoles)
+    # instead of asking Windows for an unrelated console screen buffer.
+    with create_app_session(output=_session.app.output), patch_stdout():
         if voice_input is None:
             return _session.prompt()
         import asyncio

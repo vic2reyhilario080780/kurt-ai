@@ -18,7 +18,6 @@
     "synthetic_audio_only": true,
     "microphone_recorded": false,
     "actions_executed": false,
-    "paid_requests": 2,
     "results": [
       {
         "reference": "Kurt, buksan ang Notes at sabihin mong mahal kita.",
@@ -39,7 +38,9 @@
         "word_error_rate": 0.0
       }
     ],
-    "note": "Synthetic Filipino TTS does not measure the user's accent or room/microphone quality."
+    "note": "Synthetic Filipino TTS does not measure the user's accent or room/microphone quality.",
+    "provider_requests": 2,
+    "actual_provider_cost_verified": false
   },
   "actual_user_microphone_tested": false,
   "audible_windows_playback_tested": false,

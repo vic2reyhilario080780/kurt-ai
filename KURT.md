@@ -40,6 +40,11 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-18 — Windows voice prompt output scope (Codex)
+- Observed: Native Windows CI passed the new speech tests, then the existing real-prompt handoff test hit NoConsoleScreenBufferError when patch_stdout selected a default Windows console despite the prompt using an explicit redirected output.
+- Fix: Bind stdout patching to the active PromptSession output through create_app_session, preserving the no-Enter voice handoff test rather than skipping it.
+- Validation: 529 isolated full-suite tests passed on macOS; native Windows rerun pending. The live synthetic benchmark made two provider requests; actual charges were not verified or inferred.
+
 ## 2026-11-18 — Tagalog/Taglish voice pipeline and conversation fixes (Codex)
 - Ano: Wired live voice to shared-setup Groq Whisper large-v3/turbo or an existing cached local recognizer, with explicit Tagalog/auto-Taglish settings, bounded personalized vocabulary hints and real decoder-quality checks. Removed fabricated 0.9 confidence. Added `/speech` and `kurt speech` commands; uncertain transcripts ask for repetition instead of executing actions, and repeated uncertainty/provider failure pauses hands-free mode.
 - Ano: Background wake recognition stays local; no cloud upload without a wake/F5/hotkey activation. Cached ASR loaders refuse model downloads. New installs include lightweight online-voice dependencies and model-free WebRTC VAD. Windows/Linux Filipino MP3 playback uses an isolated bounded worker; no ffplay dependency. Online audio upload/credit behavior is shown before listening.
