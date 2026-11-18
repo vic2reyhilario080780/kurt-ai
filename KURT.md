@@ -43,7 +43,8 @@ Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_A
 ## 2026-11-18 — Native Windows CI Unicode output fix (Codex)
 - Observed: GitHub's real Windows runner passed dependency installation, fourteen portability tests, eight encrypted credential tests, PowerShell installer syntax and device status, then failed CLI help with a CP1252 UnicodeEncodeError on the robot icon. Linux smoke checks passed; macOS runner was still queued at observation time.
 - Fix: Configure Windows stdout/stderr as UTF-8 before Rich/Typer initialization, including redirected output, without changing OS code pages or non-Windows stream settings.
-- Validation: 508 isolated project tests passed on macOS, including two encoding regressions. Code graph updated; native Windows CI rerun is required before claiming the help failure resolved there. No personal credentials exported or hosting activated.
+- Validation: 508 isolated project tests passed on macOS, including two encoding regressions. Native Windows CI rerun on source 76cef71 passed all sixteen portability tests, eight credential-transfer tests, PowerShell syntax, dependency install, bootstrap dry-run, device status, CLI help and version. Linux smoke job passed; macOS hosted job was still queued when recorded. [Windows CI job](https://github.com/vic2reyhilario080780/kurt-ai/actions/runs/44280126643/job/134718286587). Code graph updated. No personal credentials exported or hosting activated.
+- Remaining: Actual user-PC desktop/audio/CLI-account checks and end-to-end one-command download/install with owner input are still distinct from CI smoke verification.
 
 ## 2026-11-18 — One-command GitHub installer and encrypted owner credentials (Codex)
 - User request: Install from GitHub in one command and reuse the owner's configured provider credentials without entering each key again; future SaaS should use the owner's provider accounts through Kurt billing.

@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-18",
+  "tested_source": "76cef71aa615ff417834a93287b35351d6bbfbd6",
+  "run_id": 44280126643,
+  "windows_job": "https://github.com/vic2reyhilario080780/kurt-ai/actions/runs/44280126643/job/134718286587",
+  "windows_smoke": "passed",
+  "windows_portability_tests": 16,
+  "windows_credential_transfer_tests": 8,
+  "windows_checks": [
+    "dependency installation",
+    "PowerShell syntax",
+    "bootstrap dry-run",
+    "device status",
+    "CLI help",
+    "version"
+  ],
+  "linux_smoke": "passed",
+  "hosted_macos_status_when_recorded": "queued",
+  "local_macos_full_suite": {
+    "tests": 508,
+    "passed": true,
+    "isolated_settings": true
+  },
+  "user_pc_desktop_audio_tested": false,
+  "one_command_interactive_end_to_end_tested": false,
+  "real_credentials_exported": false,
+  "provider_gateway_deployed": false
+}
