@@ -137,6 +137,8 @@ from kurt.saas.client import register_commands as register_cloud_commands
 register_cloud_commands(app)
 from kurt.core.device import register_commands as register_device_commands
 register_device_commands(app)
+from kurt.core.speech_recognition import register_commands as register_speech_commands
+register_speech_commands(app)
 from kurt.core.coding import register_commands as register_coding_commands
 register_coding_commands(app)
 from kurt.core.android_build import register_commands as register_android_commands
@@ -627,6 +629,9 @@ def chat(
         from kurt.core.wake_word import start_listening, check_dependencies as _voice_deps
         _deps = _voice_deps() if sys.stdin.isatty() else {}
         if _deps.get("can_record") and _deps.get("can_transcribe") and _deps.get("can_detect_speech", False):
+            from kurt.core.speech_recognition import options as speech_options
+            if speech_options()['provider']=='groq':
+                console.print('[dim]Online voice: activated audio goes to Groq and may use credits. Background wake detection stays local.[/dim]')
             _voice_listener = start_listening(callback=_voice_input_bridge.submit, deferred=True,
                                               state_callback=_voice_input_bridge.set_status)
             _voice_active = True
@@ -709,7 +714,11 @@ def chat(
         console.print(_render_banner(0.0))
 
     if _voice_active:
-        console.print("[dim]🎤 Voice ready — 'Hey Kurt' for one turn; F5 for hands-free conversation. Say 'stop listening' or 'tigil muna' to pause.[/dim]\n")
+        from kurt.core.speech_recognition import status as speech_status
+        _speech=speech_status()
+        _route='Groq online speech (activated audio is uploaded; may use credits)' if _speech['provider']=='groq' else 'cached local speech'
+        _wake="'Hey Kurt' or " if _speech['cached_local_model'] else ''
+        console.print(f"[dim]🎤 {_route} — {_wake}F5 to talk hands-free. Say 'tigil muna' to pause.[/dim]\n")
 
     # ── Screen watcher (proactive mode) ─────────────────────────────
     try:
@@ -981,7 +990,7 @@ def chat(
 def voice(
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Force a specific AI model (optional — Kurt auto-picks the best one)"),
     speak: bool = typer.Option(True, "--speak/--no-speak", help="Text-to-speech responses"),
-    hotkey_only: bool = typer.Option(False, "--hotkey", help="Hotkey only (no mic listening)"),
+    hotkey_only: bool = typer.Option(False, "--hotkey", help="Hotkeys only; no background wake-word capture"),
 ):
     """🎤 Talk to Kurt out loud — say 'Hey Kurt' or press Ctrl+Shift+K to activate."""
     load_env()
@@ -999,10 +1008,15 @@ def voice(
 
     console.print(Panel(
         f"[bold cyan]🎤 {_kurt_name} — Voice Mode[/bold cyan]\n"
-        "[dim]Say 'Hey Kurt' or press [bold]Ctrl+Shift+K[/bold] to activate\n"
+        "[dim]Press F5 for hands-free conversation; Ctrl+Shift+K for one turn.\n"
+        "'Hey Kurt' needs a cached local wake recognizer.\n"
         "Press Ctrl+C to exit[/dim]",
         box=box.ROUNDED, border_style="cyan"
     ))
+
+    from kurt.core.speech_recognition import options as speech_options
+    if speech_options()['provider']=='groq':
+        console.print('[dim]Online voice: activated audio goes to Groq and may use credits. Background wake detection stays local.[/dim]')
 
     # Check voice dependencies
     try:
@@ -1015,18 +1029,24 @@ def voice(
             hotkey_only = True
 
         if not deps.get("can_transcribe"):
-            console.print("[yellow]⚠ STT not available. Install: pip install faster-whisper[/yellow]")
+            console.print("[yellow]⚠ Speech recognition unavailable. Configure Groq in /setup and check kurt speech status, or use an existing cached local model.[/yellow]")
             if not hotkey_only:
                 console.print("[red]Cannot run voice mode without STT.[/red]")
                 return
 
         if deps.get("can_detect_speech") is False:
-            console.print("[red]Speech detection needs faster-whisper and onnxruntime. Install the voice dependencies before using voice mode.[/red]")
+            console.print("[red]Speech detection unavailable. Install the voice extra (webrtcvad-wheels); no local AI model download is needed.[/red]")
             return
 
     except ImportError:
         console.print("[red]❌ Voice module not available.[/red]")
         return
+
+    voice_history=[]
+
+    def remember_voice(user,answer):
+        voice_history.extend([{'role':'user','content':user},{'role':'assistant','content':answer}])
+        del voice_history[:-24]
 
     def handle_voice_command(event):
         """Process a voice command through Kurt's AI"""
@@ -1038,6 +1058,7 @@ def voice(
 
         direct_action = _try_local_request(text, session_id)
         if direct_action is not None:
+            remember_voice(text,direct_action['message'])
             if speak:
                 kurt_speak(direct_action['message'], blocking=True)
             return
@@ -1049,8 +1070,9 @@ def voice(
             {"role": "system", "content": (
                 f"You are {_kurt_name}, a voice assistant. "
                 "Give SHORT responses (1-2 sentences max) suitable for text-to-speech. "
-                "Speak naturally in Taglish."
+                + get_language_system_prompt()
             )},
+            *voice_history,
             {"role": "user", "content": text},
         ]
 
@@ -1069,8 +1091,11 @@ def voice(
 
         console.print(f"\n[bold green]🤖 {_kurt_name}[/bold green]: {full_response}")
 
+        remember_voice(text,full_response)
+
         if speak and full_response:
-            kurt_speak(full_response, blocking=True)
+            from kurt.core.wake_word import strip_markdown_for_speech
+            kurt_speak(strip_markdown_for_speech(full_response), blocking=True)
 
         save_message(session_id, "user", text)
         save_message(session_id, "assistant", full_response)
@@ -1079,9 +1104,12 @@ def voice(
     console.print("[dim]Starting voice listener...[/dim]")
     try:
         from kurt.core.wake_word import start_listening, speak as kurt_speak
-        listener = start_listening(callback=handle_voice_command)
-        kurt_speak(f"Hey! {_kurt_name} voice mode activated. Say hey Kurt anytime!", blocking=False)
-        console.print(f"[green]✓ Voice mode active![/green] [dim]Listening for 'Hey Kurt'...[/dim]")
+        listener = start_listening(callback=handle_voice_command,hotkey_only=hotkey_only)
+        from kurt.core.speech_recognition import status as speech_status
+        details=speech_status()
+        route='Groq online speech: activated audio is uploaded and may use credits.' if details['provider']=='groq' else 'Cached local speech.'
+        console.print(f"[green]✓ Voice mode active![/green] [dim]{route} F5 to talk; wake word needs a cached local model.[/dim]")
+        kurt_speak(f"{_kurt_name} voice ready. Press F5 para makipag-usap.", blocking=False)
 
         # Keep running
         import time

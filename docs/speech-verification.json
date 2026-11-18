@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-18",
+  "full_suite": {
+    "tests": 529,
+    "passed": true,
+    "isolated_settings": true,
+    "host": "macOS arm64"
+  },
+  "focused_speech_tests": 21,
+  "existing_voice_turn_tests": 19,
+  "clean_environment": {
+    "no_local_whisper_packages": true,
+    "no_local_model_downloads": true,
+    "native_webrtc_silence_test": "passed",
+    "recording_stt_vad_tts_library_readiness": true
+  },
+  "synthetic_live": {
+    "synthetic_audio_only": true,
+    "microphone_recorded": false,
+    "actions_executed": false,
+    "paid_requests": 2,
+    "results": [
+      {
+        "reference": "Kurt, buksan ang Notes at sabihin mong mahal kita.",
+        "text": "Kurt, buksan ang notes at sabihin mong mahal kita.",
+        "provider": "groq",
+        "language": "Tagalog",
+        "review_reasons": [],
+        "confidence": null,
+        "word_error_rate": 0.0
+      },
+      {
+        "reference": "Bhe, gamitin natin ang Vibe at DeepSeek para sa project.",
+        "text": "Bhe, gamitin natin ang Vibe at DeepSeek para sa project.",
+        "provider": "groq",
+        "language": "Tagalog",
+        "review_reasons": [],
+        "confidence": null,
+        "word_error_rate": 0.0
+      }
+    ],
+    "note": "Synthetic Filipino TTS does not measure the user's accent or room/microphone quality."
+  },
+  "actual_user_microphone_tested": false,
+  "audible_windows_playback_tested": false,
+  "hosted_ci_status": "pending",
+  "large_dictionary_or_model_downloaded": false,
+  "cloud_gpu_and_offline_expansion": "parked"
+}

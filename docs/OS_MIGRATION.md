@@ -3,6 +3,13 @@
 Windows is the first migration target (user decision November 18, 2026).
 Cloud GPU hosting and offline model/CLI expansion remain parked.
 
+Voice update: the default bootstrap now includes `web,media,voice`, with
+WebRTC speech detection and online Groq transcription, without local model
+weights. Use `--features web,media` for the smaller typed-only profile. See
+[Tagalog/Taglish voice](TAGALOG_VOICE.md) for audio upload behavior, vocabulary,
+F5 conversation and current testing limits. Older setup notes below describe
+the original optional-voice checkpoint.
+
 ## One command from GitHub and private credential transfer
 
 Requires Python 3.10+ on Windows. Once this installer is published to `main`,

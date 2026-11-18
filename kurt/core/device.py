@@ -11,7 +11,8 @@ from kurt.utils.security import redact, require_public_file, write_private_text
 
 PORTABLE_FIELDS = ('user_name','kurt_name','theme','icon','custom_icon','voice','language',
     'greeting_style','custom_greeting','default_model','default_cli','default_image_model',
-    'default_video_model','ai_mode','show_routing_info','compact_mode')
+    'default_video_model','ai_mode','show_routing_info','compact_mode',
+    'speech_provider','speech_language','speech_model','speech_vocabulary','speech_pause_seconds')
 MAX_SETTINGS = 64*1024
 
 
@@ -46,6 +47,14 @@ def _validate(values):
     if not isinstance(values,dict) or set(values)-set(PORTABLE_FIELDS):
         raise ValueError('Settings contain unsupported or device-specific fields.')
     for key,value in values.items():
+        choices={'speech_provider':('auto','groq','local'),'speech_language':('tl','auto','en'),
+                 'speech_model':('whisper-large-v3','whisper-large-v3-turbo')}
+        if key in choices and value not in choices[key]: raise ValueError('Invalid speech setting: '+key)
+        if key=='speech_pause_seconds' and (type(value) not in (int,float) or not .6<=value<=4):
+            raise ValueError('Speech pause must be between 0.6 and 4 seconds.')
+        if key == 'speech_vocabulary' and (not isinstance(value,list) or len(value)>80 or
+                any(not isinstance(w,str) or len(w)>48 or '\n' in w or '\0' in w for w in value)):
+            raise ValueError('Invalid speech vocabulary.')
         default = persona.DEFAULT_PERSONA[key]
         if default is None:
             valid = value is None or isinstance(value,str)

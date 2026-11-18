@@ -145,7 +145,7 @@ class LocalActionTests(unittest.TestCase):
 
     def test_voice_simple_open_uses_same_local_executor(self):
         from kurt import main
-        def listen(callback):
+        def listen(callback, **kwargs):
             callback(SimpleNamespace(text='mag open ka ng Notes'))
             raise KeyboardInterrupt
         voice = SimpleNamespace(check_dependencies=lambda: {'can_record': True, 'can_transcribe': True},

@@ -78,6 +78,7 @@ class PortabilityTests(unittest.TestCase):
         persona.save_persona({'user_name':'Unchanged'})
         target = self.root/'bad.json'
         for settings in [{'wallet_enabled':True},{'compact_mode':'yes'},{'default_cli':'shell'},
+                         {'speech_provider':'unknown'},{'speech_vocabulary':['ok',123]},
                          {'user_name':['invalid']},{'default_model':'bad|unsupported'}]:
             target.write_text(json.dumps({'format':'kurt-portable-settings','version':1,'settings':settings}))
             with self.subTest(settings=settings),self.assertRaises(ValueError):device.import_settings(target)

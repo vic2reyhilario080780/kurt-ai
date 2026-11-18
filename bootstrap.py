@@ -72,7 +72,7 @@ def install(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--features',default='web,media',help='Optional comma-separated web,media,voice,desktop; empty means core only')
+    parser.add_argument('--features',default='web,media,voice',help='Optional comma-separated web,media,voice,desktop,migration; empty means core only')
     parser.add_argument('--cli-tools',action='store_true',help='Also install project-local npm AI CLIs; requires Node/npm')
     parser.add_argument('--browser',action='store_true',help='Also download Chromium for browser automation')
     parser.add_argument('--credentials-file',help='Private encrypted .env transfer; prompts for its passphrase after install')

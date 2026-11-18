@@ -145,7 +145,7 @@ class ListenerTurnTests(unittest.TestCase):
         listener = self.listener(callback)
         listener._conversation_mode = True
         with patch.object(voice, "record_until_silence", return_value="test.wav"), \
-             patch.object(voice, "transcribe_audio_fast", return_value="Tigil muna."), \
+             patch.object(voice, "transcribe_utterance", return_value=SimpleNamespace(text="Tigil muna.",review_reasons=())), \
              patch.object(voice, "_cleanup"), patch.object(voice, "speak"):
             listener._capture_command("f5-conversation")
         self.assertFalse(listener.is_in_conversation_mode())

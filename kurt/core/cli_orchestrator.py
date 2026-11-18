@@ -68,6 +68,7 @@ SLASH_COMMANDS = {
     "/config":    "Personalize Kurt — theme, name, greeting  e.g. /config theme",
     "/setting":   "Choose defaults — Chat AI, CLI, Image AI, Video AI",
     "/setup":     "Add/update your API keys (Groq, OpenRouter, Composio, etc.)  e.g. /setup",
+    "/speech":    "Voice language/provider/vocabulary: /speech language tl | /speech word-add <name>",
     # ── AI Tools — models, skills, and native workflows ─────────────
     "/image-model": "Choose default image generator: /image-model <model-id> fal|replicate",
     "/video-model": "Choose default video generator: /video-model <model-id> fal|replicate",
@@ -112,7 +113,7 @@ SLASH_COMMANDS = {
 
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
-    ("🧠 AI Tools", ["/model", "/models", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
+    ("🧠 AI Tools", ["/model", "/models", "/speech", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
     ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/deepseek", "/deepseek-cli", "/copilot", "/openclaw", "/peekaboo", "/cli", "/wallet", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
@@ -351,6 +352,12 @@ def handle_slash(
         try: output = json.dumps(slash(args), ensure_ascii=False, indent=2)
         except (ValueError, OSError, RuntimeError) as exc: output = str(exc)
         return SlashResult(True, output, True)
+
+    if cmd == '/speech':
+        from kurt.core.speech_recognition import slash
+        try: output=slash(args)
+        except (ValueError,OSError) as exc: output=str(exc)
+        return SlashResult(True,output,True)
 
     if cmd in ('/image', '/video'):
         from kurt.core.media_generation import generate_selected_media

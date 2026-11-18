@@ -47,7 +47,7 @@ class VoiceInputBridge:
     def set_status(self, state):
         names = {"waiting": "Waiting for speech", "listening": "Listening…",
                  "transcribing": "Transcribing…", "thinking": "Thinking…",
-                 "speaking": "Speaking…", "off": "Wake word mode — F5 to talk"}
+                 "speaking": "Speaking…", "clarifying":"Unclear speech — please repeat", "off": "Voice idle — F5 to talk"}
         with self._lock:
             self.status = names.get(state, state)
             binding = self._binding

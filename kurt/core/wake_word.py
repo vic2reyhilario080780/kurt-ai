@@ -51,7 +51,7 @@ _microphone_lock = threading.Lock()
 class VoiceEvent:
     text: str                      # Transcribed speech
     wake_word_used: str = ""       # Which wake word triggered
-    confidence: float = 1.0        # STT confidence (if available)
+    confidence: Optional[float] = None  # No fabricated recognition accuracy.
     audio_path: str = ""           # Temp file path (if kept)
     turn_id: int = 0
 
@@ -99,11 +99,11 @@ def _get_whisper_model():
         from faster_whisper import WhisperModel
         # "small" over "base" — noticeably better Tagalog/Taglish accuracy,
         # still fast enough on CPU for short command-length clips.
-        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8", local_files_only=True)
     return _whisper_model
 
 
-def transcribe_audio(audio_path: str, language: Optional[str] = None) -> tuple[str, float]:
+def transcribe_local(audio_path: str, language: Optional[str] = None):
     """
     Transcribe audio file → (text, confidence).
     Tries faster-whisper first (faster), then openai-whisper.
@@ -112,35 +112,53 @@ def transcribe_audio(audio_path: str, language: Optional[str] = None) -> tuple[s
     Taglish, where forcing "en" makes it mangle Tagalog words into
     English-sounding nonsense instead of transcribing them correctly.
     """
-    # Try faster-whisper
+    from .speech_recognition import options, vocabulary_prompt, checked_transcript
+    selected=options()['language']
+    language=language or (None if selected=='auto' else selected)
+    # Existing cached models only: no automatic model downloads.
     try:
         model = _get_whisper_model()
-        segments, info = model.transcribe(audio_path, language=language)
+        segments, info = model.transcribe(audio_path, language=language,initial_prompt=vocabulary_prompt(),temperature=0)
+        segments=list(segments)
         text = " ".join(seg.text.strip() for seg in segments)
-        return text.strip(), 0.9
+        return checked_transcript({'text':text,'segments':segments,'language':getattr(info,'language',language)},'local')
     except ImportError:
         pass
     except Exception as e:
-        logger.warning(f"faster-whisper failed: {e}")
+        logger.warning('Cached faster-whisper failed: %s',type(e).__name__)
 
     # Try openai-whisper
     try:
+        from pathlib import Path
+        cache=Path.home()/'.cache/whisper/base.pt'
+        if not cache.is_file(): raise RuntimeError('No cached fallback model; no model was downloaded.')
         import whisper
-        model = whisper.load_model("base")
-        result = model.transcribe(audio_path, language=language)
-        return result["text"].strip(), 0.9
+        model = whisper.load_model(str(cache))
+        result = model.transcribe(audio_path, language=language,initial_prompt=vocabulary_prompt(),temperature=0)
+        return checked_transcript(result,'local')
     except ImportError:
         pass
     except Exception as e:
-        logger.warning(f"openai-whisper failed: {e}")
+        logger.warning('Cached Whisper fallback failed: %s',type(e).__name__)
 
-    return "", 0.0
+    raise RuntimeError('Cached local speech model is unavailable. Use Groq speech or install a local model separately; no automatic download was attempted.')
+
+
+def transcribe_audio(audio_path: str, language: Optional[str] = None):
+    """Compatibility wrapper; quality is not a calibrated confidence score."""
+    result=transcribe_local(audio_path,language)
+    return result.text,result.confidence
 
 
 def transcribe_audio_fast(audio_path: str) -> str:
     """Fast transcription, text only"""
-    text, _ = transcribe_audio(audio_path)
-    return text
+    result=transcribe_local(audio_path)
+    return '' if result.review_reasons else result.text
+
+
+def transcribe_utterance(audio_path):
+    from .speech_recognition import transcribe
+    return transcribe(audio_path)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -185,21 +203,31 @@ def _speak_sync(text: str, voice_preset: dict):
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
                 tmp = f.name
             try:
-                communicate = edge_tts.Communicate(
-                    text, voice=edge_voice, rate=edge_rate, pitch=edge_pitch
-                )
-                await communicate.save(tmp)
+                import aiohttp
+                import certifi
+                import ssl
+                async with aiohttp.TCPConnector(ssl=ssl.create_default_context(cafile=certifi.where())) as connector:
+                    communicate = edge_tts.Communicate(
+                        text, voice=edge_voice, rate=edge_rate, pitch=edge_pitch,connector=connector
+                    )
+                    await communicate.save(tmp)
                 # Play the file
                 if OS == "Darwin":
                     subprocess.run(["afplay", tmp], check=True)
                 elif OS == "Windows":
-                    import shutil
-                    player = shutil.which("ffplay")
-                    if not player:
-                        raise RuntimeError("No blocking MP3 player; use the offline TTS fallback")
-                    subprocess.run([player, "-nodisp", "-autoexit", "-loglevel", "quiet", tmp], check=True)
+                    import sys
+                    from kurt.utils.process import run_bounded
+                    from kurt.utils.security import child_env
+                    result=run_bounded([sys.executable,'-m','kurt.core.audio_playback',tmp],
+                        env=child_env(),cwd=os.getcwd(),timeout=250,max_output=8192)
+                    if result['status']!='completed': raise RuntimeError('Filipino audio playback did not complete.')
                 elif OS == "Linux":
-                    subprocess.run(["mpg123", "-q", tmp], check=True)
+                    import sys
+                    from kurt.utils.process import run_bounded
+                    from kurt.utils.security import child_env
+                    result=run_bounded([sys.executable,'-m','kurt.core.audio_playback',tmp],
+                        env=child_env(),cwd=os.getcwd(),timeout=250,max_output=8192)
+                    if result['status']!='completed': raise RuntimeError('Filipino audio playback did not complete.')
             finally:
                 _cleanup(tmp)
 
@@ -362,8 +390,8 @@ def record_audio(duration: float = 5.0, sample_rate: int = 16000, should_cancel=
                     buffer.append(chunk.copy())
         if _tts_speaking.is_set() or (should_cancel and should_cancel()):
             return None
-        from .voice_activity import SileroSpeechDetector
-        detector = SileroSpeechDetector()
+        from .voice_activity import speech_detector
+        detector = speech_detector()
         consecutive = 0
         for chunk in buffer:
             consecutive = consecutive + 1 if detector(chunk) >= 0.5 else 0
@@ -392,7 +420,7 @@ def record_until_silence(
     """Wait for speech, then finish after trailing silence. Never submit silence
     or a cancelled/truncated utterance. Duration is measured after speech onset.
     """
-    from .voice_activity import VoiceSettings, SpeechEndpoint, SileroSpeechDetector, SpeechLimitReached
+    from .voice_activity import VoiceSettings, SpeechEndpoint, speech_detector as make_detector, SpeechLimitReached
     if sample_rate != 16000:
         raise ValueError("Voice activity detection requires 16000 Hz audio.")
     settings = VoiceSettings(silence_seconds=silence_duration, max_speech_seconds=max_duration,
@@ -401,7 +429,7 @@ def record_until_silence(
     buffer = []
     preroll = deque(maxlen=12)  # 384 ms retains the first syllable before onset confirmation.
     try:
-        detector = speech_detector if speech_detector is not None else SileroSpeechDetector()
+        detector = speech_detector if speech_detector is not None else make_detector()
         with _microphone_lock:
             if _tts_speaking.is_set() or (should_cancel and should_cancel()):
                 return None
@@ -456,6 +484,7 @@ class WakeWordListener:
         speak_confirmation: bool = True,
         deferred: bool = False,
         state_callback=None,
+        hotkey_only: bool = False,
     ):
         self.wake_words = [w.lower() for w in (wake_words or DEFAULT_WAKE_WORDS)]
         self._callbacks: list[Callable[[VoiceEvent], None]] = []
@@ -469,6 +498,7 @@ class WakeWordListener:
         self._revision = 0
         self._turn_number = 0
         self._pending_turn = None
+        self._unclear_count = 0
         from .voice_activity import VoiceSettings
         self.settings = VoiceSettings.from_env()
         if callback:
@@ -477,6 +507,7 @@ class WakeWordListener:
                 self._deferred_callbacks.add(callback)
         self.use_hotkey = use_hotkey
         self.speak_confirmation = speak_confirmation
+        self.hotkey_only=hotkey_only
 
         self._running = False
         self._listen_thread: Optional[threading.Thread] = None
@@ -597,6 +628,11 @@ class WakeWordListener:
                     self._capture_requested.clear()
                     self._capture_command(origin)
                     continue
+                from .speech_recognition import cached_local_model
+                if self.hotkey_only or not cached_local_model():
+                    # No background cloud upload just to search for a wake word.
+                    time.sleep(.1)
+                    continue
                 revision = self._revision
                 from .voice_activity import SpeechLimitReached
                 try:
@@ -616,14 +652,21 @@ class WakeWordListener:
                     if self._cancel_capture(revision):
                         continue
                     text = transcribe_audio_fast(chunk_path)
+                    if self._cancel_capture(revision): continue
+                    wake=_find_wake_word(text,self.wake_words)
+                    if wake:
+                        result=transcribe_utterance(chunk_path)
+                        if self._cancel_capture(revision): continue
+                        if result.review_reasons:
+                            self._clarify();continue
+                        text=result.text
                 finally:
                     _cleanup(chunk_path)
                 if self._cancel_capture(revision):
                     continue
-                text_lower = text.lower().strip()
-                triggered = next((w for w in self.wake_words if w in text_lower), None)
+                triggered = wake or _find_wake_word(text,self.wake_words)
                 if triggered:
-                    self._handle_wake(triggered, text_lower)
+                    self._handle_wake(triggered, text)
             except Exception:
                 logger.exception("Voice listener failed")
                 time.sleep(0.2)
@@ -650,11 +693,26 @@ class WakeWordListener:
             if self._cancel_capture(revision):
                 return
             self._set_state("transcribing")
-            command = transcribe_audio_fast(path).strip()
+            result = transcribe_utterance(path)
+            if self._cancel_capture(revision): return
+            if result.review_reasons:
+                self._clarify()
+                return
+            command = result.text.strip()
+        except Exception as exc:
+            self._conversation_mode=False
+            self._revision+=1
+            self._capture_requested.clear()
+            code=getattr(getattr(exc,'response',None),'status_code',None)
+            detail=f' (HTTP {code})' if isinstance(code,int) else ''
+            self._set_state('Speech unavailable'+detail+' — check /speech status and /setup')
+            logger.warning('Voice transcription failed; no fallback request or action was submitted.')
+            return
         finally:
             _cleanup(path)
         if command and not self._cancel_capture(revision):
-            # Local mode controls do not require an AI call or credits.
+            self._unclear_count=0
+            # Local mode controls bypass chat/tools; online STT may already cost credits.
             control = command.casefold().strip(" .!?,")
             if origin == "f5-conversation" and control in {
                 "stop listening", "stop listening kurt", "kurt stop listening",
@@ -666,10 +724,24 @@ class WakeWordListener:
         elif not self._busy():
             self._set_state("waiting" if self._conversation_mode else "off")
 
+    def _clarify(self):
+        self._unclear_count+=1
+        if self._unclear_count>=3:
+            self._conversation_mode=False
+            self._revision+=1
+            speak('Hindi pa rin malinaw ang audio. Ipa-pause ko muna ang pakikinig. Pindutin ulit ang F5 kapag handa ka.',blocking=True)
+            self._set_state('off')
+            return
+        self._set_state('clarifying')
+        speak('Hindi malinaw ang narinig ko. Pakiulit nang buo; wala pa akong ginawang action.',blocking=True)
+        self._set_state('waiting' if self._conversation_mode else 'off')
+
     def _handle_wake(self, wake_word: str, context_text: str):
         if self._busy() or self._conversation_mode:
             return
         command = _extract_command(context_text, wake_word)
+        if not command and not _find_wake_word(context_text,[wake_word]):
+            command=context_text.strip()  # Local wake was confirmed; preserve a cloud transcript that omits the address.
         if command and len(command) > 3:
             self._fire_command(VoiceEvent(text=command, wake_word_used=wake_word))
             return
@@ -772,6 +844,7 @@ class WakeWordListener:
         if not self._running or self._conversation_mode:
             return
         self._conversation_mode = True
+        self._unclear_count=0
         self._revision += 1
         self._set_state("waiting")
         speak("Voice activated! Usapan na tayo.", blocking=False)
@@ -793,6 +866,12 @@ class WakeWordListener:
 # ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
+
+def _find_wake_word(text,words):
+    for word in words:
+        if _re.search(r'(?<!\w)'+_re.escape(word)+r'(?!\w)',text,flags=_re.I):return word
+    return None
+
 
 def _extract_command(text: str, wake_word: str) -> str:
     """Extract command from text after wake word"""
@@ -821,7 +900,7 @@ def check_dependencies() -> dict[str, bool]:
     import importlib.util
     # Availability checks must not initialize PortAudio in the chat process:
     # importing sounddevice registers a native termination handler at atexit.
-    for dep in ["sounddevice", "soundfile", "numpy", "faster_whisper", "whisper",
+    for dep in ["sounddevice", "soundfile", "numpy", "faster_whisper", "whisper", "webrtcvad",
                 "onnxruntime", "pyttsx3", "edge_tts", "keyboard"]:
         try:
             deps[dep] = importlib.util.find_spec(dep) is not None
@@ -829,8 +908,11 @@ def check_dependencies() -> dict[str, bool]:
             deps[dep] = False
 
     deps["can_record"] = deps.get("sounddevice", False) and deps.get("soundfile", False) and deps.get("numpy", False)
-    deps["can_transcribe"] = deps.get("faster_whisper", False) or deps.get("whisper", False)
-    deps["can_detect_speech"] = deps.get("faster_whisper", False) and deps.get("onnxruntime", False)
+    from .speech_recognition import options, cached_local_model, groq_key
+    from kurt.billing.client import active
+    config=options()
+    deps["can_transcribe"] = bool(active() or groq_key()) if config['provider']=='groq' else cached_local_model() and (deps.get('faster_whisper',False) or deps.get('whisper',False))
+    deps["can_detect_speech"] = deps.get('webrtcvad',False) or deps.get("faster_whisper", False) and deps.get("onnxruntime", False)
     deps["can_speak"] = deps.get("edge_tts", False) or deps.get("pyttsx3", False)
     deps["fully_functional"] = deps["can_record"] and deps["can_transcribe"] and deps["can_speak"] and deps["can_detect_speech"]
 
@@ -839,23 +921,7 @@ def check_dependencies() -> dict[str, bool]:
 
 def install_dependencies() -> dict[str, str]:
     """Install voice dependencies"""
-    import subprocess
-    packages = [
-        "sounddevice",
-        "soundfile",
-        "faster-whisper",
-        "pyttsx3",
-        "keyboard",
-        "edge-tts",
-    ]
-    results = {}
-    for pkg in packages:
-        result = subprocess.run(
-            ["pip", "install", pkg, "--break-system-packages", "-q"],
-            capture_output=True, text=True
-        )
-        results[pkg] = "ok" if result.returncode == 0 else result.stderr[:100]
-    return results
+    return {'setup':'Use python bootstrap.py --features web,media,voice for isolated voice dependencies; no model downloads are required for Groq speech.'}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -865,10 +931,10 @@ def install_dependencies() -> dict[str, str]:
 _listener: Optional[WakeWordListener] = None
 
 
-def get_listener(callback: Optional[Callable] = None, *, deferred=False, state_callback=None) -> WakeWordListener:
+def get_listener(callback: Optional[Callable] = None, *, deferred=False, state_callback=None, hotkey_only=False) -> WakeWordListener:
     global _listener
     if _listener is None:
-        _listener = WakeWordListener(callback=callback, deferred=deferred, state_callback=state_callback)
+        _listener = WakeWordListener(callback=callback, deferred=deferred, state_callback=state_callback,hotkey_only=hotkey_only)
     elif callback:
         _listener.on_command(callback, deferred=deferred)
         if state_callback:
@@ -876,9 +942,9 @@ def get_listener(callback: Optional[Callable] = None, *, deferred=False, state_c
     return _listener
 
 
-def start_listening(callback: Optional[Callable] = None, *, deferred=False, state_callback=None) -> WakeWordListener:
+def start_listening(callback: Optional[Callable] = None, *, deferred=False, state_callback=None, hotkey_only=False) -> WakeWordListener:
     """Start the global wake word listener"""
-    listener = get_listener(callback, deferred=deferred, state_callback=state_callback)
+    listener = get_listener(callback, deferred=deferred, state_callback=state_callback,hotkey_only=hotkey_only)
     if not listener.is_running():
         listener.start()
     return listener

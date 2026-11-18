@@ -316,6 +316,11 @@ DEFAULT_PERSONA = {
     "default_cli": "auto",
     "default_image_model": "auto",
     "default_video_model": "auto",
+    "speech_provider": "auto",
+    "speech_language": "auto",
+    "speech_model": "whisper-large-v3",
+    "speech_vocabulary": [],
+    "speech_pause_seconds": 2.0,
     "ai_mode": "hybrid",          # hybrid | kurt_only | claude_only
     # Projects context (na-dedisplay sa banner)
     "active_projects": [],        # List of active projects for context

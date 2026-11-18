@@ -21,6 +21,7 @@ kurt "gumawa ng TikTok script"    → Claude Haiku (best for writing)
 - 🏠 **Offline Mode** — Ollama fallback para kahit walang internet
 - 📊 **Native data library** — 10,000 skills, 10,000 declared workflow agents, and 10,000 executable plugin recipes for CSV/JSON analysis. These are metric/domain specializations of ten shared operations. [Usage, scope and validation](docs/NATIVE_LIBRARY.md).
 - 🖥️ **Desktop CLI orchestration** — OpenClaw task delegation and Peekaboo app/screen/mouse/keyboard commands through chat, the AI agent, or `kurt cli`. [Setup and examples](docs/DESKTOP_CLI.md).
+- 🎤 **Tagalog/Taglish voice** — F5 conversation, shared Groq speech credentials, custom vocabulary and unclear-speech handling. [Setup, upload behavior and testing limits](docs/TAGALOG_VOICE.md).
 
 ## 🚀 Quick Start
 
