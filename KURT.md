@@ -40,6 +40,11 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-18 — Copy-paste USB credential import command (Codex)
+- User request: Put the import command on GitHub so it can be copied into PowerShell after plugging in the USB.
+- Ano: Added a visible README section and migration-guide instructions for importing directly from USB. The command prompts for the full file path, accepts File Explorer Copy as path quotes/spaces, and uses the default installed virtual environment. Documented the separate hidden transfer password, restart and optional crypto dependency fix. No Downloads copy or reinstall required.
+- Scope: Documentation only; no credentials exported, imported or published. Existing credential preservation/encryption behavior is unchanged.
+
 ## 2026-11-18 — Windows voice prompt output scope (Codex)
 - Observed: Native Windows CI passed the new speech tests, then the existing real-prompt handoff test hit NoConsoleScreenBufferError when patch_stdout selected a default Windows console despite the prompt using an explicit redirected output.
 - Fix: Bind stdout patching to the active PromptSession output through create_app_session, preserving the no-Enter voice handoff test rather than skipping it.

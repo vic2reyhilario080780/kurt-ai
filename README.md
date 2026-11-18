@@ -60,6 +60,29 @@ Provider keys are never committed or downloaded from GitHub; SaaS clients
 use the private gateway/token flow instead. See the migration guide for the
 complete owner-transfer command.
 
+### Import API keys mula sa USB — Windows
+
+Kapag installed na si Kurt, isaksak ang USB na may
+`kurt-private.kurt-credentials`. Kopyahin ito sa **PowerShell**:
+
+```powershell
+& "$env:LOCALAPPDATA\Kurt\.venv\Scripts\python.exe" -m kurt.main device import-credentials ((Read-Host 'I-paste ang buong path ng credential file sa USB, halimbawa E:\kurt-private.kurt-credentials').Trim().Trim('"'))
+```
+
+Sa File Explorer, right-click ang encrypted file → **Copy as path**, saka
+i-paste kapag tinanong ng command. Tinatanggap din ang path na may quotes o
+spaces. Ilagay ang transfer password kapag tinanong, pagkatapos isara at
+buksan ulit si Kurt. Hindi kailangang kopyahin ang file sa Downloads.
+
+Ito ay para sa default GitHub installation sa `%LOCALAPPDATA%\Kurt` at sa
+sarili mong encrypted credential export, hindi raw `.env`. Kung iba ang
+installation folder, palitan ang Python path sa command. Kung may missing
+`cryptography` dependency, patakbuhin muna:
+
+```powershell
+& "$env:LOCALAPPDATA\Kurt\.venv\Scripts\python.exe" -m pip install 'cryptography>=43'
+```
+
 **Windows note:** code-execution tools (`bash`, `run_code`, the coding agent
 workbench) use a lexical pre-flight guard on Windows instead of the macOS
 kernel-level sandbox — real protection against commands that reference

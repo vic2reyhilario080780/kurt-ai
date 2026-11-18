@@ -60,6 +60,26 @@ GPU hosting and offline expansion remain parked.
 
 Crypto reference: [cryptography's authenticated Fernet and password-based key derivation](https://cryptography.io/en/latest/fernet/).
 
+### Already installed: import directly from a USB drive
+
+The encrypted export can stay on USB. In Windows File Explorer, right-click
+`kurt-private.kurt-credentials` and choose **Copy as path**. Paste this command
+into PowerShell, then paste the file path at the prompt:
+
+```powershell
+& "$env:LOCALAPPDATA\Kurt\.venv\Scripts\python.exe" -m kurt.main device import-credentials ((Read-Host 'I-paste ang buong path ng credential file sa USB, halimbawa E:\kurt-private.kurt-credentials').Trim().Trim('"'))
+```
+
+The command prompts for the transfer passphrase separately and imports directly
+from the selected file, regardless of the USB drive letter. No Downloads copy
+or reinstall is needed. Restart Kurt after successful import. The Python path
+assumes the default GitHub install; adjust it for a custom install directory.
+If the crypto extra is missing, install it in that same virtual environment:
+
+```powershell
+& "$env:LOCALAPPDATA\Kurt\.venv\Scripts\python.exe" -m pip install 'cryptography>=43'
+```
+
 ## What is ready in source
 
 - One stdlib bootstrap chooses Windows `Scripts` or macOS/Linux `bin` paths and
