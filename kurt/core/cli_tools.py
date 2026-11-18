@@ -15,6 +15,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -43,9 +44,10 @@ class CLIResult:
 def resolve_cli(tool):
     if tool not in TOOLS:
         raise ValueError("Supported tools: openclaw, peekaboo.")
-    local = NODE_BIN / tool
-    if local.is_file() and os.access(local, os.X_OK):
-        return str(local)
+    for suffix in (('.exe','.cmd','') if sys.platform == 'win32' else ('',)):
+        local = NODE_BIN / (tool+suffix)
+        if local.is_file() and os.access(local, os.X_OK):
+            return str(local)
     return shutil.which(tool)
 
 
@@ -124,14 +126,19 @@ def run_cli(tool, args, timeout=180, *, cwd=None):
             code = process.wait(timeout=timeout)
             status = "completed" if code == 0 else "failed"
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
+            if sys.platform == 'win32':
+                from kurt.utils.process import _kill_tree
+                _kill_tree(process)
                 process.wait()
-            except ProcessLookupError:
-                process.wait()
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                except ProcessLookupError:
+                    process.wait()
             code, status = process.returncode, "timed_out"
         stdout, out_cut = _read_output(out)
         stderr, err_cut = _read_output(err)

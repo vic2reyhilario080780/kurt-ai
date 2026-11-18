@@ -29,7 +29,7 @@ def sse(items):
     return '\n\n'.join('event: '+item.get('type','message')+'\ndata: '+json.dumps(item) for item in items)+'\n\n'
 
 
-def verify(names):
+def verify(names, *, copilot_read=False):
     upstream=[]
     client_requests=[]
     def handler(request):
@@ -48,6 +48,23 @@ def verify(names):
         marker=markers[0] if markers else 'KURT_NATIVE_READY'
         model=body.get('model') or ('mistral-vibe-cli-latest' if provider=='mistral' else 'fixture/model')
         identity='fixture-'+uuid.uuid4().hex
+        if copilot_read and provider=='openrouter' and marker=='KURT_COPILOT_READY':
+            tool_results=[m for m in body.get('messages',[]) if m.get('role')=='tool']
+            if not tool_results:
+                call={'id':'fixture_read','type':'function','function':{'name':'view',
+                      'arguments':json.dumps({'path':str(root/'read-fixture.txt')})}}
+                if not body.get('stream'):
+                    return httpx.Response(200,json={'id':identity,'object':'chat.completion','created':0,'model':model,
+                        'choices':[{'index':0,'message':{'role':'assistant','content':None,'tool_calls':[call]},'finish_reason':'tool_calls'}],
+                        'usage':{'prompt_tokens':1,'completion_tokens':2,'total_tokens':3,'cost':0.000001}})
+                chunk={'id':identity,'object':'chat.completion.chunk','created':0,'model':model,
+                       'choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[{'index':0,**call}]},'finish_reason':'tool_calls'}],
+                       'usage':{'prompt_tokens':1,'completion_tokens':2,'total_tokens':3,'cost':0.000001}}
+                return httpx.Response(200,headers={'content-type':'text/event-stream'},
+                    text='data: '+json.dumps(chunk)+'\n\ndata: [DONE]\n\n')
+            upstream[-1]['tool_roundtrip_verified']='COPILOT_READ_FIXTURE' in json.dumps(tool_results)
+            if not upstream[-1]['tool_roundtrip_verified']:
+                return httpx.Response(400,json={'error':{'message':'Fixture tool read not verified'}})
         if request.method=='GET':
             if '/models/' in path:
                 return httpx.Response(200,json={'id':path.split('/models/',1)[1],'object':'model','owned_by':'fixture','created':0,
@@ -105,6 +122,7 @@ def verify(names):
 
     with tempfile.TemporaryDirectory(prefix='kurt-wallet-fixture-') as folder:
         root=Path(folder);state=root/'state';store=Wallet(state);tenant,token=store.grant('pro')
+        if copilot_read: (root/'read-fixture.txt').write_text('COPILOT_READ_FIXTURE\n')
         store.manual_credit(tenant,'1000','fixture-only','Synthetic fixture credit, not a payment')
         config=default_config();config['cli_session_budget_usd']='50'
         gateway=Gateway(store,config,{p:'fixture-server-'+p for p in ORIGINS},transport=httpx.MockTransport(handler))
@@ -145,11 +163,12 @@ def verify(names):
         history=store.history(tenant,100)
         return {'native':native,'cli':results,'upstream':upstream,'client_requests':client_requests,'wallet':store.summary(tenant),
                 'financial_entries':len(history['entries']),'payment_processor_used':False,'real_provider_credentials_used':False,
-                'passed':all(r['passed'] for r in native) and all(r['status']=='verified' for r in results)}
+                'passed':all(r['passed'] for r in native) and all(r['status']=='verified' for r in results)
+                    and (not copilot_read or any(r.get('tool_roundtrip_verified') for r in upstream))}
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--cli',nargs='*',default=['deepseek','deepseek-cli','vibe','claude','gemini','codex','openclaw']);parser.add_argument('--output');args=parser.parse_args()
-    report=verify(args.cli)
+    parser=argparse.ArgumentParser();parser.add_argument('--cli',nargs='*',default=['deepseek','deepseek-cli','vibe','claude','gemini','codex','openclaw','copilot']);parser.add_argument('--output');parser.add_argument('--copilot-read',action='store_true');args=parser.parse_args()
+    report=verify(args.cli,copilot_read=args.copilot_read)
     if args.output:Path(args.output).write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));raise SystemExit(0 if report['passed'] else 1)

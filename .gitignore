@@ -56,6 +56,7 @@ build/
 # Hosted control-plane state and device credentials
 .kurt-saas/
 *.kurt-token
+*.kurt-credentials
 control.db
 control.db-*
 

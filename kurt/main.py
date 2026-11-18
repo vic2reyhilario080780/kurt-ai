@@ -132,6 +132,8 @@ app = typer.Typer(
 
 from kurt.saas.client import register_commands as register_cloud_commands
 register_cloud_commands(app)
+from kurt.core.device import register_commands as register_device_commands
+register_device_commands(app)
 from kurt.core.coding import register_commands as register_coding_commands
 register_coding_commands(app)
 from kurt.core.android_build import register_commands as register_android_commands

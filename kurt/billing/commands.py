@@ -15,7 +15,8 @@ def default_config():
     return {'currency':'USD','markup_percent':0,'payment_return_url':'','cli_session_budget_usd':'5',
         'providers':{p:{'models':['*'],'reserve_usd':'25' if p in ('fal','replicate') else '1',
                         'max_output_tokens':8192} for p in ORIGINS},
-        'cli_profiles':{'vibe':{'provider':'mistral','model':'mistral-vibe-cli-latest','alias':'mistral-medium-3.5'},
+        'cli_profiles':{'copilot':{'provider':'openrouter','model':'openai/gpt-oss-120b'},
+                        'vibe':{'provider':'mistral','model':'mistral-vibe-cli-latest','alias':'mistral-medium-3.5'},
                         'openclaw':{'provider':'groq','model':'openai/gpt-oss-20b'},
                         'deepseek':{'provider':'deepseek','model':'deepseek-flash'},
                         'deepseek-cli':{'provider':'deepseek','model':'deepseek-flash'}}}

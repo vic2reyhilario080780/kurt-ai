@@ -9,9 +9,21 @@ from kurt.core import persona
 
 PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate")
 TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate"))
-DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe", "deepseek", "deepseek-cli")
+DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe", "deepseek", "deepseek-cli", "copilot")
 # Explicit API-compatible Vibe alias; avoid its remotely selected free-model route.
 VIBE_API_MODEL = "mistral-medium-3.5"
+
+
+def cli_platform_limit(name):
+    import platform
+    system = platform.system()
+    if name in ('copilot','deepseek','deepseek-cli') and system != 'Darwin':
+        return 'This read-only adapter requires the macOS filesystem sandbox; unavailable on '+system+'. Use API mode (auto) or another supported CLI.'
+    if name not in ('auto','codex') and system == 'Linux':
+        return 'Kurt service isolation for this CLI is not implemented on Linux; use API mode (auto).'
+    return ''
+
+
 MEDIA_PRESETS = {
     'image': (
         ('Nano Banana', 'fal-ai/nano-banana'),
@@ -115,6 +127,7 @@ def save_default_model(value, provider=None):
 def save_default_cli(value):
     if value not in DEFAULT_CLIS:
         raise ValueError("Choose: " + ", ".join(DEFAULT_CLIS))
+    if cli_platform_limit(value): raise ValueError(cli_platform_limit(value))
     settings = persona.load_persona()
     settings["default_cli"] = value
     persona.save_persona(settings)
@@ -320,6 +333,7 @@ def cli_reply(name, result):
 
 
 def run_default_cli(name, messages):
+    if cli_platform_limit(name): raise ValueError(cli_platform_limit(name))
     from kurt.billing.client import active, CLI_CONTEXT, cli_session
     if active() and name != 'auto' and CLI_CONTEXT.get() is None:
         with cli_session(name):
@@ -332,6 +346,12 @@ def _run_default_cli(name, messages):
     from kurt.core.cli_orchestrator import _resolve_cmd, run_ai_cli
     from kurt.utils.workspace import current_workspace
     task = cli_prompt(messages)
+    if name == 'copilot':
+        from kurt.core.copilot_adapter import run_copilot
+        result = run_copilot(task)
+        if cli_quota_exhausted(result): raise CLIQuotaExhausted('Copilot: provider quota exhausted')
+        if result['status'] != 'completed': raise RuntimeError(cli_failure_detail(name, result))
+        return result['final_text']
     if name in ('deepseek', 'deepseek-cli'):
         from kurt.core.deepseek_adapter import run_deepseek
         result = run_deepseek(name, task)

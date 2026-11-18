@@ -142,6 +142,11 @@ def cli_environment(name,base):
     if name in ('deepseek','deepseek-cli'):
         env.update({'DEEPSEEK_API_KEY':token,'DEEPSEEK_BASE_URL':url,'DEEPSEEK_MODEL':model or 'deepseek-flash',
                     'TAVILY_API_KEY':'not-configured'})
+    elif name=='copilot':
+        env.update({'COPILOT_HOME':str(root/'.copilot'), 'COPILOT_OFFLINE':'true',
+                    'COPILOT_PROVIDER_TYPE':'openai', 'COPILOT_PROVIDER_BASE_URL':url+'/api/v1',
+                    'COPILOT_PROVIDER_API_KEY':token, 'COPILOT_MODEL':model or 'openai/gpt-oss-120b',
+                    'COPILOT_AUTO_UPDATE':'false'})
     elif name=='claude':
         env.update({'ANTHROPIC_API_KEY':token,'ANTHROPIC_BASE_URL':url,'CLAUDE_CONFIG_DIR':str(root/'.claude'),
                     'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC':'1','DISABLE_TELEMETRY':'1','DISABLE_ERROR_REPORTING':'1'})

@@ -23,7 +23,7 @@ KEY_VARS = {'openrouter':'OPENROUTER_API_KEY','openai':'OPENAI_API_KEY','mistral
             'deepseek':'DEEPSEEK_API_KEY','groq':'GROQ_API_KEY','anthropic':'ANTHROPIC_API_KEY',
             'google':'GOOGLE_AI_KEY','fal':'FAL_API_KEY','replicate':'REPLICATE_API_TOKEN'}
 CLI_PROVIDERS = {'codex':'openai','claude':'anthropic','gemini':'google','openclaw':'groq',
-                 'vibe':'mistral','deepseek':'deepseek','deepseek-cli':'deepseek'}
+                 'vibe':'mistral','deepseek':'deepseek','deepseek-cli':'deepseek','copilot':'openrouter'}
 MAX_BODY = 24*1024*1024
 MAX_REPLY = 64*1024*1024
 

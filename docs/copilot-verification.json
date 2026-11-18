@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-18",
+  "copilot_version": "1.0.113",
+  "full_suite": {
+    "tests": 484,
+    "passed": true,
+    "isolated_settings": true
+  },
+  "installed_version_probe": "completed",
+  "wallet_fixture": {
+    "passed": true,
+    "native_provider_passes": 9,
+    "cli": [
+      {
+        "cli": "copilot",
+        "status": "verified",
+        "expected_reply": true,
+        "model_request_submitted": true,
+        "note": "Verified for this request only; login, credits and provider availability can change.",
+        "provider_requests": 2
+      }
+    ],
+    "file_read_roundtrip_verified": true,
+    "server_keys_match": true,
+    "payment_processor_used": false,
+    "real_provider_credentials_used": false
+  },
+  "kernel_project_write_block_test": "passed",
+  "personal_login_verified": false,
+  "live_paid_inference_verified": false,
+  "wallet_activated_for_user": false,
+  "default_selection_changed": false,
+  "notes": [
+    "Fixture uses synthetic credits, dummy files and mocked upstreams; it does not prove live provider availability.",
+    "Copilot wallet offline flag disables GitHub traffic; gateway inference still uses network.",
+    "No real checkout, personal authorization or paid model request performed."
+  ]
+}

@@ -12,6 +12,7 @@ import json
 import subprocess
 import shutil
 import threading
+import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,9 +28,11 @@ def _resolve_cmd(name: str) -> str:
     Resolve a CLI command — prefer local node_modules/.bin over global.
     This way LAHAT ng tools nasa project folder, hindi sa iMac globally.
     """
-    local = NODE_BIN / name
-    if local.is_file() and os.access(local, os.X_OK):
-        return str(local)
+    suffixes = ('.exe','.cmd','') if sys.platform == 'win32' else ('',)
+    for suffix in suffixes:
+        local = NODE_BIN / (name+suffix)
+        if local.is_file() and os.access(local, os.X_OK):
+            return str(local)
     # Return an executable path, never a compound shell command.
     resolved = shutil.which(name)
     if resolved:
@@ -84,6 +87,7 @@ SLASH_COMMANDS = {
     "/claude":    "Delegate to Claude Code CLI  e.g. /claude \"review main.py for bugs\"",
     "/deepseek":  "Use installed DeepSeek Agent with Kurt setup key (filesystem read-only)",
     "/deepseek-cli": "Use installed DeepSeek Terminal CLI with Kurt setup key (filesystem read-only)",
+    "/copilot":   "Delegate to GitHub Copilot CLI (read-only); /copilot <task>",
     "/gemini":    "Delegate to Gemini CLI  e.g. /gemini \"what is in this repo?\"",
     "/openclaw":  "Delegate a task to OpenClaw  e.g. /openclaw summarize the task results",
     "/peekaboo":  "Run a Peekaboo desktop command  e.g. /peekaboo permissions status --json",
@@ -109,7 +113,7 @@ SLASH_COMMANDS = {
 SLASH_GROUPS = [
     ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
     ("🧠 AI Tools", ["/model", "/models", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
-    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/deepseek", "/deepseek-cli", "/openclaw", "/peekaboo", "/cli", "/wallet", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
+    ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/deepseek", "/deepseek-cli", "/copilot", "/openclaw", "/peekaboo", "/cli", "/wallet", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),
 ]
 
@@ -149,16 +153,15 @@ def _get_browser_session():
 
 def _cmd_exists(cmd: str) -> bool:
     """Check if a CLI tool is available — local node_modules first, then global"""
-    local = NODE_BIN / cmd
-    if local.is_file() and os.access(local, os.X_OK):
-        return True
-    return shutil.which(cmd) is not None
+    try: _resolve_cmd(cmd); return True
+    except FileNotFoundError: return False
 
 
 def _ai_cli_env(cmd):
     """Keep CLI login usable and translate Kurt's Google key name explicitly."""
     name = Path(cmd).name
-    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else () if name in {"deepseek", "deepseek-cli"} else ("GH_TOKEN", "GITHUB_TOKEN")
+    if name.lower().endswith(('.cmd','.exe','.bat')): name=Path(name).stem
+    allowed = ("ANTHROPIC_API_KEY",) if name == "claude" else ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_CLI_TRUST_WORKSPACE") if name == "gemini" else ("MISTRAL_API_KEY",) if name == "vibe" else () if name in {"deepseek", "deepseek-cli"} else ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN") if name == 'copilot' else ("GH_TOKEN", "GITHUB_TOKEN")
     env = child_env(allow=allowed)
     # Agent hosts can prepend private helper binaries (e.g. ~/.codex) to
     # PATH. A different CLI must not try to resolve tools through that vault.
@@ -229,15 +232,17 @@ def run_ai_cli(cmd, args):
     from kurt.utils.process import run_bounded
     from kurt.utils.workspace import current_workspace
     from kurt.billing.client import active, CLI_CONTEXT, cli_session
+    name = Path(cmd).name
+    if name.lower().endswith(('.cmd','.exe','.bat')): name=Path(name).stem
     if active() and CLI_CONTEXT.get() is None and args not in (['--version'], ['--help']):
-        with cli_session(Path(cmd).name):
+        with cli_session(name):
             return run_ai_cli(cmd, args)
-    if Path(cmd).name not in {"claude", "gemini", "vibe"}:
+    if name not in {"claude", "gemini", "vibe"}:
         raise ValueError("Expected Claude Code, Gemini or Vibe CLI.")
     env = _ai_cli_env(cmd)
-    if Path(cmd).name == 'vibe' and args != ['--version'] and not env.get('MISTRAL_API_KEY'):
+    if name == 'vibe' and args != ['--version'] and not env.get('MISTRAL_API_KEY'):
         raise ValueError('Vibe CLI uses the Mistral API key from Kurt /setup. Configure MISTRAL_API_KEY there first; no Vibe request was sent.')
-    return run_bounded(service_argv([cmd, *args], Path(cmd).name),
+    return run_bounded(service_argv([cmd, *args], name),
                        env=env, cwd=str(current_workspace()), timeout=120, max_output=65536)
 
 
@@ -245,10 +250,12 @@ def _run_shell(cmd: str, args: str) -> str:
     """Run a shell command and return output"""
     full_cmd = f"{cmd} {args}".strip()
     try:
-        trusted = Path(cmd).name in {"claude", "gemini", "gh"}
+        name = Path(cmd).name
+        if name.lower().endswith(('.cmd','.exe','.bat')): name=Path(name).stem
+        trusted = name in {"claude", "gemini", "gh"}
         runner = subprocess.run if trusted else restricted_run
         from kurt.utils.workspace import current_workspace
-        if trusted and Path(cmd).name in {"claude", "gemini"}:
+        if trusted and name in {"claude", "gemini"}:
             result = run_ai_cli(cmd, shlex.split(args))
             out, err = redact(result['stdout'].strip()), redact(result['stderr'].strip())
             if result['status'] != 'completed':
@@ -257,7 +264,7 @@ def _run_shell(cmd: str, args: str) -> str:
             return out or '(no output)'
         options = {"env": _ai_cli_env(cmd), "cwd": str(current_workspace())} if trusted else {}
         result = runner(
-            service_argv([cmd, *shlex.split(args)], Path(cmd).name) if trusted else full_cmd,
+            service_argv([cmd, *shlex.split(args)], name) if trusted else full_cmd,
             shell=not trusted,
             capture_output=True,
             text=True,
@@ -626,7 +633,7 @@ def handle_slash(
         return SlashResult(handled=True, output=f"$ {args}\n\n{output}", continue_chat=True)
 
     if cmd == "/cli":
-        from kurt.core.execution_preferences import DEFAULT_CLIS, save_default_cli
+        from kurt.core.execution_preferences import DEFAULT_CLIS, save_default_cli, cli_platform_limit
         parts = args.split()
         if len(parts) == 2 and parts[0] in ('probe', 'test'):
             from kurt.core.cli_readiness import probe_clis, test_default_cli
@@ -643,6 +650,8 @@ def handle_slash(
             if len(parts) != 2 or parts[1] not in DEFAULT_CLIS:
                 return SlashResult(True, "Usage: /cli default|use " + "|".join(DEFAULT_CLIS), True)
             selected = parts[1]
+            if cli_platform_limit(selected):
+                return SlashResult(True, cli_platform_limit(selected), True)
             if parts[0] == "default":
                 save_default_cli(selected)
             scope = "Default saved" if parts[0] == "default" else "This session"
@@ -684,6 +693,16 @@ def handle_slash(
             return SlashResult(True,"Codex delegation failed: "+redact(str(exc)),True)
 
     # ── /claude ─────────────────────────────────────────────────────
+    if cmd == '/copilot':
+        if not args.strip():
+            return SlashResult(True, 'Usage: /copilot <task>. Install: npm install. Login: node_modules/.bin/copilot login. Read-only delegation; wallet mode uses its configured API provider.', True)
+        from kurt.core.execution_preferences import run_default_cli
+        try:
+            output = run_default_cli('copilot', [{'role': 'user', 'content': args}])
+        except (ValueError, OSError, RuntimeError) as exc:
+            output = f'Copilot request incomplete; task was not replayed. {redact(str(exc))}'
+        return SlashResult(True, output, True, feed_to_ai=True)
+
     if cmd in ('/deepseek', '/deepseek-cli'):
         if not args.strip():
             return SlashResult(True, f'Usage: {cmd} <task>. Uses DEEPSEEK_API_KEY from Kurt /setup; project files are read-only.', True)

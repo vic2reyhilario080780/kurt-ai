@@ -27,20 +27,37 @@ kurt "gumawa ng TikTok script"    → Claude Haiku (best for writing)
 ### Install
 
 ```bash
-# Option 1: pip (recommended)
-pip install kurt-ai
-
-# Option 2: pipx (isolated environment)
-pipx install kurt-ai
-
-# Option 3: from source
-git clone https://github.com/daddytito/kurt-ai
+# Fresh source copy (Python 3.10+ required)
+git clone https://github.com/vic2reyhilario080780/kurt-ai.git
 cd kurt-ai
-pip install -e .
 
-# Windows: one-command setup (npm + pip + playwright + .env scaffold)
+# macOS / Linux: project-local .venv
+bash install_deps.sh
+
+# Windows: double-click Install Kurt.cmd, then Start Kurt.cmd.
+# Or use PowerShell:
 .\install_deps.ps1
+
+# Optional: python bootstrap.py --features web,media,voice,desktop --cli-tools --browser
 ```
+
+For moving to another computer, start with the
+[Windows-first migration guide](docs/OS_MIGRATION.md). Export/import portable
+preferences with `kurt device`; API keys, logins and local project paths are
+configured separately. Python 3.10+ is currently required. Cloud GPU hosting
+and offline expansion are parked.
+
+Windows one-command source installation (after Python is installed):
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/vic2reyhilario080780/kurt-ai/main/Install-GitHub.ps1')))
+```
+
+For your own second computer, append `-CredentialsFile` with the path to your
+private `.kurt-credentials` export and enter its transfer passphrase once.
+Provider keys are never committed or downloaded from GitHub; SaaS clients
+use the private gateway/token flow instead. See the migration guide for the
+complete owner-transfer command.
 
 **Windows note:** code-execution tools (`bash`, `run_code`, the coding agent
 workbench) use a lexical pre-flight guard on Windows instead of the macOS

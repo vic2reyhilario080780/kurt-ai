@@ -14,8 +14,12 @@ from kurt.utils.security import child_env, redact, require_public_file
 
 
 def executable():
-    local=Path(__file__).resolve().parents[2]/'node_modules/.bin/codex'
-    return str(local) if local.is_file() and os.access(local,os.X_OK) else shutil.which('codex')
+    import sys
+    root=Path(__file__).resolve().parents[2]/'node_modules/.bin'
+    for suffix in (('.exe','.cmd','') if sys.platform == 'win32' else ('',)):
+        local=root/('codex'+suffix)
+        if local.is_file() and os.access(local,os.X_OK): return str(local)
+    return shutil.which('codex')
 
 
 def _toml(value):

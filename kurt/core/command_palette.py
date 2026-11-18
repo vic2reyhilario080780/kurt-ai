@@ -434,20 +434,23 @@ def _execution_default_items(query):
 
 
 def _cli_default_items(query):
-    from kurt.core.execution_preferences import DEFAULT_CLIS
+    from kurt.core.execution_preferences import DEFAULT_CLIS, cli_platform_limit
     from kurt.core.cli_orchestrator import _cmd_exists
     rows = []
     for name in DEFAULT_CLIS:
         installed = name == 'auto' or _cmd_exists(name)
         status = "use selected API model" if name == "auto" else ("installed; auth/credits not verified" if installed else "not installed — install before selecting")
-        if name in {"codex", "vibe", "deepseek", "deepseek-cli"}:
+        if name in {"codex", "vibe", "deepseek", "deepseek-cli", "copilot"}:
             status += "; read-only by default"
         if name == "vibe":
             status += "; Mistral Vibe"
         if name == 'deepseek': status += '; DeepSeek Agent (Python)'
         if name == 'deepseek-cli': status += '; DeepSeek Terminal CLI (Node)'
+        if name == 'copilot': status += '; GitHub Copilot — login or wallet provider required'
         action = 'save default' if installed else 'unavailable'
-        rows.append({"label": f"{name} — {status} — {action}", "kind": "leaf" if installed else "info", "value": f"/cli default {name}"})
+        limitation = cli_platform_limit(name)
+        if limitation: status=limitation; action='unavailable on this OS'
+        rows.append({"label": f"{name} — {status} — {action}", "kind": "leaf" if installed and not limitation else "info", "value": f"/cli default {name}"})
     return [row for row in rows if _matches(query, row["label"])]
 
 

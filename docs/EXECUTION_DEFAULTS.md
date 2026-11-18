@@ -19,7 +19,8 @@ OpenRouter catalog. CLI choices show installation status; installation
 does not prove working authentication or available credits.
 
 CLI choices include `auto`, `codex`, `claude`, `gemini`, `openclaw`, `vibe`,
-`deepseek` (Python Agent), and `deepseek-cli` (Node Terminal CLI). Installation
+`deepseek` (Python Agent), `deepseek-cli` (Node Terminal CLI), and `copilot`
+(GitHub Copilot CLI). Installation
 status is separate from working authentication/credits. Vibe uses Kurt's saved
 Mistral key, an explicit API-compatible model alias and ask mode with only exact
 read-only web/news connector permissions; see the updates below. Its standalone
@@ -43,11 +44,12 @@ and bundled presets; Replicate IDs can be entered manually. These lists
 do not claim to contain every model from every AI vendor. Chat defaults
 cannot be saved with a media-only provider such as fal/Replicate.
 
-Default CLI choices currently wired: **Codex, Claude Code, Gemini CLI and
-OpenClaw**. `auto` uses the selected API model. GitHub CLI and Peekaboo
-remain explicit utility commands. Mistral Vibe, a DeepSeek CLI and GitHub
-Copilot CLI are not added by this change; their adapters still need their
-own installation/authentication integration.
+Default CLI choices currently wired: **Codex, Claude Code, Gemini CLI,
+OpenClaw, Mistral Vibe, DeepSeek Agent, DeepSeek Terminal CLI and GitHub
+Copilot CLI**. `auto` uses the selected API model. GitHub CLI and Peekaboo
+remain explicit utility commands. Each AI CLI needs its own installation and
+working authentication/provider credits. Copilot's headless adapter is
+read-only; see [Copilot setup, billing and offline candidates](COPILOT_CLI.md).
 
 ## Commands
 

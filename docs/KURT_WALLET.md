@@ -79,6 +79,11 @@ API-mode CLI routes:
 | OpenClaw | Groq (the existing managed-model profile) |
 | Vibe | Mistral |
 | DeepSeek Agent / DeepSeek Terminal CLI | DeepSeek |
+| GitHub Copilot CLI (BYOK) | OpenRouter; personal GitHub billing is separate |
+
+Copilot uses an isolated home and the wallet's OpenRouter provider profile.
+Its `COPILOT_OFFLINE=true` setting disables GitHub traffic, while model requests
+still go over the network through the gateway. See [Copilot setup](COPILOT_CLI.md).
 
 Standalone CLI calls outside Kurt and subscription/OAuth usage are not converted
 into wallet credits. Wallet-mode wrappers isolate login/config state so they do

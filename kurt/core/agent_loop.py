@@ -178,7 +178,7 @@ TOOLS = NATIVE_TOOLS + DESKTOP_CLI_TOOLS + CODING_TOOLS + [{'name': t['name'], '
             "then continue reasoning with the result."
         ),
         "parameters": {
-            "tool": "string — codex, claude, gemini, openclaw, vibe, deepseek, deepseek-cli, peekaboo, gh, or bash",
+            "tool": "string — codex, claude, gemini, openclaw, vibe, deepseek, deepseek-cli, copilot, peekaboo, gh, or bash",
             "prompt": "string — task for claude/gemini/openclaw; CLI command string for peekaboo; command/args for gh/bash",
             "args": "optional list of exact CLI arguments for openclaw/peekaboo instead of prompt",
             "agent": "optional OpenClaw agent name, default main",
@@ -628,7 +628,7 @@ def _execute_tool(tool_name: str, params: dict) -> str:
             cli_tool = (params.get("tool") or "").strip().lower()
             prompt = params.get("prompt", "")
             if not cli_tool:
-                return "❌ delegate_cli requires tool: codex, claude, gemini, openclaw, vibe, deepseek, deepseek-cli, peekaboo, gh, or bash"
+                return "❌ delegate_cli requires tool: codex, claude, gemini, openclaw, vibe, deepseek, deepseek-cli, copilot, peekaboo, gh, or bash"
             if cli_tool in ("openclaw", "peekaboo"):
                 from kurt.core.cli_tools import delegate_desktop_cli
                 return delegate_desktop_cli(cli_tool, prompt, args=params.get("args"), agent=params.get("agent", "main"),
@@ -638,7 +638,7 @@ def _execute_tool(tool_name: str, params: dict) -> str:
 
             from kurt.core.cli_orchestrator import _resolve_cmd, _run_shell, _cmd_exists
 
-            if cli_tool in ('vibe', 'deepseek', 'deepseek-cli'):
+            if cli_tool in ('vibe', 'deepseek', 'deepseek-cli', 'copilot'):
                 from kurt.core.execution_preferences import run_default_cli
                 return run_default_cli(cli_tool, [{'role': 'user', 'content': prompt}])
             if cli_tool == "codex":

@@ -36,14 +36,14 @@ from kurt.utils.security import child_env
 def _protected_paths(service=None):
     """Sensitive directories and credential-filename pattern, shared by the
     macOS Seatbelt profile and the Windows lexical guard."""
-    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.kurt-wallet', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.vibe', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
+    roots = [Path.home()/name for name in ('.kurt', '.kurt-saas', '.kurt-wallet', '.aws', '.ssh', '.gnupg', '.config', '.claude', '.codex', '.gemini', '.vibe', '.copilot', '.openclaw', '.kube', '.docker', '.azure', 'Library')]
     if service:
         # Service adapters keep only their own login/state directories usable.
-        own = {"openclaw": ".openclaw", "claude": ".claude", "gemini": ".gemini", "vibe": ".vibe"}.get(service)
+        own = {"openclaw": ".openclaw", "claude": ".claude", "gemini": ".gemini", "vibe": ".vibe", "copilot": ".copilot"}.get(service)
         roots = [p for p in roots if p.name not in {own, "Library"}]
     if service != "openclaw":
         roots.append(Path(__file__).resolve().parents[2]/'.openclaw-kurt')
-    names = r'(^|/)(\.env($|[./])|\.npmrc$|\.pypirc$|\.netrc$|\.git-credentials$|credentials(\.json)?$|secrets\.(json|yaml|yml)$|control\.db$|auth-profiles\.json$|id_(rsa|ed25519|ecdsa)($|\.)|[^/]+\.(pem|key|p12|pfx|tfstate|kurt-token|env)$)'
+    names = r'(^|/)(\.env($|[./])|\.npmrc$|\.pypirc$|\.netrc$|\.git-credentials$|credentials(\.json)?$|secrets\.(json|yaml|yml)$|control\.db$|auth-profiles\.json$|id_(rsa|ed25519|ecdsa)($|\.)|[^/]+\.(pem|key|p12|pfx|tfstate|kurt-token|kurt-credentials|env)$)'
     if service == "openclaw":
         names = names.replace(r"auth-profiles\.json$|", "")
     return roots, names
@@ -55,8 +55,8 @@ def sandbox_profile(*, service=None, workspace=None, write_paths=None):
     from kurt.billing.client import CLI_CONTEXT
     if CLI_CONTEXT.get() is not None:
         # Wallet children must not fall back to a personal subscription login.
-        roots.extend(Path.home()/name for name in ('.claude','.vibe','.codex','.gemini','.openclaw','Library/Keychains'))
-    if service and service not in {"claude", "vibe"}:
+        roots.extend(Path.home()/name for name in ('.claude','.vibe','.codex','.gemini','.copilot','.openclaw','Library/Keychains'))
+    if service and service not in {"claude", "vibe", "copilot"}:
         roots.append(Path.home()/"Library/Keychains")
         # claude is exempted: Claude Code's own OAuth/Pro login is stored in
         # the macOS Keychain, not a plain file under ~/.claude — blocking
@@ -163,6 +163,31 @@ def restricted_run(command, *, shell=False, **kwargs):
     return subprocess.run(argv,**kwargs)
 
 
+def windows_cli_argv(argv):
+    """Launch known npm CLI entrypoints via Node, never a cmd.exe task string."""
+    path = Path(argv[0])
+    if path.suffix.lower() not in ('.cmd','.bat'): return list(argv)
+    packages = {'claude':'@anthropic-ai/claude-code','gemini':'@google/gemini-cli',
+                'copilot':'@github/copilot','openclaw':'openclaw','codex':'@openai/codex',
+                'deepseek-cli':'deepseek-terminal-cli'}
+    name = path.stem.lower()
+    if name not in packages: raise RuntimeError('Unsupported Windows batch launcher; install a supported CLI executable.')
+    base = path.parent.parent if path.parent.name == '.bin' else path.parent/'node_modules'
+    package = base/packages[name]
+    metadata = json.loads((package/'package.json').read_text(encoding='utf-8'))
+    entry = metadata.get('bin')
+    if isinstance(entry,dict): entry=entry.get(name)
+    if not isinstance(entry,str): raise RuntimeError('Installed CLI has no supported Node entrypoint.')
+    target = (package/entry).resolve()
+    if not target.is_relative_to(package.resolve()) or not target.is_file():
+        raise RuntimeError('Installed CLI entrypoint is invalid.')
+    bundled = base/'node/bin/node.exe'
+    node = str(bundled) if bundled.is_file() else shutil.which('node.exe') or shutil.which('node')
+    if not node or Path(node).suffix.lower() in ('.cmd','.bat'):
+        raise RuntimeError('A native Node.js executable is required for this installed CLI.')
+    return [node,str(target),*argv[1:]]
+
+
 def service_argv(argv, service, *, write_paths=None):
     """Third-party tools get network access but cannot directly read Kurt's vault.
 
@@ -181,6 +206,6 @@ def service_argv(argv, service, *, write_paths=None):
         violation = _windows_guard_violation(argv, service=service)
         if violation:
             raise RuntimeError(f'Refused: command references a protected path ({violation}).')
-        return list(argv)
+        return windows_cli_argv(argv)
 
     raise RuntimeError('External service execution requires the supported OS sandbox on this host.')

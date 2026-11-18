@@ -1,0 +1,31 @@
+name: Desktop portability smoke checks
+on:
+  push:
+  pull_request:
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e ".[web,media,migration]"
+      - run: python -m unittest discover -s tests -p test_portability.py -v
+      - run: python -m unittest discover -s tests -p test_credential_transfer.py -v
+      - name: Validate Windows installer syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'Install-GitHub.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+      - run: python bootstrap.py --dry-run
+      - run: python -m kurt.main device status
+      - run: python -m kurt.main --help
+      - run: python -m kurt.main version

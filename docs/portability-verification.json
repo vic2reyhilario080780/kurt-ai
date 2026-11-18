@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-18",
+  "priority": "Windows first",
+  "full_suite": {
+    "tests": 498,
+    "passed": true,
+    "host": "macOS arm64",
+    "isolated_settings": true
+  },
+  "fresh_environment": {
+    "default_extras": [
+      "web",
+      "media"
+    ],
+    "installation": "passed",
+    "pip_check": "passed",
+    "cli_help": "passed",
+    "device_status": "passed",
+    "portability_tests": 14,
+    "portability_tests_passed": true
+  },
+  "bundle": {
+    "file": "/private/tmp/Kurt-Windows-Source.zip",
+    "files": 469,
+    "bytes": 11836165,
+    "sha256": "dbb77fec0de5faf298fe7f65e678a49727456c6a5af2ea2f496fb647aabaaba1",
+    "archive_integrity": "passed",
+    "configured_secret_scan": "passed",
+    "credentials_included": false,
+    "runtime_dependencies_included": false
+  },
+  "extracted_bundle_smoke": {
+    "path_with_spaces": true,
+    "bootstrap_dry_run": "passed",
+    "cli_help": "passed",
+    "device_status": "passed"
+  },
+  "shell_syntax_check": "passed",
+  "graph_updated": true,
+  "windows_native_tested": false,
+  "linux_native_tested": false,
+  "hosted_ci_executed": false,
+  "cloud_gpu_and_offline_expansion": "parked",
+  "limitations": [
+    "Python 3.10+ remains a prerequisite; no signed/self-contained EXE installer.",
+    "Copilot/DeepSeek read-only adapters remain macOS-only; known unsupported choices are blocked.",
+    "Windows desktop, audio, native CLI and installer tests still require a real Windows host.",
+    "No global Python packages, personal settings, provider login or model weights were changed."
+  ]
+}
