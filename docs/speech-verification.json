@@ -44,7 +44,14 @@
   },
   "actual_user_microphone_tested": false,
   "audible_windows_playback_tested": false,
-  "hosted_ci_status": "pending",
+  "hosted_ci_status": "passed",
   "large_dictionary_or_model_downloaded": false,
-  "cloud_gpu_and_offline_expansion": "parked"
+  "cloud_gpu_and_offline_expansion": "parked",
+  "tested_source": "2b5a6792975412119ed0bc12cd984864b916f98b",
+  "hosted_ci_run": "https://github.com/vic2reyhilario080780/kurt-ai/actions/runs/44304407683",
+  "hosted_platforms": {
+    "Windows": "passed",
+    "macOS": "passed",
+    "Ubuntu": "passed"
+  }
 }
