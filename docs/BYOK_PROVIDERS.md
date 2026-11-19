@@ -1,8 +1,9 @@
 # Provider keys inside the model picker
 
 Restart Kurt, open `/models`, and choose a provider. New optional catalogs are
-Hugging Face, Together AI, Fireworks AI, Replicate, WaveSpeedAI and Novita AI.
-The existing OpenRouter/fal.ai catalogs remain complete.
+Hugging Face (Hosted Chat API), Hugging Face — Inference Available,
+Hugging Face — Full Hub, Together AI, Fireworks AI, Replicate, WaveSpeedAI
+and Novita AI. The existing OpenRouter/fal.ai catalogs remain complete.
 
 When selecting a model from a chat/image/video picker, Kurt opens a connection
 menu before applying it:
@@ -34,12 +35,16 @@ pages do not receive the saved key in their URL.
 
 | Provider | Scope |
 | --- | --- |
-| Hugging Face | Hosted chat API catalog, not the millions of downloadable Hub repositories |
+| Hugging Face (Hosted Chat API) | Hosted chat API catalog (`router.huggingface.co/v1/models`), runnable chat defaults via BYOK `HF_TOKEN` |
+| Hugging Face — Inference Available | Paginated Hub API (`inference_provider=all`), browse-only with `←`/`→` page navigation (`PgUp`/`PgDn` ±10 pages), auto-load more at the last page, and live API search |
+| Hugging Face — Full Hub | Paginated full Hub API (`huggingface.co/api/models`), browse-only with `←`/`→` page navigation (`PgUp`/`PgDn` ±10 pages), auto-load more at the last page, and live API search |
 | Together | Catalog returned by the authenticated models API |
 | Fireworks | Paginated public Fireworks account catalog; some entries require deployment |
-| Replicate | Public paginated API catalog; **Load next catalog pages** continues browsing |
+| Replicate | Paginated API catalog with `←`/`→` paging, **Load next catalog pages**, live API search, and GitHub repo links |
 | WaveSpeed | Authenticated media catalog, including input schemas |
 | Novita | LLM API catalog, not every image/video API on the marketing site |
+
+Every provider and model detail view in `/models` also supports **Paste JSON config (GitHub repo / custom model / MCP)** for inline JSON objects or local `.json` file paths (saved privately `0600` to `~/.kurt/model_configs.json`, or imported into Kurt's MCP registry when `mcpServers` is present, without executing commands automatically).
 
 Counts show source records loaded, exact duplicates excluded, and visible models.
 Incomplete pagination is explicitly marked; loaded counts are not presented as

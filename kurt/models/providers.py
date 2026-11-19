@@ -2,8 +2,10 @@
 import os
 import re
 
-EXTRA_PROVIDERS = ('huggingface', 'together', 'fireworks', 'replicate', 'wavespeed', 'novita')
-NEW_BYOK_PROVIDERS = frozenset(EXTRA_PROVIDERS) - {'replicate'}
+EXTRA_PROVIDERS = ('huggingface', 'huggingface_inference', 'huggingface_hub', 'together', 'fireworks', 'replicate', 'wavespeed', 'novita')
+HF_HUB_CATALOGS = frozenset(('huggingface_inference', 'huggingface_hub'))
+NEW_BYOK_PROVIDERS = frozenset(('huggingface', 'together', 'fireworks', 'wavespeed', 'novita'))
+BYOK_ONLY_PROVIDERS = NEW_BYOK_PROVIDERS | HF_HUB_CATALOGS
 
 # Endpoints are application-owned constants, never supplied by catalog records.
 PROVIDERS = {
@@ -15,10 +17,18 @@ PROVIDERS = {
     'groq': {'name': 'Groq', 'key': 'GROQ_API_KEY', 'keys_url': 'https://console.groq.com/keys'},
     'mistral': {'name': 'Mistral', 'key': 'MISTRAL_API_KEY', 'keys_url': 'https://console.mistral.ai/api-keys'},
     'deepseek': {'name': 'DeepSeek', 'key': 'DEEPSEEK_API_KEY', 'keys_url': 'https://platform.deepseek.com/api_keys'},
-    'huggingface': {'name': 'Hugging Face', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
+    'huggingface': {'name': 'Hugging Face (Hosted Chat API)', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
         'keys_url': 'https://huggingface.co/settings/tokens', 'models_url': 'https://huggingface.co/inference/models',
         'catalog_url': 'https://router.huggingface.co/v1/models', 'chat_url': 'https://router.huggingface.co/v1/chat/completions',
-        'scope': 'Hosted chat API models; not every repository on the Hub', 'public_catalog': True},
+        'scope': 'Hosted chat API models; runnable chat defaults via BYOK HF_TOKEN', 'public_catalog': True},
+    'huggingface_inference': {'name': 'Hugging Face — Inference Available', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
+        'keys_url': 'https://huggingface.co/settings/tokens', 'models_url': 'https://huggingface.co/models?inference_provider=all',
+        'catalog_url': 'https://huggingface.co/api/models',
+        'scope': 'Hugging Face Hub "Inference Available" filter, loaded in pages; browse or search live', 'public_catalog': True},
+    'huggingface_hub': {'name': 'Hugging Face — Full Hub', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
+        'keys_url': 'https://huggingface.co/settings/tokens', 'models_url': 'https://huggingface.co/models',
+        'catalog_url': 'https://huggingface.co/api/models',
+        'scope': 'Full Hugging Face Hub model repositories, loaded in pages; browse or search live', 'public_catalog': True},
     'together': {'name': 'Together AI', 'key': 'TOGETHER_API_KEY',
         'keys_url': 'https://api.together.xyz/settings/api-keys', 'models_url': 'https://www.together.ai/models',
         'catalog_url': 'https://api.together.xyz/v1/models', 'chat_url': 'https://api.together.xyz/v1/chat/completions',
@@ -99,7 +109,7 @@ def save_provider_key(provider, value):
 
 
 def uses_byok(provider):
-    if provider in NEW_BYOK_PROVIDERS:
+    if provider in BYOK_ONLY_PROVIDERS:
         return True
     if provider in PROVIDERS:
         from kurt.core.persona import load_persona
@@ -133,9 +143,130 @@ def request_provider_key(provider):
 
 
 def confirm_wallet(provider):
-    if provider in NEW_BYOK_PROVIDERS:
+    if provider in BYOK_ONLY_PROVIDERS:
         raise ValueError('This optional provider requires your own API key.')
     from kurt.core.persona import load_persona, save_persona
     settings = load_persona()
     settings['byok_providers'] = [p for p in settings.get('byok_providers', []) if p != provider]
     save_persona(settings)
+
+
+MAX_MODEL_CONFIG_BYTES = 1024 * 1024
+
+
+def model_config_path():
+    return credential_path().parent / 'model_configs.json'
+
+
+def load_model_configs():
+    import json
+    path = model_config_path()
+    try:
+        data = json.loads(path.read_text()) if path.is_file() else {}
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _config_key(provider, mid=''):
+    return f'{provider}:{mid}' if mid else provider
+
+
+def get_model_config(provider, mid=''):
+    return load_model_configs().get(_config_key(provider, mid))
+
+
+def _collect_secret_strings(obj, out):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = str(k).lower()
+            if any(tok in key for tok in ('key', 'token', 'secret', 'auth', 'password')):
+                if isinstance(v, str) and len(v.strip()) >= 6:
+                    out.append(v.strip())
+            elif key in ('env', 'headers') and isinstance(v, dict):
+                for ev in v.values():
+                    if isinstance(ev, str) and len(ev.strip()) >= 6:
+                        out.append(ev.strip())
+            else:
+                _collect_secret_strings(v, out)
+    elif isinstance(obj, list):
+        for item in obj:
+            _collect_secret_strings(item, out)
+
+
+def _read_json_input(raw_input):
+    import json
+    from pathlib import Path
+    if not isinstance(raw_input, str) or not raw_input.strip():
+        raise ValueError('Paste a JSON object or enter a path to a .json file.')
+    text = raw_input.strip()
+    if not text.startswith('{'):
+        candidate = text.strip('\'"')
+        if candidate.startswith('file://'):
+            from urllib.parse import urlsplit, unquote
+            candidate = unquote(urlsplit(candidate).path)
+        path = Path(candidate).expanduser()
+        if not path.is_file():
+            raise ValueError('Invalid JSON object and file path not found.')
+        if path.stat().st_size > MAX_MODEL_CONFIG_BYTES:
+            raise ValueError('JSON config file exceeds the 1 MB limit.')
+        text = path.read_text(encoding='utf-8')
+    if len(text.encode('utf-8')) > MAX_MODEL_CONFIG_BYTES:
+        raise ValueError('JSON config exceeds the 1 MB limit.')
+    try:
+        parsed = json.loads(text)
+    except ValueError as exc:
+        raise ValueError('Invalid JSON syntax; enter a valid JSON object.') from exc
+    if not isinstance(parsed, dict) or not parsed:
+        raise ValueError('JSON config must be a nonempty JSON object.')
+    return parsed, text
+
+
+def save_model_json_config(provider, mid, raw_input):
+    """Save a custom model / GitHub repo JSON config privately, or import mcpServers."""
+    import json
+    if provider not in PROVIDERS:
+        raise ValueError('Unknown provider.')
+    parsed, raw_text = _read_json_input(raw_input)
+    secrets = []
+    _collect_secret_strings(parsed, secrets)
+    from kurt.utils.security import write_private_text, register_secrets
+    if secrets:
+        register_secrets(secrets)
+    if 'mcpServers' in parsed:
+        from kurt.core import mcp_catalog
+        from kurt.core.mcp_client import load_registry, save_registry
+        conns = mcp_catalog.parse_config(raw_text)
+        if not conns:
+            raise ValueError('No valid MCP servers found in mcpServers JSON.')
+        registry = load_registry()
+        names = []
+        for conn in conns:
+            registry[conn.name] = conn
+            names.append(conn.name)
+        save_registry(registry)
+        return {'kind': 'mcp', 'names': names,
+                'message': f'Imported {len(names)} MCP server config(s) privately ({", ".join(names)}). No commands executed.'}
+    configs = load_model_configs()
+    entry_key = _config_key(provider, mid)
+    configs[entry_key] = {
+        'provider': provider,
+        'model': mid or '',
+        'config': parsed,
+    }
+    write_private_text(model_config_path(), json.dumps(configs, indent=2, ensure_ascii=False) + '\n')
+    target_label = mid or PROVIDERS[provider]['name']
+    return {'kind': 'model_config', 'key': entry_key,
+            'message': f'JSON config saved privately for {target_label} (0600). No commands executed.'}
+
+
+def delete_model_config(provider, mid=''):
+    import json
+    from kurt.utils.security import write_private_text
+    configs = load_model_configs()
+    entry_key = _config_key(provider, mid)
+    if entry_key not in configs:
+        return False
+    configs.pop(entry_key, None)
+    write_private_text(model_config_path(), json.dumps(configs, indent=2, ensure_ascii=False) + '\n')
+    return True

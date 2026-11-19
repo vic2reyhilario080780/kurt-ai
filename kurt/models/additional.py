@@ -1,5 +1,6 @@
 """Optional BYOK catalogs with bounded pagination and exact identity deduplication."""
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -7,7 +8,7 @@ from urllib.parse import urlsplit, parse_qs
 import httpx
 
 from kurt.models.catalog import unique_models, write_cache
-from kurt.models.providers import PROVIDERS, EXTRA_PROVIDERS, provider_key
+from kurt.models.providers import PROVIDERS, EXTRA_PROVIDERS, HF_HUB_CATALOGS, provider_key
 
 CACHE_DIR = Path.home() / '.kurt' / 'cache' / 'providers'
 _memory = {}
@@ -30,7 +31,7 @@ def identities(model, provider):
         identity = _hf_identity(model.get(field))
         if identity:
             result.add('hf:' + identity)
-    if provider == 'huggingface':
+    if provider in ('huggingface', 'huggingface_inference', 'huggingface_hub'):
         result.add('hf:' + model['id'])
     return result
 
@@ -57,6 +58,9 @@ def normalize(provider, raw):
         raise ValueError('Missing or invalid model ID.')
     row['id'] = mid
     row['name'] = raw.get('displayName') or raw.get('display_name') or raw.get('name') or mid
+    if provider in HF_HUB_CATALOGS:
+        row['category'] = raw.get('pipeline_tag') or 'other'
+        return row
     kind = raw.get('model_type') or raw.get('type') or raw.get('baseModelDetails', {}).get('modelType') or 'other'
     row['category'] = kind
     if provider in ('huggingface', 'novita'):
@@ -88,7 +92,25 @@ def _read(path):
         return None
 
 
-def _json(client, url, headers, params=None):
+def _hf_next_cursor(link_header):
+    if not isinstance(link_header, str) or not link_header:
+        return None
+    for part in link_header.split(','):
+        match = re.match(r'\s*<([^>]+)>\s*;.*\brel=["\']?next["\']?', part.strip(), re.I)
+        if not match:
+            continue
+        parsed = urlsplit(match.group(1))
+        if (parsed.scheme != 'https' or parsed.netloc != 'huggingface.co' or
+                parsed.path not in ('/api/models', '/api/models/') or parsed.fragment):
+            raise ValueError('Untrusted catalog continuation URL.')
+        cursor = parse_qs(parsed.query).get('cursor', [None])[0]
+        if not cursor:
+            raise ValueError('Missing catalog continuation cursor.')
+        return cursor
+    return None
+
+
+def _json_with_headers(client, url, headers, params=None):
     # Catalog pagination must not redirect credentials to another host.
     with client.stream('GET', url, headers=headers, params=params) as response:
         response.raise_for_status()
@@ -97,7 +119,13 @@ def _json(client, url, headers, params=None):
             chunks.extend(chunk)
             if len(chunks) > MAX_RESPONSE:
                 raise ValueError('Provider catalog page too large.')
-    return json.loads(chunks)
+        resp_headers = dict(response.headers)
+    return json.loads(chunks), resp_headers
+
+
+def _json(client, url, headers, params=None):
+    data, _ = _json_with_headers(client, url, headers, params)
+    return data
 
 
 def fetch_catalog(provider, refresh=False, more=False, page_budget=3):
@@ -128,7 +156,13 @@ def fetch_catalog(provider, refresh=False, more=False, page_budget=3):
                         params['pageToken'] = cursor
                 elif provider == 'replicate' and cursor:
                     params = {'cursor': cursor}
-                data = _json(client, spec['catalog_url'], headers, params)
+                elif provider in HF_HUB_CATALOGS:
+                    params = {'limit': 100, 'sort': 'downloads', 'direction': '-1'}
+                    if provider == 'huggingface_inference':
+                        params['inference_provider'] = 'all'
+                    if cursor:
+                        params['cursor'] = cursor
+                data, resp_headers = _json_with_headers(client, spec['catalog_url'], headers, params)
                 if provider == 'fireworks':
                     records = data.get('models')
                     cursor = data.get('nextPageToken') or None
@@ -147,6 +181,9 @@ def fetch_catalog(provider, refresh=False, more=False, page_budget=3):
                         cursor = parse_qs(parsed.query).get('cursor', [None])[0]
                         if not cursor:
                             raise ValueError('Missing catalog continuation cursor.')
+                elif provider in HF_HUB_CATALOGS:
+                    records = data if isinstance(data, list) else None
+                    cursor = _hf_next_cursor(resp_headers.get('link', ''))
                 else:
                     records = data if isinstance(data, list) else data.get('data')
                     cursor = None
@@ -174,6 +211,65 @@ def fetch_catalog(provider, refresh=False, more=False, page_budget=3):
         result = {**(previous or {'models': [], 'complete': False}), 'error': error, 'checked_at': time.time()}
         _memory[provider] = result
         return result
+
+
+LIVE_SEARCH_PROVIDERS = HF_HUB_CATALOGS | {'replicate'}
+
+
+def search_catalog(provider, query, limit=100):
+    """Run one bounded live search against HF Hub or Replicate API and merge into cache."""
+    if provider not in LIVE_SEARCH_PROVIDERS:
+        raise ValueError('Live API search is only available for Hugging Face Hub and Replicate catalogs.')
+    term = query.strip()[:200] if isinstance(query, str) else ''
+    if not term:
+        return {'matched': 0, 'total_loaded': len(peek_catalog(provider).get('models', [])), 'error': 'Type a search query first.'}
+    spec = PROVIDERS[provider]
+    path = CACHE_DIR / (provider + '.json')
+    previous = _memory.get(provider) or _read(path) or {'models': [], 'next': None, 'complete': False, 'total': None, 'fetched_at': time.time()}
+    key = provider_key(provider)
+    if not key and not spec.get('public_catalog'):
+        return {'matched': 0, 'total_loaded': len(previous.get('models', [])), 'error': 'Add your API key to search this catalog.'}
+    headers = {'Authorization': 'Bearer ' + key} if key else {}
+    if provider == 'replicate':
+        url = 'https://api.replicate.com/v1/search'
+        params = {'query': term, 'limit': max(1, min(int(limit), 50))}
+    else:
+        url = spec['catalog_url']
+        params = {'search': term, 'limit': max(1, min(int(limit), 100)), 'sort': 'downloads', 'direction': '-1'}
+        if provider == 'huggingface_inference':
+            params['inference_provider'] = 'all'
+    try:
+        with httpx.Client(timeout=15, follow_redirects=False, trust_env=False) as client:
+            data, _ = _json_with_headers(client, url, headers, params)
+        if provider == 'replicate':
+            items = data.get('models') if isinstance(data, dict) else None
+            if not isinstance(items, list):
+                raise ValueError('Invalid search response.')
+            raw_models = [item['model'] for item in items if isinstance(item, dict) and isinstance(item.get('model'), dict)]
+        else:
+            if not isinstance(data, list):
+                raise ValueError('Invalid search response.')
+            raw_models = data
+        found = [normalize(provider, m) for m in raw_models]
+        merged = unique_models([*previous.get('models', []), *found])
+        result = {
+            **previous,
+            'models': merged,
+            'fetched_at': previous.get('fetched_at') or time.time(),
+            'error': '',
+        }
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        write_cache(path, result)
+        _memory[provider] = result
+        return {'matched': len(found), 'total_loaded': len(merged), 'error': ''}
+    except Exception as exc:
+        code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+        error = f'Search HTTP {code}; check network/API access.' if code else 'Live search unavailable; cached models retained.'
+        return {'matched': 0, 'total_loaded': len(previous.get('models', [])), 'error': error}
+
+
+def search_hub_catalog(provider, query, limit=100):
+    return search_catalog(provider, query, limit=limit)
 
 
 def peek_catalog(provider):

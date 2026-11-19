@@ -25,5 +25,34 @@
   "gemini_internal_retries_observed": true,
   "provider_charges_measured": false,
   "workspace": "synthetic temporary directories with explicit test-only trust",
-  "remaining": "Live inference must be reverified when Google capacity recovers."
+  "remaining": "gemini-3.8-flash remained timed out; default switched to responsive GA model gemini-3.5-flash-lite and verified live.",
+  "followup_verification": {
+    "date": "2026-11-19",
+    "status": "verified",
+    "default_model": "gemini-3.5-flash-lite",
+    "model_probes": [
+      {"model": "gemini-3.8-flash", "status": "ReadTimeout"},
+      {"model": "gemini-3.7-flash", "status": "ReadTimeout"},
+      {"model": "gemini-3.6-flash", "status": "ReadTimeout"},
+      {"model": "gemini-3.5-flash", "status": "ReadTimeout"},
+      {"model": "gemini-flash-latest", "status": "ReadTimeout"},
+      {"model": "gemini-2.5-flash", "status": "404_unavailable_to_new_users"},
+      {"model": "gemini-2.5-flash-lite", "status": "404_unavailable_to_new_users"},
+      {"model": "gemini-3.5-flash-lite", "status": "ok", "sec": 2.07},
+      {"model": "gemini-3.1-flash-lite", "status": "ok", "sec": 1.49},
+      {"model": "gemini-3-flash-preview", "status": "ok", "sec": 1.27}
+    ],
+    "cli_default_test": {
+      "runner": "test_default_cli('gemini')",
+      "model": "gemini-3.5-flash-lite",
+      "status": "verified",
+      "expected_reply": true,
+      "elapsed_sec": 5.54
+    },
+    "direct_router_tests": {
+      "model": "gemini-3.5-flash-lite",
+      "stream": {"status": "verified", "elapsed_sec": 4.16},
+      "non_stream": {"status": "verified", "elapsed_sec": 4.16}
+    }
+  }
 }

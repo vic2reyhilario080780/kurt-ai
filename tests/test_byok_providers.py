@@ -141,6 +141,118 @@ class OptionalCatalogTests(unittest.TestCase):
         self.assertEqual(catalog.default_roles('wavespeed', model(['prompt'])), ['image'])
         self.assertEqual(catalog.default_roles('wavespeed', model(['prompt', 'image'])), [])
 
+    def test_hf_inference_and_full_hub_are_separate_paginated_searchable_browse_catalogs(self):
+        seen_params = []
+        def handler(req):
+            seen_params.append(dict(req.url.params))
+            if req.url.params.get('search'):
+                return httpx.Response(200, json=[
+                    {'id': 'Qwen/Qwen3-0.6B', 'pipeline_tag': 'text-generation', 'downloads': 16000000, 'likes': 1900, 'library_name': 'transformers'}
+                ])
+            cursor = req.url.params.get('cursor')
+            is_inf = req.url.params.get('inference_provider') == 'all'
+            prefix = 'inf' if is_inf else 'hub'
+            headers = {}
+            if not cursor:
+                q = 'inference_provider=all&' if is_inf else ''
+                headers['link'] = f'<https://huggingface.co/api/models?{q}limit=100&cursor=page2>; rel="next"'
+            return httpx.Response(200, headers=headers, json=[
+                {'id': f'org/{prefix}-{cursor or "p1"}', 'pipeline_tag': 'text-to-image' if is_inf else 'sentence-similarity',
+                 'downloads': 5000, 'likes': 42}
+            ])
+        with patch.object(additional, 'provider_key', return_value=''), \
+             patch.object(additional.httpx, 'Client', self.client(handler)):
+            inf_p1 = additional.fetch_catalog('huggingface_inference', page_budget=1)
+            self.assertFalse(inf_p1['complete'])
+            self.assertEqual(inf_p1['next'], 'page2')
+            inf_p2 = additional.fetch_catalog('huggingface_inference', more=True, page_budget=1)
+            self.assertTrue(inf_p2['complete'])
+            self.assertEqual(len(inf_p2['models']), 2)
+            hub_p1 = additional.fetch_catalog('huggingface_hub', page_budget=1)
+            self.assertFalse(hub_p1['complete'])
+            self.assertEqual(hub_p1['models'][0]['id'], 'org/hub-p1')
+            # Live search merges results without discarding existing models
+            sr = additional.search_hub_catalog('huggingface_inference', 'qwen')
+            self.assertEqual(sr['matched'], 1)
+            self.assertEqual(sr['total_loaded'], 3)
+        self.assertEqual(seen_params[0].get('inference_provider'), 'all')
+        self.assertNotIn('inference_provider', seen_params[2])
+        self.assertEqual(seen_params[3].get('search'), 'qwen')
+        self.assertEqual(seen_params[3].get('inference_provider'), 'all')
+        self.assertEqual(catalog.category('huggingface_inference', inf_p1['models'][0]), 'text-to-image')
+        self.assertEqual(catalog.category_label('huggingface_inference', 'text-to-image'), 'Text → Image')
+        self.assertEqual(catalog.default_roles('huggingface_inference', inf_p1['models'][0]), [])
+        self.assertEqual(catalog.default_roles('huggingface_hub', hub_p1['models'][0]), [])
+        # Untrusted Link continuation host must fail closed and retain cached models
+        bad_link = lambda req: httpx.Response(200, headers={'link': '<https://evil.example/api/models?cursor=bad>; rel="next"'}, json=[{'id': 'org/x'}])
+        with patch.object(additional, 'provider_key', return_value=''), \
+             patch.object(additional.httpx, 'Client', self.client(bad_link)):
+            failed = additional.fetch_catalog('huggingface_hub', refresh=True)
+        self.assertEqual(failed['models'], hub_p1['models'])
+        self.assertIn('unavailable', failed['error'])
+        # Picker lists all three HF catalogs separately and links to exact model pages
+        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+            root_targets = [r.get('target') for r in picker._catalog_root_items('')]
+            self.assertIn('catalog_provider:huggingface', root_targets)
+            self.assertIn('catalog_provider:huggingface_inference', root_targets)
+            self.assertIn('catalog_provider:huggingface_hub', root_targets)
+            search_rows = picker._catalog_provider_items('huggingface_hub', 'qwen')
+            self.assertTrue(any(r.get('kind') == 'provider_search' and r.get('query') == 'qwen' for r in search_rows))
+            detail_rows = picker._catalog_model_items('huggingface_inference', 'Qwen/Qwen3-0.6B')
+            self.assertTrue(any(r.get('url') == 'https://huggingface.co/Qwen/Qwen3-0.6B' for r in detail_rows))
+            self.assertTrue(any('Downloads: 16,000,000' in r.get('label', '') for r in detail_rows))
+        # Setup wizard must not duplicate HF_TOKEN
+        self.assertNotIn('huggingface_inference', providers.NEW_BYOK_PROVIDERS)
+        self.assertNotIn('huggingface_hub', providers.NEW_BYOK_PROVIDERS)
+        self.assertTrue(providers.uses_byok('huggingface_inference'))
+        self.assertTrue(providers.uses_byok('huggingface_hub'))
+
+    def test_replicate_live_search_github_link_and_private_json_config_flow(self):
+        def handler(req):
+            self.assertEqual(str(req.url.copy_with(query=None)), 'https://api.replicate.com/v1/search')
+            self.assertEqual(req.url.params.get('query'), 'flux')
+            return httpx.Response(200, json={'models': [
+                {'model': {'owner': 'black-forest-labs', 'name': 'flux-schnell', 'run_count': 12345,
+                           'github_url': 'https://github.com/black-forest-labs/flux'}}
+            ]})
+        with patch.object(additional, 'provider_key', return_value='synthetic-rep'), \
+             patch.object(additional.httpx, 'Client', self.client(handler)):
+            res = additional.search_catalog('replicate', 'flux')
+        self.assertEqual(res['matched'], 1)
+        self.assertEqual(res['error'], '')
+        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+            srows = picker._catalog_provider_items('replicate', 'flux')
+            self.assertTrue(any(r.get('kind') == 'provider_search' and r.get('provider') == 'replicate' for r in srows))
+            detail = picker._catalog_model_items('replicate', 'black-forest-labs/flux-schnell')
+            self.assertTrue(any(r.get('url') == 'https://github.com/black-forest-labs/flux' for r in detail))
+            self.assertTrue(any(r.get('url') == 'https://replicate.com/black-forest-labs/flux-schnell' for r in detail))
+            self.assertTrue(any(r.get('kind') == 'model_json_config' for r in detail))
+        # Private JSON config save (inline + .json file + invalid rejection + delete)
+        saved = providers.save_model_json_config('replicate', 'black-forest-labs/flux-schnell',
+            json.dumps({'repo': 'https://github.com/black-forest-labs/flux', 'env': {'TOKEN': 'synthetic-secret-token'}}))
+        self.assertEqual(saved['kind'], 'model_config')
+        cfg_path = providers.model_config_path()
+        self.assertEqual(stat.S_IMODE(cfg_path.stat().st_mode), 0o600)
+        self.assertEqual(providers.get_model_config('replicate', 'black-forest-labs/flux-schnell')['config']['repo'],
+                         'https://github.com/black-forest-labs/flux')
+        cfg_file = self.root / 'repo_cfg.json'
+        cfg_file.write_text(json.dumps({'repo': 'https://github.com/org/custom', 'branch': 'main'}))
+        saved_file = providers.save_model_json_config('huggingface_hub', 'org/custom', str(cfg_file))
+        self.assertEqual(saved_file['kind'], 'model_config')
+        self.assertEqual(providers.get_model_config('huggingface_hub', 'org/custom')['config']['branch'], 'main')
+        with self.assertRaises(ValueError):
+            providers.save_model_json_config('replicate', 'black-forest-labs/flux-schnell', '{broken json')
+        self.assertTrue(providers.delete_model_config('replicate', 'black-forest-labs/flux-schnell'))
+        self.assertIsNone(providers.get_model_config('replicate', 'black-forest-labs/flux-schnell'))
+        # mcpServers JSON imports into MCP registry without running anything
+        mcp_reg = self.root / 'mcp_registry.json'
+        with patch('kurt.core.mcp_client.REGISTRY_PATH', mcp_reg):
+            mcp_saved = providers.save_model_json_config('huggingface_hub', 'org/mcp-repo',
+                json.dumps({'mcpServers': {'demo-repo': {'command': 'npx', 'args': ['-y', 'demo-pkg']}}}))
+            self.assertEqual(mcp_saved['kind'], 'mcp')
+            self.assertEqual(mcp_saved['names'], ['demo-repo'])
+            self.assertTrue(mcp_reg.is_file())
+
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_new_chat_endpoints_use_only_own_key_and_skip_wallet(self):
@@ -185,6 +297,25 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r.method for r in requests],['POST','GET'])
         self.assertEqual(str(requests[1].url),'https://api.wavespeed.ai/api/v3/predictions/job_1/result')
 
+    async def test_non_streaming_chat_and_provider_named_empty_error(self):
+        def ok_handler(req):
+            return httpx.Response(200, json={'choices': [{'message': {'content': 'NON_STREAM_OK'}}]})
+        for provider in ('huggingface', 'together', 'fireworks', 'novita', 'google'):
+            router = ModelRouter()
+            router.byok_keys = {provider: 'synthetic-' + provider} if provider != 'google' else {}
+            router.google_key = 'synthetic-google'
+            with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(ok_handler))):
+                text = ''.join([c async for c in router.route(provider, 'vendor/model', [{'role': 'user', 'content': 'hi'}], stream=False)])
+            self.assertEqual(text, 'NON_STREAM_OK')
+        def empty_handler(req):
+            return httpx.Response(200, text='data: [DONE]\n\n')
+        router = ModelRouter()
+        router.byok_keys = {'huggingface': 'synthetic-hf'}
+        with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(empty_handler))):
+            with self.assertRaisesRegex(RuntimeError, 'Hugging Face.*returned no content'):
+                async for _ in router.route('huggingface', 'vendor/model', [{'role': 'user', 'content': 'hi'}], stream=True):
+                    pass
+
 
 class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
     async def test_key_input_and_website_keep_picker_open_then_confirm_uses_existing_dispatch(self):
@@ -201,6 +332,7 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
              patch.object(providers,'provider_key',side_effect=lambda p:'synthetic-key' if state_key['saved'] else ''), \
              patch.object(providers,'save_provider_key',side_effect=input_key) as prompt, \
              patch.object(providers,'confirm_byok') as confirm, \
+             patch.object(additional,'invalidate') as invalidate_cache, \
              patch('kurt.core.connector_pages.open_page',return_value='Browser opened; return here.') as browser, \
              patch.object(picker,'PromptSession',lambda **kw:real_session(input=pipe,output=DummyOutput(),**kw)):
             session,state=picker._build_session();state.is_open=True
@@ -218,6 +350,7 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(session.is_password())
                 pipe.send_text('synthetic-private-picker-token\r');await asyncio.sleep(.05)
                 prompt.assert_called_once_with('together','synthetic-private-picker-token');self.assertFalse(task.done())
+                invalidate_cache.assert_called_once_with('together')
                 self.assertEqual(session.default_buffer.text,'/')
                 session.default_buffer.undo()
                 self.assertNotIn('synthetic-private-picker-token',session.default_buffer.text)
@@ -231,6 +364,98 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                     pipe.send_text('\x03')
                     try:await task
                     except BaseException:pass
+
+    async def test_json_config_input_in_picker_saves_privately_and_clears_buffer(self):
+        from prompt_toolkit.input.defaults import create_pipe_input
+        from prompt_toolkit.output import DummyOutput
+        from urllib.parse import quote
+        real_session = picker.PromptSession
+        model_row = {'id': 'org/repo-model', 'name': 'org/repo-model', 'category': 'text-generation',
+                     'github_url': 'https://github.com/org/repo-model'}
+        saved_calls = []
+        def fake_save(provider, mid, raw):
+            saved_calls.append((provider, mid, raw))
+            return {'kind': 'model_config', 'key': f'{provider}:{mid}', 'message': 'JSON config saved privately.'}
+        with create_pipe_input() as pipe, \
+             patch.object(picker, '_catalog_models', return_value=[model_row]), \
+             patch.object(providers, 'get_model_config', return_value=None), \
+             patch.object(providers, 'provider_key', return_value=''), \
+             patch.object(providers, 'save_model_json_config', side_effect=fake_save), \
+             patch.object(picker, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+            session, state = picker._build_session()
+            state.is_open = True
+            state.view = 'catalog_model:huggingface_hub:' + quote('org/repo-model', safe='')
+            task = asyncio.create_task(session.prompt_async(default='/'))
+            try:
+                await asyncio.sleep(.05)
+                rows = picker._current_items(state, '')
+                state.index = next(i for i, r in enumerate(rows) if r.get('kind') == 'model_json_config')
+                pipe.send_text('\r'); await asyncio.sleep(.05)
+                self.assertEqual(state.view, 'model_json_input:huggingface_hub:' + quote('org/repo-model', safe=''))
+                self.assertTrue(getattr(session.app, '_kurt_secret_input', False))
+                payload = '{"repo":"https://github.com/org/repo-model"}'
+                pipe.send_text(payload + '\r'); await asyncio.sleep(.05)
+                self.assertEqual(saved_calls, [('huggingface_hub', 'org/repo-model', payload)])
+                self.assertFalse(getattr(session.app, '_kurt_secret_input', False))
+                self.assertEqual(session.default_buffer.text, '/')
+                session.default_buffer.undo()
+                self.assertNotIn('github.com/org/repo-model', session.default_buffer.text)
+                self.assertIn('saved privately', state.notice)
+            finally:
+                if not task.done():
+                    pipe.send_text('\x03')
+                    try: await task
+                    except BaseException: pass
+
+    async def test_left_right_page_navigation_and_auto_load_more_for_large_catalogs(self):
+        from prompt_toolkit.input.defaults import create_pipe_input
+        from prompt_toolkit.output import DummyOutput
+        real_session = picker.PromptSession
+        loaded = [{'id': f'org/model-{i:03d}', 'name': f'org/model-{i:03d}', 'category': 'text-generation'} for i in range(25)]
+        remote = {'next': 'cursor2'}
+        more_calls = []
+        def fake_fetch(provider, more=False, **kw):
+            more_calls.append((provider, more))
+            if more and remote['next']:
+                loaded.extend({'id': f'org/model-{i:03d}', 'name': f'org/model-{i:03d}', 'category': 'text-generation'} for i in range(25, 45))
+                remote['next'] = None
+            return {'models': list(loaded), 'next': remote['next'], 'complete': remote['next'] is None, 'error': ''}
+        with create_pipe_input() as pipe, \
+             patch.object(picker, '_catalog_models', side_effect=lambda p: list(loaded)), \
+             patch.object(additional, 'peek_catalog', side_effect=lambda p: {'models': list(loaded), 'next': remote['next']}), \
+             patch.object(additional, 'fetch_catalog', side_effect=fake_fetch), \
+             patch.object(picker, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+            session, state = picker._build_session()
+            state.is_open = True
+            state.view = 'catalog_list:huggingface_hub:*'
+            state.index = 1
+            task = asyncio.create_task(session.prompt_async(default='/'))
+            try:
+                await asyncio.sleep(.05)
+                rendered = ''.join(text for _, text in picker._render(state, '/'))
+                self.assertIn('Page 1/3+', rendered)
+                # Right arrow flips page 1 -> page 2 -> page 3
+                pipe.send_text('\x1b[C'); await asyncio.sleep(.05)
+                self.assertEqual(state.index, picker.WINDOW)
+                pipe.send_text('\x1b[C'); await asyncio.sleep(.05)
+                self.assertEqual(state.index, picker.WINDOW * 2)
+                self.assertEqual(more_calls, [])
+                # Right arrow on last loaded page auto-fetches next batch and flips to page 4
+                pipe.send_text('\x1b[C'); await asyncio.sleep(.05)
+                self.assertEqual(more_calls, [('huggingface_hub', True)])
+                self.assertEqual(state.index, picker.WINDOW * 3)
+                # Left arrow flips back to page 3, then page 2, then page 1 (skipping info row 0)
+                pipe.send_text('\x1b[D'); await asyncio.sleep(.05)
+                self.assertEqual(state.index, picker.WINDOW * 2)
+                pipe.send_text('\x1b[D'); await asyncio.sleep(.05)
+                self.assertEqual(state.index, picker.WINDOW)
+                pipe.send_text('\x1b[D'); await asyncio.sleep(.05)
+                self.assertEqual(state.index, 1)
+            finally:
+                if not task.done():
+                    pipe.send_text('\x03')
+                    try: await task
+                    except BaseException: pass
 
 
 class SecretVoiceTests(unittest.TestCase):

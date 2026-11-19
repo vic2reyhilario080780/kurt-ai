@@ -242,10 +242,10 @@ def run_ai_cli(cmd, args):
         raise ValueError("Expected Claude Code, Gemini or Vibe CLI.")
     env = _ai_cli_env(cmd)
     if name == 'gemini' and args not in (['--version'], ['--help']) and not active():
-        # Pin a current model instead of the CLI's overloaded/retired auto route.
+        # Pin a responsive GA model instead of the CLI's overloaded/retired auto route.
         # Explicit caller selection wins; wallet routing chooses its own model.
         if not any(arg in ('-m', '--model') or arg.startswith(('--model=', '-m=')) for arg in args):
-            model = os.getenv('KURT_GEMINI_MODEL', '').strip() or 'gemini-3.8-flash'
+            model = os.getenv('KURT_GEMINI_MODEL', '').strip() or 'gemini-3.5-flash-lite'
             args = [*args, '--model', model]
     if name == 'vibe' and args != ['--version'] and not env.get('MISTRAL_API_KEY'):
         raise ValueError('Vibe CLI uses the Mistral API key from Kurt /setup. Configure MISTRAL_API_KEY there first; no Vibe request was sent.')

@@ -34,7 +34,7 @@ class AIEnvironmentTests(unittest.TestCase):
              patch.dict(os.environ, {'KURT_GEMINI_MODEL': ''}):
             args = ['-p', 'synthetic']
             cli.run_ai_cli('/test/gemini', args)
-            self.assertEqual(run.call_args.args[0][-2:], ['--model', 'gemini-3.8-flash'])
+            self.assertEqual(run.call_args.args[0][-2:], ['--model', 'gemini-3.5-flash-lite'])
             self.assertEqual(args, ['-p', 'synthetic'])
             with patch.dict(os.environ, {'KURT_GEMINI_MODEL': 'custom-model'}):
                 cli.run_ai_cli('/test/gemini', args)

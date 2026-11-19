@@ -36,8 +36,11 @@ def unique_models(models):
                  if isinstance(m, dict) and isinstance(m.get('id'), str) and m['id']}.values())
 
 
+PIPELINE_CATALOG_PROVIDERS = ('fal', 'wavespeed', 'replicate', 'huggingface_inference', 'huggingface_hub')
+
+
 def category(provider, model):
-    if provider in ('fal', 'wavespeed', 'replicate'):
+    if provider in PIPELINE_CATALOG_PROVIDERS:
         value = model.get('category')
         return value.strip() if isinstance(value, str) and value.strip() else 'other'
     architecture = model.get('architecture') or {}
@@ -53,7 +56,7 @@ def category(provider, model):
 
 
 def category_label(provider, value):
-    if provider not in ('fal', 'wavespeed', 'replicate'):
+    if provider not in PIPELINE_CATALOG_PROVIDERS:
         return {'text': 'Chat / text output', 'other': 'Other / unspecified output'}.get(
             value, ' + '.join(p.title() for p in value.split('+')) + ' output')
     if value == 'other':
@@ -71,9 +74,9 @@ def groups(provider, models):
 def default_roles(provider, model):
     """Only contracts already implemented by Kurt are selectable defaults."""
     kind = category(provider, model)
-    if provider not in ('fal', 'wavespeed', 'replicate'):
+    if provider not in PIPELINE_CATALOG_PROVIDERS:
         return ['chat'] if kind == 'text' else []
-    if provider == 'replicate':
+    if provider in ('replicate', 'huggingface_inference', 'huggingface_hub'):
         return []  # Public list metadata alone does not establish an input contract.
     if provider == 'wavespeed':
         if model.get('prompt_compatible') and kind in ('text-to-image', 'text-to-video'):

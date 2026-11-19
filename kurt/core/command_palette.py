@@ -103,8 +103,8 @@ def _effective_query(state: "_PaletteState", buf_text: str) -> str:
     the argument text doesn't appear in /model's description). Nested
     views have no argument concept, so the whole typed text is the
     (possibly multi-word) search query."""
-    if state.view.startswith('provider_key_input:'):
-        return ''  # A secret is never a catalog/search query.
+    if state.view.startswith(('provider_key_input:', 'model_json_input:')):
+        return ''  # Secret keys and JSON configs are never catalog/search queries.
     rest = _after_slash(buf_text)
     if state.view in ("root", "show_all"):
         return rest.split(None, 1)[0].casefold() if rest.split() else ""
@@ -429,12 +429,18 @@ def _catalog_provider_items(provider, query, selected_category=None):
     from kurt.models.catalog import groups, category_label
     models = _catalog_models(provider)
     grouped = groups(provider, models)
-    from kurt.models.providers import PROVIDERS, EXTRA_PROVIDERS
+    from kurt.models.providers import PROVIDERS, EXTRA_PROVIDERS, get_model_config
+    from kurt.models.additional import LIVE_SEARCH_PROVIDERS
     label = PROVIDERS[provider]['name']
     if selected_category is not None:
         selected = models if selected_category == '*' else grouped.get(selected_category, [])
         rows = _catalog_model_rows(provider, selected, query)
-        return [{'label': f'{label}: {len(selected):,} models in this view / {len(models):,} visible loaded models; {len(rows):,} matches', 'kind': 'info'}] + rows
+        header = [{'label': f'{label}: {len(selected):,} models in this view / {len(models):,} visible loaded models; {len(rows):,} matches', 'kind': 'info'}]
+        if query and provider in LIVE_SEARCH_PROVIDERS:
+            cap = 50 if provider == 'replicate' else 100
+            header.append({'label': f'Search {label} API live for "{query}" (top {cap} matches)',
+                           'kind': 'provider_search', 'provider': provider, 'query': query})
+        return header + rows
     if query:
         return _catalog_provider_items(provider, query, '*')
     rows = [{'label': f'{label}: {len(models):,} visible model IDs — category counts sum to {sum(map(len, grouped.values())):,}', 'kind': 'info'},
@@ -442,8 +448,15 @@ def _catalog_provider_items(provider, query, selected_category=None):
     rows.extend({'label': f'{category_label(provider, cat)} — {len(items):,}', 'kind': 'open',
                  'target': f'catalog_list:{provider}:{quote(cat, safe="")}'} for cat, items in grouped.items())
     if not models:
-        rows.append({'label': 'No catalog loaded; check /setup or refresh. This is not a live availability check.', 'kind': 'info'})
+        rows.append({'label': 'No catalog loaded; check /setup or enter API key below. This is not a live availability check.', 'kind': 'info'})
     rows += _provider_auth_items(provider)
+    if PROVIDERS[provider].get('models_url'):
+        rows.append({'label': f'Open {label} homepage / models catalog', 'kind': 'browser', 'url': PROVIDERS[provider]['models_url']})
+    if get_model_config(provider):
+        rows.append({'label': 'Saved JSON config: configured (0600 private)', 'kind': 'info'})
+    rows.append({'label': 'Paste JSON config (GitHub repo / custom model / MCP)', 'kind': 'model_json_config', 'provider': provider, 'mid': ''})
+    if get_model_config(provider):
+        rows.append({'label': 'Remove saved JSON config', 'kind': 'model_json_delete', 'provider': provider, 'mid': ''})
     if provider in EXTRA_PROVIDERS:
         from kurt.models.additional import peek_catalog
         snapshot = peek_catalog(provider)
@@ -454,12 +467,23 @@ def _catalog_provider_items(provider, query, selected_category=None):
             rows.append({'label': snapshot['error'], 'kind': 'info'})
         if snapshot.get('next'):
             rows.append({'label': 'Load next catalog pages', 'kind': 'provider_more', 'provider': provider})
-    rows.append({'label': 'Refresh both provider catalogs', 'kind': 'catalog_refresh', 'value': ''})
+    rows.append({'label': 'Refresh all provider catalogs', 'kind': 'catalog_refresh', 'value': ''})
     return rows
+
+
+def _valid_github_url(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    from urllib.parse import urlsplit
+    parsed = urlsplit(value.strip())
+    if parsed.scheme == 'https' and parsed.netloc in ('github.com', 'www.github.com') and parsed.path.strip('/'):
+        return value.strip()
+    return None
 
 
 def _catalog_model_items(provider, mid, settings_only=False):
     from kurt.models.catalog import category, category_label, default_roles
+    from kurt.models.providers import PROVIDERS, get_model_config
     model = next((m for m in _catalog_models(provider) if m['id'] == mid), None)
     if model is None:
         return [{'label': 'Model no longer in this catalog; refresh and search again.', 'kind': 'info'}]
@@ -467,6 +491,18 @@ def _catalog_model_items(provider, mid, settings_only=False):
     rows = [{'label': f'{mid} [{provider}] — {category_label(provider, category(provider, model))}', 'kind': 'info'}]
     if provider == 'openrouter':
         rows.append({'label': _pricing_hint(model), 'kind': 'info'})
+    if any(model.get(k) is not None for k in ('downloads', 'likes', 'library_name', 'run_count')):
+        parts = []
+        if isinstance(model.get('downloads'), int):
+            parts.append(f'Downloads: {model["downloads"]:,}')
+        if isinstance(model.get('likes'), int):
+            parts.append(f'Likes: {model["likes"]:,}')
+        if isinstance(model.get('run_count'), int):
+            parts.append(f'Runs: {model["run_count"]:,}')
+        if isinstance(model.get('library_name'), str) and model['library_name']:
+            parts.append(f'Library: {model["library_name"]}')
+        if parts:
+            rows.append({'label': ' · '.join(parts), 'kind': 'info'})
     if not roles:
         rows.append({'label': 'Visible in the full catalog. This workflow is not supported by Kurt yet; cannot set as a default.', 'kind': 'info'})
     if 'chat' in roles:
@@ -476,17 +512,31 @@ def _catalog_model_items(provider, mid, settings_only=False):
     for kind in ('image', 'video'):
         if kind in roles:
             rows.append({'label': f'Save as default {kind.title()} AI', 'kind': 'leaf', 'value': f'/{kind}-model {mid} {provider}'})
-    from kurt.models.providers import PROVIDERS
-    base = 'https://openrouter.ai/' if provider == 'openrouter' else 'https://fal.ai/models/' if provider == 'fal' else None
+    base = {
+        'openrouter': 'https://openrouter.ai/',
+        'fal': 'https://fal.ai/models/',
+        'huggingface': 'https://huggingface.co/',
+        'huggingface_inference': 'https://huggingface.co/',
+        'huggingface_hub': 'https://huggingface.co/',
+        'replicate': 'https://replicate.com/',
+    }.get(provider)
     url = base + quote(mid, safe='/') if base else PROVIDERS[provider]['models_url']
     rows += _provider_auth_items(provider)
     rows.append({'label': 'Open official model page / setup requirements', 'kind': 'browser', 'url': url})
+    gh_url = _valid_github_url(model.get('github_url'))
+    if gh_url:
+        rows.append({'label': f'Open GitHub repository — {gh_url}', 'kind': 'browser', 'url': gh_url})
+    if get_model_config(provider, mid):
+        rows.append({'label': 'Saved JSON config: configured (0600 private)', 'kind': 'info'})
+    rows.append({'label': 'Paste JSON config (GitHub repo / custom model / MCP)', 'kind': 'model_json_config', 'provider': provider, 'mid': mid})
+    if get_model_config(provider, mid):
+        rows.append({'label': 'Remove saved JSON config', 'kind': 'model_json_delete', 'provider': provider, 'mid': mid})
     rows.append({'label': 'Catalog listing is not proof of account access, credits or successful generation.', 'kind': 'info'})
     return rows
 
 
 def _provider_auth_items(provider, command=''):
-    from kurt.models.providers import PROVIDERS, provider_key, NEW_BYOK_PROVIDERS
+    from kurt.models.providers import PROVIDERS, provider_key, BYOK_ONLY_PROVIDERS
     spec = PROVIDERS[provider]
     configured = bool(provider_key(provider)) if spec['key'] else True
     rows = [{'label': f'{spec["name"]}: ' + ('key saved (not live-verified)' if configured and spec['key'] else 'local; no API key needed' if not spec['key'] else 'API key not configured'), 'kind': 'info'}]
@@ -504,7 +554,7 @@ def _provider_auth_items(provider, command=''):
         else:
             rows.append({'label': 'Add your API key above before selecting this model.', 'kind': 'info'})
         from kurt.billing.client import active
-        if active() and provider not in NEW_BYOK_PROVIDERS and spec['key']:
+        if active() and provider not in BYOK_ONLY_PROVIDERS and spec['key']:
             rows.append({'label': 'Use Kurt wallet instead of my own provider key', 'kind': 'leaf',
                          'value': command, 'confirmed_provider': provider, 'billing': 'wallet'})
     rows.append({'label': 'BYOK uses your provider balance; it does not deduct Kurt wallet credits. Website login happens in your browser.', 'kind': 'info'})
@@ -579,7 +629,7 @@ def _chat_choices():
             if provider in TEXT_PROVIDERS and (model, provider) not in seen:
                 seen.add((model, provider))
                 rows.append((model, provider, f"{model} [{provider}]"))
-    for model, provider in (("mistral-small-latest", "mistral"), ("deepseek-flash", "deepseek"), ("deepseek-v4-pro", "deepseek")):
+    for model, provider in (("mistral-small-latest", "mistral"), ("gemini-3.5-flash-lite", "google"), ("deepseek-flash", "deepseek"), ("deepseek-v4-pro", "deepseek")):
         if (model, provider) not in seen:
             seen.add((model, provider))
             rows.append((model, provider, f"{model} [{provider}]"))
@@ -679,6 +729,8 @@ def _config_items(query: str) -> list[dict]:
 def _current_items(state: _PaletteState, query: str) -> list[dict]:
     if state.view.startswith('provider_key_input:'):
         return [{'label': 'Paste API key (hidden). Enter saves privately; Esc cancels. Nothing is sent to an AI.', 'kind': 'info'}]
+    if state.view.startswith('model_json_input:'):
+        return [{'label': 'Paste JSON config object (or path to .json file). Enter saves privately; Esc cancels. Nothing is executed.', 'kind': 'info'}]
     if state.view.startswith('model_setup:'):
         _, provider, command = state.view.split(':', 2)
         return [r for r in _provider_auth_items(provider, unquote(command)) if _matches(query, r['label'])]
@@ -766,6 +818,17 @@ def _personalized_highlight_style() -> str:
     return f"bold fg:{color}"
 
 
+def _paginated_provider(state: _PaletteState) -> Optional[str]:
+    if not state.view.startswith(('catalog_list:', 'catalog_provider:')):
+        return None
+    provider = state.view.split(':', 2)[1]
+    from kurt.models.providers import EXTRA_PROVIDERS
+    if provider not in EXTRA_PROVIDERS:
+        return None
+    from kurt.models.additional import peek_catalog
+    return provider if peek_catalog(provider).get('next') else None
+
+
 def _render(state: _PaletteState, buf_text: str):
     query = _effective_query(state, buf_text)
     items = _current_items(state, query)
@@ -800,23 +863,34 @@ def _render(state: _PaletteState, buf_text: str):
             title = PROVIDERS[state.view.split(':')[1]]['name'] + ' — connect / select model'
         elif state.view.startswith('provider_key_input:'):
             title = 'Enter API key — hidden, not submitted to chat'
+        elif state.view.startswith('model_json_input:'):
+            title = 'Paste JSON config (GitHub repo / custom model / MCP) — saved privately'
         lines.append([("bold", f"{icon} {title}"), ("", "\n")])
 
     if not items:
         lines.append([("dim", "  (no matches)"), ("", "\n")])
     else:
-        start = max(0, min(state.index - WINDOW // 2, max(0, len(items) - WINDOW)))
-        for i, item in enumerate(items[start:start + WINDOW], start=start):
+        page = state.index // WINDOW
+        total_pages = max(1, (len(items) + WINDOW - 1) // WINDOW)
+        start = page * WINDOW
+        end = min(len(items), start + WINDOW)
+        for i, item in enumerate(items[start:end], start=start):
             marker = "▶ " if i == state.index else "  "
             style = highlight if i == state.index else ""
             lines.append([(style, f"{marker}{item['label']}"), ("", "\n")])
-        if len(items) > WINDOW:
-            lines.append([("dim", f"  ... {len(items)} menu rows, scroll with ↑↓"), ("", "\n")])
+        more_remote = bool(_paginated_provider(state)) and not query
+        if len(items) > WINDOW or more_remote:
+            jump = " · PgUp/PgDn ±10p" if total_pages >= 10 else ""
+            more_hint = " · → at last page loads more" if more_remote else ""
+            lines.append([("dim", f"  Page {page + 1:,}/{total_pages:,}{'+' if more_remote else ''}  ({start + 1:,}–{end:,} of {len(items):,}) · ←→ page{jump}{more_hint}"), ("", "\n")])
 
     if state.notice:
         lines.append([("", state.notice), ("", "\n")])
 
-    lines.append([("dim", "↑↓ select  ←→ tabs  ? all  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel")])
+    hint = ("↑↓ select  ←→ tabs  ? all  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel"
+            if state.view == "root" else
+            "↑↓ select  ←→ page  PgUp/PgDn ±10p  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel")
+    lines.append([("dim", hint)])
 
     result = []
     for chunk in lines:
@@ -829,12 +903,36 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     kb = KeyBindings()
 
     palette_open = Condition(lambda: state.is_open)
-    browsing = palette_open & Condition(lambda: not state.view.startswith('provider_key_input:'))
+    browsing = palette_open & Condition(lambda: not state.view.startswith(('provider_key_input:', 'model_json_input:')))
     at_root = Condition(lambda: state.is_open and state.view == "root")
+    nested_browsing = browsing & Condition(lambda: state.view != "root")
 
     def _reset_query(buf):
         buf.text = "/"
         buf.cursor_position = 1
+
+    def _jump_pages(event, delta: int):
+        query = _effective_query(state, event.current_buffer.text)
+        items = _current_items(state, query)
+        if not items:
+            return
+        cur_page = (state.index % len(items)) // WINDOW
+        total_pages = max(1, (len(items) + WINDOW - 1) // WINDOW)
+        target_page = cur_page + delta
+        if delta > 0 and target_page >= total_pages and not query:
+            more_provider = _paginated_provider(state)
+            if more_provider:
+                from kurt.models.additional import fetch_catalog
+                result = fetch_catalog(more_provider, more=True)
+                items = _current_items(state, query)
+                total_pages = max(1, (len(items) + WINDOW - 1) // WINDOW)
+                state.notice = result.get('error') or f'Loaded more pages ({len(result["models"]):,} source model records cached).'
+        target_page = max(0, min(target_page, total_pages - 1))
+        new_index = target_page * WINDOW
+        page_end = min(len(items), new_index + WINDOW)
+        if items[new_index].get('kind') == 'info' and new_index + 1 < page_end:
+            new_index += 1
+        state.index = new_index
 
     @kb.add("/", filter=Condition(lambda: not state.is_open and get_app().current_buffer.text == ""))
     def _open(event):
@@ -858,6 +956,22 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         state.tab = ROOT_TABS[(idx + 1) % len(ROOT_TABS)]
         state.index = 0
         _reset_query(event.current_buffer)
+
+    @kb.add("left", filter=nested_browsing, eager=True)
+    def _page_prev(event):
+        _jump_pages(event, -1)
+
+    @kb.add("right", filter=nested_browsing, eager=True)
+    def _page_next(event):
+        _jump_pages(event, 1)
+
+    @kb.add("pageup", filter=nested_browsing, eager=True)
+    def _page_prev_ten(event):
+        _jump_pages(event, -10)
+
+    @kb.add("pagedown", filter=nested_browsing, eager=True)
+    def _page_next_ten(event):
+        _jump_pages(event, 10)
 
     @kb.add("up", filter=browsing, eager=True)
     def _up(event):
@@ -888,7 +1002,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("escape", filter=palette_open, eager=True)
     def _back(event):
-        if state.view.startswith('provider_key_input:'):
+        if state.view.startswith(('provider_key_input:', 'model_json_input:')):
             event.current_buffer.reset(append_to_history=False)
             event.app._kurt_secret_input = False
         if state.stack:
@@ -905,7 +1019,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("c-c", filter=palette_open, eager=True)
     def _cancel(event):
-        if state.view.startswith('provider_key_input:'):
+        if state.view.startswith(('provider_key_input:', 'model_json_input:')):
             event.current_buffer.reset(append_to_history=False)
             event.app._kurt_secret_input = False
             state.view, state.stack = 'root', []
@@ -914,6 +1028,22 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("enter", filter=palette_open, eager=True)
     def _select(event):
+        if state.view.startswith('model_json_input:'):
+            from kurt.models.providers import save_model_json_config
+            _, provider, encoded_mid = state.view.split(':', 2)
+            mid = unquote(encoded_mid)
+            try:
+                saved = save_model_json_config(provider, mid, event.current_buffer.text)
+            except (ValueError, OSError) as exc:
+                state.notice = f'Config not saved: {exc} (Esc to cancel)'
+                return
+            event.current_buffer.reset(append_to_history=False)
+            _reset_query(event.current_buffer)
+            event.app._kurt_secret_input = False
+            state.view, state.tab = state.stack.pop()
+            state.index = 0
+            state.notice = saved['message']
+            return
         if state.view.startswith('provider_key_input:'):
             from kurt.models.providers import save_provider_key
             provider = state.view.split(':', 1)[1]
@@ -922,6 +1052,20 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             except (ValueError, OSError):
                 state.notice = 'Key not saved. Enter one API token without spaces/placeholders, or Esc to cancel.'
                 return
+            from kurt.models.providers import EXTRA_PROVIDERS, HF_HUB_CATALOGS
+            if provider in EXTRA_PROVIDERS:
+                from kurt.models.additional import invalidate
+                if provider in ({'huggingface'} | HF_HUB_CATALOGS):
+                    for hf_provider in ('huggingface', 'huggingface_inference', 'huggingface_hub'):
+                        invalidate(hf_provider)
+                else:
+                    invalidate(provider)
+            elif provider == 'fal':
+                global _fal_cache, _fal_cache_at
+                _fal_cache, _fal_cache_at = None, 0
+            elif provider == 'openrouter':
+                global _openrouter_cache, _openrouter_cache_at
+                _openrouter_cache, _openrouter_cache_at = None, 0
             event.current_buffer.reset(append_to_history=False)  # Drop secret undo/redo drafts too.
             _reset_query(event.current_buffer)  # Clear before turning off masking.
             event.app._kurt_secret_input = False
@@ -954,10 +1098,30 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             state.index = 0
             event.current_buffer.reset(append_to_history=False)
             return
+        if item['kind'] == 'model_json_config':
+            state.stack.append((state.view, state.tab))
+            state.view = f"model_json_input:{item['provider']}:{quote(item.get('mid', ''), safe='')}"
+            event.app._kurt_secret_input = True
+            state.notice = ''
+            state.index = 0
+            event.current_buffer.reset(append_to_history=False)
+            return
+        if item['kind'] == 'model_json_delete':
+            from kurt.models.providers import delete_model_config
+            removed = delete_model_config(item['provider'], item.get('mid', ''))
+            state.notice = 'Saved JSON config removed.' if removed else 'No saved JSON config to remove.'
+            state.index = 0
+            return
         if item['kind'] in ('provider_refresh', 'provider_more'):
             from kurt.models.additional import fetch_catalog
             result = fetch_catalog(item['provider'], refresh=item['kind'] == 'provider_refresh', more=item['kind'] == 'provider_more')
             state.notice = result.get('error') or f'{len(result["models"]):,} source model records loaded.'
+            state.index = 0
+            return
+        if item['kind'] == 'provider_search':
+            from kurt.models.additional import search_catalog
+            result = search_catalog(item['provider'], item['query'])
+            state.notice = result.get('error') or f'{result["matched"]:,} live API matches loaded ({result["total_loaded"]:,} cached total).'
             state.index = 0
             return
         if item['kind'] == 'catalog_refresh':
@@ -1022,7 +1186,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         # A deleted/replaced slash must not leave Enter trapped in an empty
         # picker. Standalone settings deliberately accept plain search text.
         from kurt.core.attachments import is_local_path_input
-        if state.view.startswith('provider_key_input:'):
+        if state.view.startswith(('provider_key_input:', 'model_json_input:')):
             return
         if state.is_open and not state.settings_only and (not buffer.text.startswith('/') or is_local_path_input(buffer.text)):
             state.is_open = False

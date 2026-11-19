@@ -525,8 +525,48 @@ def function_history(messages, tools):
     return result
 
 
+def _parse_duration_seconds(raw):
+    if not isinstance(raw, str) or not raw.strip():
+        return float("nan")
+    text = raw.strip().lower()
+    try:
+        value = float(text)
+        return value if value >= 0 else float("nan")
+    except ValueError:
+        pass
+    match = re.fullmatch(r'(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)(ms|s))?', text)
+    if not match or not any(match.groups()):
+        return float("nan")
+    total = float(match.group(1)) * 60.0 if match.group(1) else 0.0
+    if match.group(2):
+        unit = match.group(3)
+        total += float(match.group(2)) / (1000.0 if unit == 'ms' else 1.0)
+    return total
+
+
+def _retry_after_seconds(exc):
+    headers = exc.response.headers
+    for name in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+        seconds = _parse_duration_seconds(headers.get(name, ""))
+        if seconds == seconds:
+            return seconds
+    try:
+        body = exc.response.json()
+        msg = (body.get("error") or {}).get("message", "") if isinstance(body, dict) else ""
+    except (ValueError, httpx.ResponseNotRead, AttributeError):
+        msg = ""
+    if isinstance(msg, str) and msg:
+        found = re.search(r'try again in\s+((?:\d+(?:\.\d+)?m)?\d+(?:\.\d+)?(?:ms|s))', msg, re.I)
+        if found:
+            return _parse_duration_seconds(found.group(1))
+    return float("nan")
+
+
 class NativeToolRouter:
     """Stream normal text; capture native tool requests and feed their results back."""
+
+    MAX_RATE_LIMIT_WAITS = 2
+    MAX_RETRY_AFTER_SECONDS = 65.0
 
     def __init__(self, router, max_tools=100, on_tool=None, on_status=None):
         self.router = router
@@ -552,7 +592,10 @@ class NativeToolRouter:
                              'Timeouts are seconds, not milliseconds. Timeout contracts: ' + json.dumps({k: v for k, v in bounds.items() if v})})
             if self.on_status:
                 self.on_status('Invalid tool arguments; requesting one corrected response. No action was executed.')
-        for attempt in range(2):
+        correction_used = False
+        fallback_used = False
+        waits_used = 0
+        while True:
             started = False
             try:
                 async for chunk in self.router.route(provider=provider, model=model, messages=messages, **options):
@@ -560,12 +603,13 @@ class NativeToolRouter:
                     yield chunk
                 return
             except NativeToolArgumentsError:
-                if attempt or started:
+                if correction_used or started:
                     raise
+                correction_used = True
                 request_correction()
                 continue
             except httpx.HTTPStatusError as exc:
-                if not attempt and not started and exc.response.status_code == 400 and options.get('native_tools'):
+                if not correction_used and not started and exc.response.status_code == 400 and options.get('native_tools'):
                     try:
                         error = exc.response.json().get('error', {})
                         invalid = isinstance(error, dict) and (error.get('code') == 'tool_use_failed' or
@@ -573,25 +617,27 @@ class NativeToolRouter:
                     except (ValueError, httpx.ResponseNotRead):
                         invalid = False
                     if invalid:
+                        correction_used = True
                         request_correction()
                         continue
                 from kurt.core.execution_preferences import quota_exhausted
                 if quota_exhausted(exc):
                     raise
-                if not attempt and not started and exc.response.status_code == 429 and rate_limit_fallback:
-                    model = rate_limit_fallback
-                    if self.on_status:
-                        self.on_status("Model rate limit; continuing the pending decision with the alternate desktop model.")
-                    continue
-                try:
-                    delay = float(exc.response.headers.get("retry-after", "nan"))
-                except ValueError:
-                    delay = float("nan")
-                if attempt or started or exc.response.status_code != 429 or not 0 <= delay <= 45:
-                    raise
-                if self.on_status:
-                    self.on_status(f"Model rate limit; retrying in {delay:g} seconds.")
-                await asyncio.sleep(delay + .2)
+                if not started and exc.response.status_code == 429:
+                    if rate_limit_fallback and not fallback_used and rate_limit_fallback != model:
+                        fallback_used = True
+                        model = rate_limit_fallback
+                        if self.on_status:
+                            self.on_status("Model rate limit; continuing the pending decision with the alternate model.")
+                        continue
+                    delay = _retry_after_seconds(exc)
+                    if waits_used < self.MAX_RATE_LIMIT_WAITS and 0 <= delay <= self.MAX_RETRY_AFTER_SECONDS:
+                        waits_used += 1
+                        if self.on_status:
+                            self.on_status(f"Model rate limit; retrying in {delay:g} seconds ({waits_used}/{self.MAX_RATE_LIMIT_WAITS}).")
+                        await asyncio.sleep(delay + .2)
+                        continue
+                raise
 
     async def route(self, provider, model, messages, **kwargs):
         paths = user_paths(messages)
@@ -688,7 +734,10 @@ class NativeToolRouter:
                         '\nThese steps already ran. Continue from the latest observation; do not reopen '
                         'or reload the page to restart the task, which discards completed work. '
                         'Verify remaining effects. If progress cannot be verified, report incomplete.'})
-            alternate = ("openai/gpt-oss-120b" if model == "openai/gpt-oss-20b" else "openai/gpt-oss-20b") if desktop_mode and provider == "groq" and not getattr(self.router, "strict_selection", False) else None
+            alternate = ("openai/gpt-oss-120b" if model == "openai/gpt-oss-20b" else "openai/gpt-oss-20b") if (
+                provider == "groq" and model in ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
+                and not getattr(self.router, "strict_selection", False)
+            ) else None
             async for chunk in self._chunks(provider, model, request_messages, options, rate_limit_fallback=alternate):
                 if is_text:
                     buffer += chunk

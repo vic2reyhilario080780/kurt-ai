@@ -400,6 +400,40 @@ class WiringTests(unittest.TestCase):
         self.assertIn("2026 Headline", replies.calls[-1]["messages"][-1]["content"])
         self.assertIn("Current local date:", replies.calls[0]["messages"][0]["content"])
 
+    def test_persistent_rate_limit_honors_60s_reset_and_decoupled_fallback(self):
+        from kurt.capabilities.bridge import _retry_after_seconds
+        req = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+        err_51 = httpx.HTTPStatusError("429", request=req, response=httpx.Response(429, headers={"retry-after": "51"}, request=req))
+        err_reset = httpx.HTTPStatusError("429", request=req, response=httpx.Response(429, headers={"x-ratelimit-reset-tokens": "12.5s"}, request=req))
+        err_msg = httpx.HTTPStatusError("429", request=req, response=httpx.Response(
+            429, json={"error": {"message": "Rate limit reached. Please try again in 1m2s."}}, request=req))
+        self.assertAlmostEqual(_retry_after_seconds(err_51), 51.0)
+        self.assertAlmostEqual(_retry_after_seconds(err_reset), 12.5)
+        self.assertAlmostEqual(_retry_after_seconds(err_msg), 62.0)
+
+        # Fallback model switches first, then alternate still honors bounded Retry-After wait.
+        class SeqRouter:
+            def __init__(self):
+                self.models = []
+            async def route(self, **kwargs):
+                self.models.append(kwargs["model"])
+                if len(self.models) == 1:
+                    raise err_51
+                if len(self.models) == 2:
+                    raise err_reset
+                yield "Recovered after fallback and reset."
+
+        seq = SeqRouter()
+        async def run():
+            return "".join([c async for c in NativeToolRouter(seq)._chunks(
+                "groq", "openai/gpt-oss-120b", [], {}, rate_limit_fallback="openai/gpt-oss-20b")])
+        with patch("kurt.capabilities.bridge.asyncio.sleep", new_callable=AsyncMock) as sleep:
+            text = asyncio.run(run())
+        self.assertEqual(text, "Recovered after fallback and reset.")
+        self.assertEqual(seq.models, ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-oss-20b"])
+        sleep.assert_awaited_once()
+        self.assertAlmostEqual(sleep.await_args.args[0], 12.7)
+
 
 if __name__ == "__main__":
     unittest.main()

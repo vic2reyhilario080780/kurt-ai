@@ -375,13 +375,15 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                 if verbose:
                     console.print(f"[red]❌ Fallback also failed: {e2}[/red]")
                 if "429" in str(e2):
-                    console.print("AI provider rate limit reached. The desktop task is incomplete; keep the current app state and resume after the limit resets.", markup=False)
+                    scope = "desktop task" if analysis.task_type == TaskType.DESKTOP else "request"
+                    console.print(f"AI provider rate limit reached ({analysis.fallback_provider}/{analysis.fallback_model}). The {scope} is incomplete; resume after the limit resets.", markup=False)
                 else:
                     _show_no_key_help()
                 return
         else:
             if "429" in err_str:
-                console.print("AI provider rate limit reached. The desktop task is incomplete; keep the current app state and resume after the limit resets.", markup=False)
+                scope = "desktop task" if analysis.task_type == TaskType.DESKTOP else "request"
+                console.print(f"AI provider rate limit reached ({analysis.provider}/{analysis.model}). The {scope} is incomplete; resume after the limit resets.", markup=False)
             else:
                 _show_no_key_help()
             return

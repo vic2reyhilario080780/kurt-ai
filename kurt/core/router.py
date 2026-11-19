@@ -181,55 +181,82 @@ class ModelRouter:
                         'https://api.deepseek.com/chat/completions': 'deepseek',
                         'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions': 'google',
                         'https://openrouter.ai/api/v1/chat/completions': 'openrouter'})
-        async with self._http_client(provider=origins.get(endpoint), timeout=60.0) as client:
-            async with client.stream(
-                "POST",
-                endpoint,
-                headers=headers,
-                json=payload,
-            ) as response:
-                if response.status_code >= 400:
-                    await response.aread()
+        provider_id = origins.get(endpoint)
+        provider_label = specs[provider_id]['name'] if provider_id in specs else (provider_id or 'Model provider')
+        async with self._http_client(provider=provider_id, timeout=60.0) as client:
+            if not stream:
+                response = await client.post(endpoint, headers=headers, json=payload)
                 response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                        except json.JSONDecodeError:
-                            continue
-                        # Groq can send a mid-stream error event (e.g. the model
-                        # internally attempted its own tool-call format, which the
-                        # API rejects since no `tools` param was declared). That
-                        # chunk has no "choices" key — previously this was silently
-                        # swallowed by the KeyError catch below, making a rejected
-                        # request look identical to "model returned nothing."
-                        if "error" in chunk:
-                            err = chunk["error"]
-                            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                            # Preserve structured billing errors for quota-only failover.
-                            code = err.get("code") if isinstance(err, dict) else None
-                            if code in ("insufficient_quota", "insufficient_credits", "insufficient_balance", "billing_hard_limit_reached"):
-                                response_error = httpx.Response(429, json={"error": err}, request=httpx.Request("POST", endpoint))
-                                raise httpx.HTTPStatusError("Provider quota exhausted", request=response_error.request, response=response_error)
-                            raise RuntimeError(f"Model provider API error: {msg}")
-                        try:
-                            delta = chunk["choices"][0]["delta"]
-                            if native_tools:
-                                collected_text += delta.get("content") or ""
-                                for call in delta.get("tool_calls", []):
-                                    entry = calls.setdefault(call["index"], {"id": "", "name": "", "arguments": ""})
-                                    entry["id"] += call.get("id") or ""
-                                    entry["name"] += call.get("function", {}).get("name") or ""
-                                    entry["arguments"] += call.get("function", {}).get("arguments") or ""
+                body = response.json()
+                if isinstance(body, dict) and "error" in body:
+                    err = body["error"]
+                    msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                    code = err.get("code") if isinstance(err, dict) else None
+                    if code in ("insufficient_quota", "insufficient_credits", "insufficient_balance", "billing_hard_limit_reached"):
+                        response_error = httpx.Response(429, json={"error": err}, request=httpx.Request("POST", endpoint))
+                        raise httpx.HTTPStatusError("Provider quota exhausted", request=response_error.request, response=response_error)
+                    raise RuntimeError(f"{provider_label} API error: {msg}")
+                choices = body.get("choices") if isinstance(body, dict) else None
+                message = choices[0].get("message", {}) if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+                content = message.get("content") or ""
+                if native_tools:
+                    collected_text = content
+                    for idx, call in enumerate(message.get("tool_calls") or []):
+                        entry = calls.setdefault(call.get("index", idx), {"id": "", "name": "", "arguments": ""})
+                        entry["id"] += call.get("id") or ""
+                        entry["name"] += call.get("function", {}).get("name") or ""
+                        entry["arguments"] += call.get("function", {}).get("arguments") or ""
+                elif content:
+                    yielded_any = True
+                    yield content
+            else:
+                async with client.stream(
+                    "POST",
+                    endpoint,
+                    headers=headers,
+                    json=payload,
+                ) as response:
+                    if response.status_code >= 400:
+                        await response.aread()
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data)
+                            except json.JSONDecodeError:
                                 continue
-                            if "content" in delta and delta["content"]:
-                                yielded_any = True
-                                yield delta["content"]
-                        except (KeyError, IndexError):
-                            continue
+                            # Providers can send a mid-stream error event (e.g. a model
+                            # internally attempted its own tool-call format, which the
+                            # API rejects since no `tools` param was declared). That
+                            # chunk has no "choices" key — preserve it explicitly rather
+                            # than letting it look like "model returned nothing."
+                            if "error" in chunk:
+                                err = chunk["error"]
+                                msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                                # Preserve structured billing errors for quota-only failover.
+                                code = err.get("code") if isinstance(err, dict) else None
+                                if code in ("insufficient_quota", "insufficient_credits", "insufficient_balance", "billing_hard_limit_reached"):
+                                    response_error = httpx.Response(429, json={"error": err}, request=httpx.Request("POST", endpoint))
+                                    raise httpx.HTTPStatusError("Provider quota exhausted", request=response_error.request, response=response_error)
+                                raise RuntimeError(f"{provider_label} API error: {msg}")
+                            try:
+                                delta = chunk["choices"][0]["delta"]
+                                if native_tools:
+                                    collected_text += delta.get("content") or ""
+                                    for call in delta.get("tool_calls", []):
+                                        entry = calls.setdefault(call["index"], {"id": "", "name": "", "arguments": ""})
+                                        entry["id"] += call.get("id") or ""
+                                        entry["name"] += call.get("function", {}).get("name") or ""
+                                        entry["arguments"] += call.get("function", {}).get("arguments") or ""
+                                    continue
+                                if "content" in delta and delta["content"]:
+                                    yielded_any = True
+                                    yield delta["content"]
+                            except (KeyError, IndexError):
+                                continue
         if native_tools and calls:
             if len(calls) != 1:
                 raise NativeToolArgumentsError("Expected one native tool call per response.")
@@ -250,7 +277,7 @@ class ModelRouter:
             yielded_any = True
         if not yielded_any:
             raise RuntimeError(
-                f"Groq returned no content for model '{model}' — the stream ended with no "
+                f"{provider_label} returned no content for model '{model}' — the response ended with no "
                 "text and no explicit error. This usually means the model's response was "
                 "entirely internal reasoning with no final answer."
             )
