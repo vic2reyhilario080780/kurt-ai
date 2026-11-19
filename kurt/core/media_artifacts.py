@@ -87,6 +87,38 @@ def finalize_artifact(url, kind):
         if temporary is not None: temporary.unlink(missing_ok=True)
 
 
+def finalize_artifact_bytes(data, kind, content_type='', source=''):
+    """Verify raw provider media bytes locally, save to Downloads/Kurt, and write a SHA-256 receipt."""
+    if not isinstance(data, (bytes, bytearray)):
+        raise ValueError('Provider returned invalid binary media payload.')
+    size = len(data)
+    if not size:
+        raise RuntimeError('Provider returned an empty artifact.')
+    if size > MAX_BYTES:
+        raise RuntimeError('Generated file exceeds the 150 MiB download limit; check provider before retrying generation.')
+    ctype = (content_type or '').split(';')[0].strip().lower()
+    if ctype.startswith('text/') or ctype in ('application/json', 'application/xml'):
+        raise RuntimeError('Provider returned text/HTML/JSON rather than a media file.')
+    root = OUTPUT_DIR.expanduser().resolve()
+    require_public_file(root); root.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        digest = hashlib.sha256(data).hexdigest()
+        with tempfile.NamedTemporaryFile(dir=root, suffix='.part', delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(data)
+        probe = probe_file(temporary, kind)
+        destination = root / (kind + '-' + uuid.uuid4().hex + probe.pop('extension'))
+        os.replace(temporary, destination); temporary = None
+        receipt_path = destination.with_suffix(destination.suffix + '.json')
+        receipt_path.write_text(json.dumps({'kind': kind, 'path': str(destination), 'bytes': size,
+            'sha256': digest, **probe, 'content_verified': False}, indent=2))
+        return {'path': str(destination), 'bytes': size, 'sha256': digest, 'content_type': ctype or 'application/octet-stream',
+                'output': source or str(destination), **probe, 'content_verified': False}
+    finally:
+        if temporary is not None: temporary.unlink(missing_ok=True)
+
+
 def completion_text(receipt):
     if receipt.get('status') != 'completed' or receipt.get('file_verified') is not True:
         reason = receipt.get('reason') or 'No verified output file is available.'
@@ -101,6 +133,7 @@ def completion_text(receipt):
 from contextvars import ContextVar
 REFERENCE_IMAGES = ContextVar('media_reference_images', default=())
 FAL_REFERENCE = ContextVar('fal_reference_image', default=None)
+LOCAL_ARTIFACT_HOLDER = ContextVar('local_artifact_holder', default=None)
 I2V_MODELS = {
     'fal-ai/kling-video/v3/standard/image-to-video',
     'fal-ai/kling-video/v3/pro/image-to-video',

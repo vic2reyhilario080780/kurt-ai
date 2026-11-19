@@ -37,6 +37,33 @@ def unique_models(models):
 
 
 PIPELINE_CATALOG_PROVIDERS = ('fal', 'wavespeed', 'replicate', 'huggingface_inference', 'huggingface_hub')
+HF_IMAGE_PROVIDERS = ('fal-ai', 'hf-inference', 'together', 'nscale', 'replicate', 'wavespeed')
+HF_VIDEO_PROVIDERS = ('fal-ai', 'wavespeed', 'replicate')
+
+
+def hf_inference_route(model, role):
+    """Return the selected live Hugging Face Inference Provider mapping for chat, image, or video."""
+    if not isinstance(model, dict):
+        return None
+    entries = model.get('inference_providers')
+    if not isinstance(entries, list):
+        return None
+    live = [e for e in entries if isinstance(e, dict) and e.get('status') == 'live'
+            and isinstance(e.get('provider'), str) and isinstance(e.get('provider_id'), str)
+            and isinstance(e.get('task'), str)]
+    if role == 'chat':
+        return next((e for e in live if e['task'] == 'conversational'), None)
+    if role == 'image':
+        by_provider = {e['provider']: e for e in live if e['task'] == 'text-to-image'}
+        for prov in HF_IMAGE_PROVIDERS:
+            if prov in by_provider:
+                return by_provider[prov]
+    if role == 'video':
+        by_provider = {e['provider']: e for e in live if e['task'] == 'text-to-video'}
+        for prov in HF_VIDEO_PROVIDERS:
+            if prov in by_provider:
+                return by_provider[prov]
+    return None
 
 
 def category(provider, model):
@@ -73,21 +100,34 @@ def groups(provider, models):
 
 def default_roles(provider, model):
     """Only contracts already implemented by Kurt are selectable defaults."""
+    from kurt.models.providers import custom_endpoint_roles
     kind = category(provider, model)
-    if provider not in PIPELINE_CATALOG_PROVIDERS:
-        return ['chat'] if kind == 'text' else []
-    if provider in ('replicate', 'huggingface_inference', 'huggingface_hub'):
-        return []  # Public list metadata alone does not establish an input contract.
-    if provider == 'wavespeed':
+    roles = []
+    if provider in ('huggingface_inference', 'huggingface_hub'):
+        if hf_inference_route(model, 'chat'):
+            roles.append('chat')
+        if hf_inference_route(model, 'image'):
+            roles.append('image')
+        if hf_inference_route(model, 'video'):
+            roles.append('video')
+    elif provider not in PIPELINE_CATALOG_PROVIDERS:
+        if kind == 'text':
+            roles.append('chat')
+    elif provider == 'replicate':
+        pass  # Public list metadata alone does not establish an input contract.
+    elif provider == 'wavespeed':
         if model.get('prompt_compatible') and kind in ('text-to-image', 'text-to-video'):
-            return [kind.rsplit('-', 1)[-1]]
-        return []
-    if kind == 'text-to-image':
-        return ['image']
-    if kind == 'text-to-video':
-        return ['video']
-    if kind == 'image-to-video':
+            roles.append(kind.rsplit('-', 1)[-1])
+    elif kind == 'text-to-image':
+        roles.append('image')
+    elif kind == 'text-to-video':
+        roles.append('video')
+    elif kind == 'image-to-video':
         from kurt.core.media_artifacts import I2V_MODELS
         if model.get('id') in I2V_MODELS:
-            return ['video']
-    return []
+            roles.append('video')
+    mid = model.get('id', '') if isinstance(model, dict) else ''
+    for role in custom_endpoint_roles(provider, mid):
+        if role not in roles:
+            roles.append(role)
+    return roles

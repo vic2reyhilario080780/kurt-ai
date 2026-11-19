@@ -36,15 +36,17 @@ pages do not receive the saved key in their URL.
 | Provider | Scope |
 | --- | --- |
 | Hugging Face (Hosted Chat API) | Hosted chat API catalog (`router.huggingface.co/v1/models`), runnable chat defaults via BYOK `HF_TOKEN` |
-| Hugging Face — Inference Available | Paginated Hub API (`inference_provider=all`), browse-only with `←`/`→` page navigation (`PgUp`/`PgDn` ±10 pages), auto-load more at the last page, and live API search |
-| Hugging Face — Full Hub | Paginated full Hub API (`huggingface.co/api/models`), browse-only with `←`/`→` page navigation (`PgUp`/`PgDn` ±10 pages), auto-load more at the last page, and live API search |
+| Hugging Face — Inference Available | Paginated Hub API (`inference_provider=all`, expanded with `inferenceProviderMapping`), `←`/`→` paging + live API search; live single-model `conversational` chat, `text-to-image` (`fal-ai`, `hf-inference`, `together`, `nscale`, `replicate`, `wavespeed`), and `text-to-video` (`fal-ai`, `wavespeed`, `replicate`) are directly runnable via BYOK `HF_TOKEN`; other tasks stay browse-only |
+| Hugging Face — Full Hub | Paginated full Hub API (`huggingface.co/api/models`, expanded with `inferenceProviderMapping` and `tags`), `←`/`→` paging + live API search; auto-detects live HF Inference (chat/image/video), supports runnable custom JSON endpoints (`base_url`/`api_key`/`roles`), and offers local Ollama GGUF (`hf.co/<owner>/<repo>`) selection without auto-downloading weights |
 | Together | Catalog returned by the authenticated models API |
 | Fireworks | Paginated public Fireworks account catalog; some entries require deployment |
 | Replicate | Paginated API catalog with `←`/`→` paging, **Load next catalog pages**, live API search, and GitHub repo links |
 | WaveSpeed | Authenticated media catalog, including input schemas |
 | Novita | LLM API catalog, not every image/video API on the marketing site |
 
-Every provider and model detail view in `/models` also supports **Paste JSON config (GitHub repo / custom model / MCP)** for inline JSON objects or local `.json` file paths (saved privately `0600` to `~/.kurt/model_configs.json`, or imported into Kurt's MCP registry when `mcpServers` is present, without executing commands automatically).
+Every provider and model detail view in `/models` also supports **Paste JSON config (GitHub repo / custom model / MCP)** for inline JSON objects or local `.json` file paths (saved privately `0600` to `~/.kurt/model_configs.json`, or imported into Kurt's MCP registry when `mcpServers` is present, without executing commands automatically). When a saved JSON config includes a valid `base_url` (`https://...` or local loopback `http://127.0.0.1:...` / `http://localhost:...`) with optional `api_key`, `model`, `headers`, and `role`/`roles` (`chat`, `image`), Kurt enables that model as a selectable custom endpoint default (skipping wallet routing and rejecting unencrypted remote `http://` URLs).
+
+For Hugging Face Hub GGUF chat/multimodal repos (`tags` containing `gguf`, excluding audio/TTS/media-only GGUFs), the picker offers direct local Ollama selection (`hf.co/<owner>/<repo>`). Kurt does not auto-download model weights; run `ollama pull hf.co/<owner>/<repo>` yourself first.
 
 Counts show source records loaded, exact duplicates excluded, and visible models.
 Incomplete pagination is explicitly marked; loaded counts are not presented as
@@ -57,9 +59,9 @@ quantization, turbo or other suffixes. Unconfirmed aliases remain visible.
 
 ## Execution support
 
-OpenAI-compatible chat routing is implemented for Hugging Face, Together,
-Fireworks and Novita. Only declared chat/text-output models expose chat defaults;
-Fireworks also requires the catalog's serverless-support metadata.
+OpenAI-compatible chat routing is implemented for Hugging Face (Hosted Chat API and live `conversational` entries in Hugging Face — Inference Available), Together, Fireworks and Novita. Only declared chat/text-output models expose chat defaults; Fireworks also requires the catalog's serverless-support metadata.
+
+Hugging Face — Inference Available also supports single-model `text-to-image` (`fal-ai`, `hf-inference`, `together`, `nscale`, `replicate`, `wavespeed`) and `text-to-video` (`fal-ai`, `wavespeed`, `replicate`) generation through `router.huggingface.co` using the same BYOK `HF_TOKEN`. Binary/base64 image outputs are verified locally via `probe_file` and saved to `~/Downloads/Kurt` with SHA-256 receipts; CDN URL outputs pass Kurt's existing `finalize_artifact` + `probe_file`/`ffprobe` verification. Queue polling stays pinned to `router.huggingface.co` and never replays submissions. LoRA/adapter-only entries, error-status mappings, audio, embeddings and other tasks remain browse-only.
 
 WaveSpeed prompt-only text-to-image/video models can expose media defaults when
 their published input schema requires no additional inputs. Submission happens

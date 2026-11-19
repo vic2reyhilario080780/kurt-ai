@@ -8,7 +8,7 @@ import httpx
 from kurt.core import persona
 
 PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate",
-             'huggingface', 'together', 'fireworks', 'wavespeed', 'novita')
+             'huggingface', 'huggingface_inference', 'huggingface_hub', 'together', 'fireworks', 'wavespeed', 'novita')
 TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate", 'wavespeed'))
 DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe", "deepseek", "deepseek-cli", "copilot")
 # Explicit API-compatible Vibe alias; avoid its remotely selected free-model route.
@@ -44,11 +44,16 @@ MEDIA_PRESETS = {
 
 
 def validate_media_kind(kind, model, provider):
-    if provider == 'wavespeed':
+    from kurt.models.providers import custom_endpoint_roles
+    if kind in custom_endpoint_roles(provider, model):
+        return
+    if provider in ('wavespeed', 'huggingface_inference', 'huggingface_hub'):
         from kurt.models.additional import find_cached_model
         from kurt.models.catalog import default_roles
         contract = find_cached_model(provider, model)
         if not contract or kind not in default_roles(provider, contract):
+            if provider in ('huggingface_inference', 'huggingface_hub'):
+                raise ValueError(f'Load the Hugging Face catalog and choose a live text-to-{kind} model, or save a custom image endpoint JSON config.')
             raise ValueError('Load the WaveSpeed catalog and choose a supported prompt-only media model.')
     if provider == 'fal':
         for category, models in MEDIA_PRESETS.items():
@@ -152,8 +157,8 @@ def save_default_media(kind, value, provider=None):
             if provider is None:
                 raise ValueError("Specify fal or replicate after the model ID.")
         model, provider = parse_model(value, provider)
-        if provider not in ("fal", "replicate", 'wavespeed'):
-            raise ValueError("Image/video generators support fal, replicate and wavespeed.")
+        if provider not in ("fal", "replicate", 'wavespeed', 'huggingface_inference', 'huggingface_hub'):
+            raise ValueError("Image/video generators support fal, replicate, wavespeed, huggingface_inference and huggingface_hub.")
         # Model IDs become URL paths in the generation APIs.
         from urllib.parse import urlsplit
         if not model or any(c in model for c in ("?", "#", "\\")) or urlsplit(model).scheme or any(p in ("", ".", "..") for p in model.split("/")):
@@ -177,8 +182,8 @@ def media_target(kind, settings=None):
         target = ROUTING_TABLE[types[kind]]
         return {"model": target["model"], "provider": target["provider"]}
     model, provider = parse_model(selected)
-    if provider not in ("fal", "replicate", 'wavespeed'):
-        raise ValueError("Unsupported saved media provider; choose fal, replicate or wavespeed.")
+    if provider not in ("fal", "replicate", 'wavespeed', 'huggingface_inference', 'huggingface_hub'):
+        raise ValueError("Unsupported saved media provider; choose fal, replicate, wavespeed, huggingface_inference or huggingface_hub.")
     validate_media_kind(kind, model, provider)
     return {"model": model, "provider": provider}
 

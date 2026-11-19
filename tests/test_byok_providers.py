@@ -75,7 +75,9 @@ class OptionalCatalogTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.real_client = httpx.Client
         for context in (patch.object(additional, 'CACHE_DIR', self.root), patch.object(additional, '_memory', {}),
-                        patch.object(providers, 'credential_path', return_value=self.root/'.env')):
+                        patch.object(providers, 'credential_path', return_value=self.root/'.env'),
+                        patch.object(persona, 'KURT_DIR', self.root),
+                        patch.object(persona, 'PERSONA_PATH', self.root/'persona.json')):
             context.start(); self.addCleanup(context.stop)
 
     def client(self, handler):
@@ -246,15 +248,129 @@ class OptionalCatalogTests(unittest.TestCase):
         self.assertIsNone(providers.get_model_config('replicate', 'black-forest-labs/flux-schnell'))
         # mcpServers JSON imports into MCP registry without running anything
         mcp_reg = self.root / 'mcp_registry.json'
-        with patch('kurt.core.mcp_client.REGISTRY_PATH', mcp_reg):
+        with patch('kurt.core.mcp_client.KURT_DIR', self.root), \
+             patch('kurt.core.mcp_client.MCP_REGISTRY_PATH', mcp_reg):
             mcp_saved = providers.save_model_json_config('huggingface_hub', 'org/mcp-repo',
                 json.dumps({'mcpServers': {'demo-repo': {'command': 'npx', 'args': ['-y', 'demo-pkg']}}}))
             self.assertEqual(mcp_saved['kind'], 'mcp')
             self.assertEqual(mcp_saved['names'], ['demo-repo'])
             self.assertTrue(mcp_reg.is_file())
 
+    def test_hf_inference_mapping_exposes_live_chat_and_image_roles_and_rejects_unimplemented_tasks(self):
+        seen_expand = []
+        def handler(req):
+            seen_expand.append(req.url.params.get_list('expand[]'))
+            return httpx.Response(200, json=[
+                {'id': 'Qwen/Qwen3-14B', 'pipeline_tag': 'text-generation', 'downloads': 13000000,
+                 'inferenceProviderMapping': [
+                     {'provider': 'deepinfra', 'providerId': 'Qwen/Qwen3-14B', 'status': 'live', 'task': 'conversational', 'type': 'single-model'}
+                 ]},
+                {'id': 'black-forest-labs/FLUX.1-dev', 'pipeline_tag': 'text-to-image', 'downloads': 430000,
+                 'inferenceProviderMapping': [
+                     {'provider': 'wavespeed', 'providerId': 'wavespeed-ai/flux-dev', 'status': 'live', 'task': 'text-to-image', 'type': 'single-model'},
+                     {'provider': 'fal-ai', 'providerId': 'fal-ai/flux/dev', 'status': 'live', 'task': 'text-to-image', 'type': 'single-model'},
+                     {'provider': 'deepinfra', 'providerId': 'black-forest-labs/FLUX-1-dev', 'status': 'error', 'task': 'text-to-image', 'type': 'single-model'},
+                 ]},
+                {'id': 'Wan-AI/Wan2.2-T2V-A14B-Diffusers', 'pipeline_tag': 'text-to-video', 'downloads': 192000,
+                 'inferenceProviderMapping': [
+                     {'provider': 'fal-ai', 'providerId': 'fal-ai/wan/v2.2-a14b/text-to-video', 'status': 'live', 'task': 'text-to-video', 'type': 'single-model'}
+                 ]},
+                {'id': 'org/lora-only', 'pipeline_tag': 'text-to-image',
+                 'inferenceProviderMapping': [
+                     {'provider': 'fal-ai', 'providerId': 'fal-ai/flux-lora', 'status': 'live', 'task': 'text-to-image', 'type': 'lora', 'adapterWeightsPath': 'w.safetensors'}
+                 ]},
+                {'id': 'sentence-transformers/all-MiniLM-L6-v2', 'pipeline_tag': 'sentence-similarity',
+                 'inferenceProviderMapping': [
+                     {'provider': 'hf-inference', 'providerId': 'sentence-transformers/all-MiniLM-L6-v2', 'status': 'live', 'task': 'sentence-similarity', 'type': 'single-model'}
+                 ]},
+            ])
+        with patch.object(additional, 'provider_key', return_value=''), \
+             patch.object(additional.httpx, 'Client', self.client(handler)):
+            res = additional.fetch_catalog('huggingface_inference', page_budget=1)
+        self.assertIn('inferenceProviderMapping', seen_expand[0])
+        by_id = {m['id']: m for m in res['models']}
+        self.assertEqual(catalog.default_roles('huggingface_inference', by_id['Qwen/Qwen3-14B']), ['chat'])
+        self.assertEqual(catalog.default_roles('huggingface_inference', by_id['black-forest-labs/FLUX.1-dev']), ['image'])
+        self.assertEqual(catalog.hf_inference_route(by_id['black-forest-labs/FLUX.1-dev'], 'image')['provider'], 'fal-ai')
+        self.assertEqual(catalog.default_roles('huggingface_inference', by_id['Wan-AI/Wan2.2-T2V-A14B-Diffusers']), ['video'])
+        self.assertEqual(catalog.hf_inference_route(by_id['Wan-AI/Wan2.2-T2V-A14B-Diffusers'], 'video')['provider'], 'fal-ai')
+        self.assertEqual(catalog.default_roles('huggingface_inference', by_id['org/lora-only']), [])
+        self.assertEqual(catalog.default_roles('huggingface_inference', by_id['sentence-transformers/all-MiniLM-L6-v2']), [])
+        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+            chat_detail = picker._catalog_model_items('huggingface_inference', 'Qwen/Qwen3-14B')
+            img_detail = picker._catalog_model_items('huggingface_inference', 'black-forest-labs/FLUX.1-dev')
+            vid_detail = picker._catalog_model_items('huggingface_inference', 'Wan-AI/Wan2.2-T2V-A14B-Diffusers')
+            self.assertTrue(any(r.get('value') == '/model default Qwen/Qwen3-14B huggingface_inference' for r in chat_detail))
+            self.assertTrue(any(r.get('value') == '/image-model black-forest-labs/FLUX.1-dev huggingface_inference' for r in img_detail))
+            self.assertTrue(any(r.get('value') == '/video-model Wan-AI/Wan2.2-T2V-A14B-Diffusers huggingface_inference' for r in vid_detail))
+            self.assertTrue(any('Live HF Inference:' in r.get('label', '') for r in img_detail))
+        from kurt.core import execution_preferences as prefs
+        with patch.object(persona, 'KURT_DIR', self.root), patch.object(persona, 'PERSONA_PATH', self.root/'persona.json'):
+            self.assertEqual(prefs.save_default_model('Qwen/Qwen3-14B', 'huggingface_inference'), 'Qwen/Qwen3-14B|huggingface_inference')
+            self.assertEqual(prefs.save_default_media('image', 'black-forest-labs/FLUX.1-dev', 'huggingface_inference'),
+                             'black-forest-labs/FLUX.1-dev|huggingface_inference')
+            self.assertEqual(prefs.save_default_media('video', 'Wan-AI/Wan2.2-T2V-A14B-Diffusers', 'huggingface_inference'),
+                             'Wan-AI/Wan2.2-T2V-A14B-Diffusers|huggingface_inference')
+            with self.assertRaises(ValueError):
+                prefs.save_default_media('video', 'black-forest-labs/FLUX.1-dev', 'huggingface_inference')
+
+    def test_hf_full_hub_supports_live_inference_custom_json_endpoint_and_local_ollama_gguf(self):
+        def handler(req):
+            return httpx.Response(200, json=[
+                {'id': 'org/live-hub-chat', 'pipeline_tag': 'text-generation', 'downloads': 5000,
+                 'inferenceProviderMapping': [
+                     {'provider': 'deepinfra', 'providerId': 'org/live-hub-chat', 'status': 'live', 'task': 'conversational', 'type': 'single-model'}
+                 ]},
+                {'id': 'org/raw-weights', 'pipeline_tag': 'text-generation', 'downloads': 100, 'inferenceProviderMapping': []},
+                {'id': 'unsloth/Qwen3.8-27B-GGUF', 'downloads': 7100000, 'tags': ['gguf', 'conversational', 'imatrix'], 'inferenceProviderMapping': []},
+                {'id': 'audio-cpp/audio.cpp-gguf', 'pipeline_tag': 'text-to-speech', 'library_name': 'audio.cpp',
+                 'tags': ['audio.cpp', 'gguf', 'text-to-speech'], 'inferenceProviderMapping': []},
+            ])
+        with patch.object(additional, 'provider_key', return_value=''), \
+             patch.object(additional.httpx, 'Client', self.client(handler)):
+            res = additional.fetch_catalog('huggingface_hub', page_budget=1)
+        by_id = {m['id']: m for m in res['models']}
+        # Option A: live HF Inference auto-detected inside 3M Full Hub
+        self.assertEqual(catalog.default_roles('huggingface_hub', by_id['org/live-hub-chat']), ['chat'])
+        # Raw weights start browse-only
+        self.assertEqual(catalog.default_roles('huggingface_hub', by_id['org/raw-weights']), [])
+        # Option C: chat GGUF detected; audio TTS GGUF excluded
+        self.assertTrue(by_id['unsloth/Qwen3.8-27B-GGUF'].get('ollama_gguf'))
+        self.assertFalse(by_id['audio-cpp/audio.cpp-gguf'].get('ollama_gguf'))
+        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+            gguf_rows = picker._catalog_model_rows('huggingface_hub', [by_id['unsloth/Qwen3.8-27B-GGUF']], '')
+            self.assertIn('local Ollama GGUF', gguf_rows[0]['label'])
+            gguf_detail = picker._catalog_model_items('huggingface_hub', 'unsloth/Qwen3.8-27B-GGUF')
+            self.assertTrue(any(r.get('value') == '/model default hf.co/unsloth/Qwen3.8-27B-GGUF ollama' for r in gguf_detail))
+        # Option B: cleartext remote HTTP rejected; HTTPS and local loopback accepted
+        providers.save_model_json_config('huggingface_hub', 'org/raw-weights',
+            json.dumps({'base_url': 'http://remote.example/v1', 'api_key': 'synthetic-leaked'}))
+        self.assertIsNone(providers.custom_endpoint_config('huggingface_hub', 'org/raw-weights'))
+        self.assertEqual(catalog.default_roles('huggingface_hub', by_id['org/raw-weights']), [])
+        providers.save_model_json_config('huggingface_hub', 'org/raw-weights',
+            json.dumps({'base_url': 'https://my-ep.endpoints.huggingface.cloud/v1', 'api_key': 'synthetic-ep-key', 'roles': ['chat', 'image']}))
+        self.assertEqual(catalog.default_roles('huggingface_hub', by_id['org/raw-weights']), ['chat', 'image'])
+        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+            raw_detail = picker._catalog_model_items('huggingface_hub', 'org/raw-weights')
+            self.assertTrue(any('Custom endpoint ready:' in r.get('label', '') for r in raw_detail))
+            self.assertTrue(any(r.get('value') == '/model default org/raw-weights huggingface_hub' for r in raw_detail))
+            self.assertTrue(any(r.get('value') == '/image-model org/raw-weights huggingface_hub' for r in raw_detail))
+            auth_rows = picker._provider_auth_items('huggingface_hub', '/model default org/raw-weights huggingface_hub')
+            self.assertTrue(any(r.get('kind') == 'leaf' and 'custom JSON endpoint' in r.get('label', '') for r in auth_rows))
+        from kurt.core import execution_preferences as prefs
+        with patch.object(persona, 'KURT_DIR', self.root), patch.object(persona, 'PERSONA_PATH', self.root/'persona.json'):
+            self.assertEqual(prefs.save_default_media('image', 'org/raw-weights', 'huggingface_hub'), 'org/raw-weights|huggingface_hub')
+
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        for context in (patch.object(providers, 'credential_path', return_value=root/'.env'),
+                        patch.object(persona, 'KURT_DIR', root),
+                        patch.object(persona, 'PERSONA_PATH', root/'persona.json')):
+            context.start(); self.addCleanup(context.stop)
+
     async def test_all_new_chat_endpoints_use_only_own_key_and_skip_wallet(self):
         for provider in ('huggingface', 'together', 'fireworks', 'novita'):
             seen = []
@@ -316,8 +432,195 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
                 async for _ in router.route('huggingface', 'vendor/model', [{'role': 'user', 'content': 'hi'}], stream=True):
                     pass
 
+    async def test_huggingface_inference_chat_and_image_routing_url_and_bytes(self):
+        import base64, io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (4, 4), color=(10, 20, 30)).save(buf, format='PNG')
+        png_bytes = buf.getvalue()
+        # 1. Chat routing via router.huggingface.co skips wallet
+        seen_chat = []
+        def chat_handler(req):
+            seen_chat.append(req)
+            return httpx.Response(200, json={'choices': [{'message': {'content': 'HF_INF_CHAT_OK'}}]})
+        router = ModelRouter()
+        router.byok_keys['huggingface_inference'] = 'synthetic-hf-inf'
+        with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(chat_handler))):
+            out = ''.join([c async for c in router.route('huggingface_inference', 'Qwen/Qwen3-14B', [{'role': 'user', 'content': 'hi'}], stream=False)])
+        self.assertEqual(out, 'HF_INF_CHAT_OK')
+        self.assertEqual(str(seen_chat[0].url), 'https://router.huggingface.co/v1/chat/completions')
+        self.assertEqual(seen_chat[0].headers['Authorization'], 'Bearer synthetic-hf-inf')
+        with patch('kurt.billing.client.active', return_value=True), patch('kurt.billing.client.WalletTransport') as wallet:
+            async with ModelRouter()._http_client(provider='huggingface_inference'):
+                pass
+        wallet.assert_not_called()
+        # 2. Image routing: fal-ai CDN URL
+        fal_model = {'id': 'black-forest-labs/FLUX.1-dev', 'category': 'text-to-image',
+                     'inference_providers': [{'provider': 'fal-ai', 'provider_id': 'fal-ai/flux/dev', 'task': 'text-to-image', 'status': 'live'}]}
+        fal_reqs = []
+        def fal_handler(req):
+            fal_reqs.append(req)
+            return httpx.Response(200, json={'images': [{'url': 'https://v3.fal.media/files/test.png'}]})
+        with patch('kurt.models.media_providers.find_cached_model', return_value=fal_model), \
+             patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(fal_handler))):
+            fal_out = ''.join([c async for c in router.route('huggingface_inference', 'black-forest-labs/FLUX.1-dev',
+                                                             [{'role': 'user', 'content': 'cat'}], media_kind='image')])
+        self.assertEqual(fal_out, 'https://v3.fal.media/files/test.png')
+        self.assertEqual(str(fal_reqs[0].url), 'https://router.huggingface.co/fal-ai/fal-ai/flux/dev')
+        # 3. Image routing: hf-inference raw PNG bytes + local receipt verification
+        out_dir = Path(self.temp.name) / 'out'
+        hf_model = {'id': 'org/hf-img', 'category': 'text-to-image',
+                    'inference_providers': [{'provider': 'hf-inference', 'provider_id': 'org/hf-img', 'task': 'text-to-image', 'status': 'live'}]}
+        from kurt.core import media_artifacts
+        holder = {}
+        tok = media_artifacts.LOCAL_ARTIFACT_HOLDER.set(holder)
+        try:
+            with patch('kurt.models.media_providers.find_cached_model', return_value=hf_model), \
+                 patch.object(media_artifacts, 'OUTPUT_DIR', out_dir), \
+                 patch.object(router, '_http_client', return_value=httpx.AsyncClient(
+                     transport=httpx.MockTransport(lambda req: httpx.Response(200, content=png_bytes, headers={'content-type': 'image/png'})))):
+                saved_path = ''.join([c async for c in router.route('huggingface_inference', 'org/hf-img',
+                                                                    [{'role': 'user', 'content': 'dog'}], media_kind='image')])
+        finally:
+            media_artifacts.LOCAL_ARTIFACT_HOLDER.reset(tok)
+        self.assertTrue(Path(saved_path).is_file())
+        self.assertTrue(holder['receipt']['file_verified'])
+        self.assertEqual(holder['receipt']['path'], saved_path)
+        self.assertTrue(Path(saved_path + '.json').is_file())
+        # 4. Image routing: together base64 PNG
+        tog_model = {'id': 'org/tog-img', 'category': 'text-to-image',
+                     'inference_providers': [{'provider': 'together', 'provider_id': 'org/tog-img', 'task': 'text-to-image', 'status': 'live'}]}
+        b64_payload = {'data': [{'b64_json': base64.b64encode(png_bytes).decode('ascii')}]}
+        with patch('kurt.models.media_providers.find_cached_model', return_value=tog_model), \
+             patch.object(media_artifacts, 'OUTPUT_DIR', out_dir), \
+             patch.object(router, '_http_client', return_value=httpx.AsyncClient(
+                 transport=httpx.MockTransport(lambda req: httpx.Response(200, json=b64_payload)))):
+            tog_path = ''.join([c async for c in router.route('huggingface_inference', 'org/tog-img',
+                                                              [{'role': 'user', 'content': 'bird'}], media_kind='image')])
+        self.assertTrue(Path(tog_path).is_file())
+        # 5. Image routing: wavespeed via HF router polls fixed origin only
+        ws_model = {'id': 'org/ws-img', 'category': 'text-to-image',
+                    'inference_providers': [{'provider': 'wavespeed', 'provider_id': 'wavespeed-ai/flux-dev', 'task': 'text-to-image', 'status': 'live'}]}
+        ws_reqs = []
+        def ws_handler(req):
+            ws_reqs.append(req)
+            if req.method == 'POST':
+                return httpx.Response(200, json={'code': 200, 'data': {'id': 'job_7', 'status': 'processing', 'urls': {'get': 'https://evil.example/steal'}}})
+            return httpx.Response(200, json={'data': {'id': 'job_7', 'status': 'completed', 'outputs': ['https://cdn.wavespeed.ai/ok.png']}})
+        with patch('kurt.models.media_providers.find_cached_model', return_value=ws_model), \
+             patch('kurt.models.media_providers.asyncio.sleep'), \
+             patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(ws_handler))):
+            ws_out = ''.join([c async for c in router.route('huggingface_inference', 'org/ws-img',
+                                                            [{'role': 'user', 'content': 'moon'}], media_kind='image')])
+        self.assertEqual(ws_out, 'https://cdn.wavespeed.ai/ok.png')
+        self.assertEqual([r.method for r in ws_reqs], ['POST', 'GET'])
+        self.assertEqual(str(ws_reqs[1].url), 'https://router.huggingface.co/wavespeed/api/v3/predictions/job_7/result')
+        # 6. Video routing: fal-ai queue polling pinned to router.huggingface.co/fal-ai
+        vid_model = {'id': 'Wan-AI/Wan2.2-T2V-A14B-Diffusers', 'category': 'text-to-video',
+                     'inference_providers': [{'provider': 'fal-ai', 'provider_id': 'fal-ai/wan/v2.2-a14b/text-to-video',
+                                              'task': 'text-to-video', 'status': 'live'}]}
+        vid_reqs = []
+        def vid_handler(req):
+            vid_reqs.append(req)
+            if req.method == 'POST':
+                return httpx.Response(200, json={'request_id': 'req_9', 'status': 'IN_QUEUE',
+                                                 'response_url': 'https://evil.example/fal-ai/wan/requests/req_9'})
+            if str(req.url).endswith('/status?_subdomain=queue'):
+                return httpx.Response(200, json={'status': 'COMPLETED'})
+            return httpx.Response(200, json={'video': {'url': 'https://v3.fal.media/files/clip.mp4'}})
+        with patch('kurt.models.media_providers.find_cached_model', return_value=vid_model), \
+             patch('kurt.models.media_providers.asyncio.sleep'), \
+             patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(vid_handler))):
+            vid_out = ''.join([c async for c in router.route('huggingface_inference', 'Wan-AI/Wan2.2-T2V-A14B-Diffusers',
+                                                             [{'role': 'user', 'content': 'ocean waves'}], media_kind='video')])
+        self.assertEqual(vid_out, 'https://v3.fal.media/files/clip.mp4')
+        self.assertEqual([r.method for r in vid_reqs], ['POST', 'GET', 'GET'])
+        self.assertEqual(str(vid_reqs[0].url), 'https://router.huggingface.co/fal-ai/fal-ai/wan/v2.2-a14b/text-to-video?_subdomain=queue')
+        self.assertEqual(str(vid_reqs[1].url), 'https://router.huggingface.co/fal-ai/fal-ai/wan/requests/req_9/status?_subdomain=queue')
+        self.assertEqual(str(vid_reqs[2].url), 'https://router.huggingface.co/fal-ai/fal-ai/wan/requests/req_9?_subdomain=queue')
+        # 7. Music is rejected cleanly on huggingface_inference
+        with self.assertRaises(ValueError):
+            async for _ in router.route('huggingface_inference', 'org/ws-img', [{'role': 'user', 'content': 'song'}], media_kind='music'):
+                pass
+
+    def test_generate_media_tool_verifies_hf_inference_local_bytes(self):
+        import io
+        from PIL import Image
+        from kurt.core import media_artifacts
+        from kurt.core.assistant_tools import invoke_assistant
+        buf = io.BytesIO()
+        Image.new('RGB', (4, 4), color=(15, 25, 35)).save(buf, format='PNG')
+        png_bytes = buf.getvalue()
+        out_dir = Path(self.temp.name) / 'tool_out'
+        hf_model = {'id': 'org/hf-img', 'category': 'text-to-image',
+                    'inference_providers': [{'provider': 'hf-inference', 'provider_id': 'org/hf-img', 'task': 'text-to-image', 'status': 'live'}]}
+        with patch('kurt.core.execution_preferences.media_target', return_value={'model': 'org/hf-img', 'provider': 'huggingface_inference'}), \
+             patch('kurt.models.media_providers.find_cached_model', return_value=hf_model), \
+             patch.object(media_artifacts, 'OUTPUT_DIR', out_dir), \
+             patch.object(providers, 'provider_key', side_effect=lambda p: 'synthetic-hf-inf' if p in ('huggingface', 'huggingface_inference') else ''), \
+             patch.object(ModelRouter, '_http_client', return_value=httpx.AsyncClient(
+                 transport=httpx.MockTransport(lambda req: httpx.Response(200, content=png_bytes, headers={'content-type': 'image/png'})))):
+            tool_res = invoke_assistant('generate_media', {'kind': 'image', 'prompt': 'sunset'})
+        self.assertEqual(tool_res['status'], 'completed')
+        self.assertTrue(tool_res['file_verified'])
+        self.assertTrue(Path(tool_res['path']).is_file())
+        self.assertEqual(tool_res['provider'], 'huggingface_inference')
+
+    async def test_custom_json_endpoint_chat_image_and_local_ollama_gguf_routing(self):
+        import io
+        from PIL import Image
+        from kurt.core import media_artifacts
+        buf = io.BytesIO()
+        Image.new('RGB', (4, 4), color=(50, 60, 70)).save(buf, format='PNG')
+        png_bytes = buf.getvalue()
+        # Option B: custom endpoint chat + image (loopback HTTP allowed, skips wallet)
+        providers.save_model_json_config('huggingface_hub', 'org/custom-3m',
+            json.dumps({'base_url': 'http://127.0.0.1:8000', 'api_key': 'synthetic-local-key', 'model': 'org/custom-3m', 'roles': ['chat', 'image']}))
+        seen = []
+        def custom_handler(req):
+            seen.append(req)
+            if str(req.url).endswith('/v1/chat/completions'):
+                return httpx.Response(200, json={'choices': [{'message': {'content': 'CUSTOM_EP_OK'}}]})
+            return httpx.Response(200, content=png_bytes, headers={'content-type': 'image/png'})
+        router = ModelRouter()
+        with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(custom_handler))):
+            chat_out = ''.join([c async for c in router.route('huggingface_hub', 'org/custom-3m', [{'role': 'user', 'content': 'hi'}], stream=False)])
+        self.assertEqual(chat_out, 'CUSTOM_EP_OK')
+        self.assertEqual(str(seen[0].url), 'http://127.0.0.1:8000/v1/chat/completions')
+        self.assertEqual(seen[0].headers['Authorization'], 'Bearer synthetic-local-key')
+        out_dir = Path(self.temp.name) / 'custom_img_out'
+        with patch.object(media_artifacts, 'OUTPUT_DIR', out_dir), \
+             patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(custom_handler))):
+            img_path = ''.join([c async for c in router.route('huggingface_hub', 'org/custom-3m', [{'role': 'user', 'content': 'tree'}], media_kind='image')])
+        self.assertTrue(Path(img_path).is_file())
+        self.assertEqual(str(seen[1].url), 'http://127.0.0.1:8000/v1/images/generations')
+        # Option C: local Ollama GGUF skips wallet and gives clear pull hint on 404
+        with patch('kurt.billing.client.active', return_value=True), patch('kurt.billing.client.WalletTransport') as wallet:
+            async with router._http_client(provider='ollama'):
+                pass
+            async with router._http_client(provider='custom_endpoint'):
+                pass
+        wallet.assert_not_called()
+        def ollama_ok(req):
+            return httpx.Response(200, text=json.dumps({'message': {'content': 'GGUF_LOCAL_OK'}, 'done': True}) + '\n')
+        with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(ollama_ok))):
+            ol_out = ''.join([c async for c in router.route('ollama', 'hf.co/unsloth/Qwen3.8-27B-GGUF', [{'role': 'user', 'content': 'hi'}])])
+        self.assertEqual(ol_out, 'GGUF_LOCAL_OK')
+        with patch.object(router, '_http_client', return_value=httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(404, text='not found')))):
+            with self.assertRaisesRegex(RuntimeError, 'ollama pull hf.co/unsloth/Qwen3.8-27B-GGUF'):
+                async for _ in router.route('ollama', 'hf.co/unsloth/Qwen3.8-27B-GGUF', [{'role': 'user', 'content': 'hi'}]):
+                    pass
+
 
 class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        for context in (patch.object(providers, 'credential_path', return_value=root/'.env'),
+                        patch.object(persona, 'KURT_DIR', root),
+                        patch.object(persona, 'PERSONA_PATH', root/'persona.json')):
+            context.start(); self.addCleanup(context.stop)
+
     async def test_key_input_and_website_keep_picker_open_then_confirm_uses_existing_dispatch(self):
         from prompt_toolkit.input.defaults import create_pipe_input
         from prompt_toolkit.output import DummyOutput
@@ -361,9 +664,9 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                 confirm.assert_called_once_with('together')
             finally:
                 if not task.done():
-                    pipe.send_text('\x03')
+                    task.cancel()
                     try:await task
-                    except BaseException:pass
+                    except asyncio.CancelledError:pass
 
     async def test_json_config_input_in_picker_saves_privately_and_clears_buffer(self):
         from prompt_toolkit.input.defaults import create_pipe_input
@@ -403,9 +706,9 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn('saved privately', state.notice)
             finally:
                 if not task.done():
-                    pipe.send_text('\x03')
+                    task.cancel()
                     try: await task
-                    except BaseException: pass
+                    except asyncio.CancelledError: pass
 
     async def test_left_right_page_navigation_and_auto_load_more_for_large_catalogs(self):
         from prompt_toolkit.input.defaults import create_pipe_input
@@ -453,9 +756,9 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(state.index, 1)
             finally:
                 if not task.done():
-                    pipe.send_text('\x03')
+                    task.cancel()
                     try: await task
-                    except BaseException: pass
+                    except asyncio.CancelledError: pass
 
 
 class SecretVoiceTests(unittest.TestCase):

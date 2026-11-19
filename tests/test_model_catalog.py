@@ -60,7 +60,9 @@ class CatalogTests(unittest.TestCase):
             state = picker._PaletteState(view=rows[0]['target'])
             detail = picker._current_items(state, '')
             self.assertFalse(any(r['kind'] == 'leaf' for r in detail))
-            self.assertTrue(any('not supported' in r['label'] for r in detail))
+            self.assertTrue(any(r.get('kind') == 'model_json_config' and
+                                r.get('provider') == 'fal' and r.get('mid') == 'lab/rare-edit'
+                                for r in detail))
 
     def test_model_details_use_existing_commands_and_settings_hide_session_action(self):
         model = {'id': 'lab/chat', 'architecture': {'output_modalities': ['text']}}
@@ -182,8 +184,8 @@ class CatalogInteractionTests(unittest.IsolatedAsyncioTestCase):
                 confirm.assert_called_once_with('fal')
             finally:
                 if not task.done():
-                    pipe.send_text('\x03')
+                    task.cancel()
                     try:
                         await task
-                    except BaseException:
+                    except asyncio.CancelledError:
                         pass

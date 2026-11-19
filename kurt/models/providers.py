@@ -5,6 +5,7 @@ import re
 EXTRA_PROVIDERS = ('huggingface', 'huggingface_inference', 'huggingface_hub', 'together', 'fireworks', 'replicate', 'wavespeed', 'novita')
 HF_HUB_CATALOGS = frozenset(('huggingface_inference', 'huggingface_hub'))
 NEW_BYOK_PROVIDERS = frozenset(('huggingface', 'together', 'fireworks', 'wavespeed', 'novita'))
+RUNNABLE_BYOK_PROVIDERS = NEW_BYOK_PROVIDERS | HF_HUB_CATALOGS
 BYOK_ONLY_PROVIDERS = NEW_BYOK_PROVIDERS | HF_HUB_CATALOGS
 
 # Endpoints are application-owned constants, never supplied by catalog records.
@@ -23,12 +24,12 @@ PROVIDERS = {
         'scope': 'Hosted chat API models; runnable chat defaults via BYOK HF_TOKEN', 'public_catalog': True},
     'huggingface_inference': {'name': 'Hugging Face — Inference Available', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
         'keys_url': 'https://huggingface.co/settings/tokens', 'models_url': 'https://huggingface.co/models?inference_provider=all',
-        'catalog_url': 'https://huggingface.co/api/models',
-        'scope': 'Hugging Face Hub "Inference Available" filter, loaded in pages; browse or search live', 'public_catalog': True},
+        'catalog_url': 'https://huggingface.co/api/models', 'chat_url': 'https://router.huggingface.co/v1/chat/completions',
+        'scope': 'Hugging Face Hub "Inference Available" (57k+); live chat, text-to-image & text-to-video models runnable via BYOK HF_TOKEN', 'public_catalog': True},
     'huggingface_hub': {'name': 'Hugging Face — Full Hub', 'key': 'HF_TOKEN', 'aliases': ('HUGGINGFACE_API_KEY',),
         'keys_url': 'https://huggingface.co/settings/tokens', 'models_url': 'https://huggingface.co/models',
-        'catalog_url': 'https://huggingface.co/api/models',
-        'scope': 'Full Hugging Face Hub model repositories, loaded in pages; browse or search live', 'public_catalog': True},
+        'catalog_url': 'https://huggingface.co/api/models', 'chat_url': 'https://router.huggingface.co/v1/chat/completions',
+        'scope': 'Full Hugging Face Hub (~3M repos); live HF Inference, custom JSON endpoint, or local Ollama GGUF models runnable', 'public_catalog': True},
     'together': {'name': 'Together AI', 'key': 'TOGETHER_API_KEY',
         'keys_url': 'https://api.together.xyz/settings/api-keys', 'models_url': 'https://www.together.ai/models',
         'catalog_url': 'https://api.together.xyz/v1/models', 'chat_url': 'https://api.together.xyz/v1/chat/completions',
@@ -174,6 +175,62 @@ def _config_key(provider, mid=''):
 
 def get_model_config(provider, mid=''):
     return load_model_configs().get(_config_key(provider, mid))
+
+
+def _validated_custom_base_url(value):
+    from urllib.parse import urlsplit
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip().rstrip('/')
+    parsed = urlsplit(raw)
+    if not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
+        return None
+    host = parsed.hostname.lower()
+    if parsed.scheme == 'https':
+        return raw
+    if parsed.scheme == 'http' and host in ('localhost', '127.0.0.1', '::1'):
+        return raw
+    return None
+
+
+def custom_endpoint_config(provider, mid=''):
+    """Return a validated runnable custom endpoint from saved model JSON config, if configured."""
+    entry = get_model_config(provider, mid) or (get_model_config(provider) if mid else None)
+    cfg = entry.get('config') if isinstance(entry, dict) else None
+    if not isinstance(cfg, dict):
+        return None
+    base_url = _validated_custom_base_url(cfg.get('base_url') or cfg.get('endpoint') or cfg.get('url'))
+    if not base_url:
+        return None
+    raw_roles = cfg.get('roles')
+    if isinstance(raw_roles, list):
+        roles = [r.strip().lower() for r in raw_roles if isinstance(r, str) and r.strip().lower() in ('chat', 'image')]
+    elif isinstance(cfg.get('role'), str) and cfg['role'].strip().lower() in ('chat', 'image'):
+        roles = [cfg['role'].strip().lower()]
+    else:
+        roles = ['chat']
+    if not roles:
+        roles = ['chat']
+    api_key = cfg.get('api_key') or cfg.get('token') or ''
+    api_key = api_key.strip() if isinstance(api_key, str) and usable_key(api_key) else ''
+    headers = {}
+    if isinstance(cfg.get('headers'), dict):
+        for k, v in cfg['headers'].items():
+            if isinstance(k, str) and isinstance(v, str) and k.strip() and '\n' not in k and '\r' not in k and '\n' not in v and '\r' not in v:
+                headers[k.strip()] = v.strip()
+    model_name = cfg.get('model') if isinstance(cfg.get('model'), str) and cfg['model'].strip() else mid
+    return {
+        'base_url': base_url,
+        'api_key': api_key,
+        'model': model_name,
+        'roles': list(dict.fromkeys(roles)),
+        'headers': headers,
+    }
+
+
+def custom_endpoint_roles(provider, mid=''):
+    cfg = custom_endpoint_config(provider, mid)
+    return list(cfg['roles']) if cfg else []
 
 
 def _collect_secret_strings(obj, out):

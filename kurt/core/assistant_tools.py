@@ -98,9 +98,11 @@ def invoke_assistant(name, params):
         target = media_target(params['kind'])
         router = ModelRouter()
         router.strict_selection = True
-        if not router._has_key(target['provider']):
+        from kurt.models.providers import custom_endpoint_config
+        custom_cfg = custom_endpoint_config(target['provider'], target['model'])
+        if not router._has_key(target['provider']) and not (custom_cfg and params['kind'] in custom_cfg['roles']):
             return {'status': 'blocked', 'reason': f"No configured {target['provider']} generation key."}
-        from .media_artifacts import REFERENCE_IMAGES, FAL_REFERENCE, I2V_MODELS, finalize_artifact
+        from .media_artifacts import REFERENCE_IMAGES, FAL_REFERENCE, LOCAL_ARTIFACT_HOLDER, I2V_MODELS, finalize_artifact
         from kurt.utils.security import redact
         images = REFERENCE_IMAGES.get()
         index = params.get('reference_image', -1 if not images else None)
@@ -115,13 +117,18 @@ def invoke_assistant(name, params):
             return ''.join([chunk async for chunk in router.route(target['provider'], target['model'],
                 [{'role': 'user', 'content': params['prompt']}], media_kind=params['kind'])])
         token = FAL_REFERENCE.set(reference)
+        local_holder = {}
+        local_token = LOCAL_ARTIFACT_HOLDER.set(local_holder)
         output = None
         try:
             output = asyncio.run(generate())
             from .media_generation import artifact_url
-            if not artifact_url(output):
-                raise RuntimeError('The selected generator did not return an artifact URL.')
-            artifact = finalize_artifact(output, params['kind'])
+            if isinstance(local_holder.get('receipt'), dict) and local_holder['receipt'].get('file_verified') is True:
+                artifact = local_holder['receipt']
+            else:
+                if not artifact_url(output):
+                    raise RuntimeError('The selected generator did not return an artifact URL.')
+                artifact = finalize_artifact(output, params['kind'])
             return {**artifact, 'status': 'completed', 'kind': params['kind'],
                     'model': target['model'], 'provider': target['provider'], 'reference_used': bool(reference)}
         except Exception as exc:
@@ -130,6 +137,7 @@ def invoke_assistant(name, params):
                     'provider': target['provider'], 'output': output, 'reason': redact(str(exc)),
                     'retry_safe': False}
         finally:
+            LOCAL_ARTIFACT_HOLDER.reset(local_token)
             FAL_REFERENCE.reset(token)
     actions = {'observe_application': 'observe', 'fill_field': 'fill', 'click_element': 'click',
                'move_pointer': 'move', 'press_key': 'press', 'scroll_window': 'scroll'}

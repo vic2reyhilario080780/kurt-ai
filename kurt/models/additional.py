@@ -47,6 +47,52 @@ def without_primary_duplicates(provider, models, openrouter, fal):
     return visible, excluded
 
 
+def _normalize_hf_inference_mapping(raw_mapping):
+    entries = []
+    if isinstance(raw_mapping, list):
+        items = raw_mapping
+    elif isinstance(raw_mapping, dict):
+        items = [{'provider': name, **val} for name, val in raw_mapping.items() if isinstance(val, dict)]
+    else:
+        return entries
+    for entry in items:
+        if not isinstance(entry, dict) or entry.get('status') != 'live':
+            continue
+        mtype = entry.get('type')
+        if mtype not in (None, '', 'single-model'):
+            continue
+        if entry.get('adapterWeightsPath') or entry.get('adapter_weights_path'):
+            continue
+        prov = entry.get('provider')
+        pid = entry.get('providerId') or entry.get('provider_id')
+        task = entry.get('task')
+        if all(isinstance(v, str) and v.strip() for v in (prov, pid, task)):
+            entries.append({'provider': prov.strip(), 'provider_id': pid.strip(), 'task': task.strip(), 'status': 'live'})
+    return entries
+
+
+_GGUF_NON_CHAT_TAGS = frozenset((
+    'text-to-speech', 'automatic-speech-recognition', 'text-to-audio', 'audio-to-audio',
+    'text-to-image', 'text-to-video', 'image-to-video', 'feature-extraction',
+    'sentence-similarity', 'object-detection', 'image-classification', 'image-segmentation',
+))
+
+
+def _is_ollama_gguf_model(raw):
+    tags = {t.strip().lower() for t in (raw.get('tags') or []) if isinstance(t, str)}
+    lib = (raw.get('library_name') or '').strip().lower()
+    if 'gguf' not in tags and lib != 'gguf':
+        return False
+    if lib == 'audio.cpp':
+        return False
+    pipe = (raw.get('pipeline_tag') or '').strip().lower()
+    if pipe and pipe not in ('text-generation', 'image-text-to-text', 'conversational'):
+        return False
+    if tags & _GGUF_NON_CHAT_TAGS and 'conversational' not in tags and pipe not in ('text-generation', 'image-text-to-text'):
+        return False
+    return True
+
+
 def normalize(provider, raw):
     if not isinstance(raw, dict):
         raise ValueError('Invalid model record.')
@@ -59,7 +105,14 @@ def normalize(provider, raw):
     row['id'] = mid
     row['name'] = raw.get('displayName') or raw.get('display_name') or raw.get('name') or mid
     if provider in HF_HUB_CATALOGS:
-        row['category'] = raw.get('pipeline_tag') or 'other'
+        live = _normalize_hf_inference_mapping(raw.get('inferenceProviderMapping'))
+        if live:
+            row['inference_providers'] = live
+        row.pop('inferenceProviderMapping', None)
+        if _is_ollama_gguf_model(raw):
+            row['ollama_gguf'] = True
+        row.pop('tags', None)
+        row['category'] = raw.get('pipeline_tag') or (live[0]['task'] if live else ('text-generation' if row.get('ollama_gguf') else 'other'))
         return row
     kind = raw.get('model_type') or raw.get('type') or raw.get('baseModelDetails', {}).get('modelType') or 'other'
     row['category'] = kind
@@ -157,7 +210,8 @@ def fetch_catalog(provider, refresh=False, more=False, page_budget=3):
                 elif provider == 'replicate' and cursor:
                     params = {'cursor': cursor}
                 elif provider in HF_HUB_CATALOGS:
-                    params = {'limit': 100, 'sort': 'downloads', 'direction': '-1'}
+                    params = {'limit': 100, 'sort': 'downloads', 'direction': '-1',
+                              'expand[]': ['inferenceProviderMapping', 'pipeline_tag', 'downloads', 'likes', 'library_name', 'tags']}
                     if provider == 'huggingface_inference':
                         params['inference_provider'] = 'all'
                     if cursor:
@@ -235,7 +289,8 @@ def search_catalog(provider, query, limit=100):
         params = {'query': term, 'limit': max(1, min(int(limit), 50))}
     else:
         url = spec['catalog_url']
-        params = {'search': term, 'limit': max(1, min(int(limit), 100)), 'sort': 'downloads', 'direction': '-1'}
+        params = {'search': term, 'limit': max(1, min(int(limit), 100)), 'sort': 'downloads', 'direction': '-1',
+                  'expand[]': ['inferenceProviderMapping', 'pipeline_tag', 'downloads', 'likes', 'library_name', 'tags']}
         if provider == 'huggingface_inference':
             params['inference_provider'] = 'all'
     try:

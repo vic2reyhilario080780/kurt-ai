@@ -417,7 +417,12 @@ def _catalog_model_rows(provider, models, query):
         cat = category_label(provider, category(provider, model))
         title = model.get('name') or model.get('title') or mid
         roles = default_roles(provider, model)
-        status = 'default: ' + '/'.join(roles) if roles else 'browse only — workflow not supported'
+        if roles:
+            status = 'default: ' + '/'.join(roles) + (' + local Ollama GGUF' if model.get('ollama_gguf') else '')
+        elif model.get('ollama_gguf'):
+            status = 'local Ollama GGUF'
+        else:
+            status = 'browse only — workflow not supported'
         label = f'{title} [{mid}] — {cat} — {status}'
         if _matches(query, label):
             rows.append({'label': label, 'kind': 'open',
@@ -483,11 +488,13 @@ def _valid_github_url(value):
 
 def _catalog_model_items(provider, mid, settings_only=False):
     from kurt.models.catalog import category, category_label, default_roles
-    from kurt.models.providers import PROVIDERS, get_model_config
+    from kurt.models.providers import PROVIDERS, get_model_config, custom_endpoint_config
     model = next((m for m in _catalog_models(provider) if m['id'] == mid), None)
     if model is None:
         return [{'label': 'Model no longer in this catalog; refresh and search again.', 'kind': 'info'}]
     roles = default_roles(provider, model)
+    is_gguf = bool(model.get('ollama_gguf'))
+    custom_cfg = custom_endpoint_config(provider, mid)
     rows = [{'label': f'{mid} [{provider}] — {category_label(provider, category(provider, model))}', 'kind': 'info'}]
     if provider == 'openrouter':
         rows.append({'label': _pricing_hint(model), 'kind': 'info'})
@@ -503,8 +510,15 @@ def _catalog_model_items(provider, mid, settings_only=False):
             parts.append(f'Library: {model["library_name"]}')
         if parts:
             rows.append({'label': ' · '.join(parts), 'kind': 'info'})
-    if not roles:
-        rows.append({'label': 'Visible in the full catalog. This workflow is not supported by Kurt yet; cannot set as a default.', 'kind': 'info'})
+    if provider in ('huggingface_inference', 'huggingface_hub') and isinstance(model.get('inference_providers'), list) and model['inference_providers']:
+        live_labels = [f"{e['provider']} ({e['task']})" for e in model['inference_providers']
+                       if isinstance(e, dict) and e.get('status') == 'live']
+        if live_labels:
+            rows.append({'label': 'Live HF Inference: ' + ', '.join(live_labels[:6]), 'kind': 'info'})
+    if custom_cfg:
+        rows.append({'label': f"Custom endpoint ready: {custom_cfg['base_url']} (roles: {'/'.join(custom_cfg['roles'])})", 'kind': 'info'})
+    if not roles and not is_gguf:
+        rows.append({'label': 'Visible in the full catalog. Paste a custom endpoint JSON config below to run it, or open the model page.', 'kind': 'info'})
     if 'chat' in roles:
         if not settings_only:
             rows.append({'label': 'Use for chat in this session', 'kind': 'leaf', 'value': f'/model {mid} {provider}'})
@@ -512,6 +526,12 @@ def _catalog_model_items(provider, mid, settings_only=False):
     for kind in ('image', 'video'):
         if kind in roles:
             rows.append({'label': f'Save as default {kind.title()} AI', 'kind': 'leaf', 'value': f'/{kind}-model {mid} {provider}'})
+    if is_gguf:
+        ollama_id = f'hf.co/{mid}'
+        rows.append({'label': f"Local GGUF (Ollama): run 'ollama pull {ollama_id}' first if not downloaded (no auto-download).", 'kind': 'info'})
+        if not settings_only:
+            rows.append({'label': f'Use locally via Ollama ({ollama_id}) in this session', 'kind': 'leaf', 'value': f'/model {ollama_id} ollama'})
+        rows.append({'label': f'Save as default Chat AI (local Ollama {ollama_id})', 'kind': 'leaf', 'value': f'/model default {ollama_id} ollama'})
     base = {
         'openrouter': 'https://openrouter.ai/',
         'fal': 'https://fal.ai/models/',
@@ -536,10 +556,17 @@ def _catalog_model_items(provider, mid, settings_only=False):
 
 
 def _provider_auth_items(provider, command=''):
-    from kurt.models.providers import PROVIDERS, provider_key, BYOK_ONLY_PROVIDERS
+    from kurt.models.providers import PROVIDERS, provider_key, BYOK_ONLY_PROVIDERS, custom_endpoint_config
     spec = PROVIDERS[provider]
     configured = bool(provider_key(provider)) if spec['key'] else True
-    rows = [{'label': f'{spec["name"]}: ' + ('key saved (not live-verified)' if configured and spec['key'] else 'local; no API key needed' if not spec['key'] else 'API key not configured'), 'kind': 'info'}]
+    custom_ready = False
+    if command:
+        parts = command.split()
+        idx = 2 if parts[:2] == ['/model', 'default'] else 1
+        cmd_mid = parts[idx] if len(parts) > idx else ''
+        if cmd_mid and custom_endpoint_config(provider, cmd_mid):
+            custom_ready = True
+    rows = [{'label': f'{spec["name"]}: ' + ('key saved (not live-verified)' if configured and spec['key'] else 'local; no API key needed' if not spec['key'] else 'custom JSON endpoint configured' if custom_ready else 'API key not configured'), 'kind': 'info'}]
     if spec['key']:
         rows.append({'label': 'Enter / replace API key — hidden input', 'kind': 'provider_key', 'provider': provider})
     rows.append({'label': 'Open official API key / login page' if spec['key'] else 'Open local provider setup page',
@@ -548,7 +575,10 @@ def _provider_auth_items(provider, command=''):
     if provider in EXTRA_PROVIDERS:
         rows.append({'label': 'Load / refresh this provider catalog (read-only)', 'kind': 'provider_refresh', 'provider': provider})
     if command:
-        if configured:
+        if custom_ready and not configured:
+            rows.append({'label': 'Use saved custom JSON endpoint and select model',
+                         'kind': 'leaf', 'value': command})
+        elif configured:
             rows.append({'label': 'Use my saved provider key (BYOK) and select model' if spec['key'] else 'Select local model',
                          'kind': 'leaf', 'value': command, 'confirmed_provider': provider, 'billing': 'byok'})
         else:

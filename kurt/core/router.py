@@ -32,19 +32,19 @@ class ModelRouter:
         self.fal_key = os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY", "")
         self.replicate_key = os.getenv("REPLICATE_API_TOKEN", "")
         self.mistral_key = os.getenv("MISTRAL_API_KEY", "")
-        from kurt.models.providers import NEW_BYOK_PROVIDERS, provider_key
-        self.byok_keys = {p: provider_key(p) for p in NEW_BYOK_PROVIDERS}
+        from kurt.models.providers import RUNNABLE_BYOK_PROVIDERS, provider_key
+        self.byok_keys = {p: provider_key(p) for p in RUNNABLE_BYOK_PROVIDERS}
         self.strict_selection = False
         self.excluded_providers = set()
 
     def _http_client(self, provider=None, **kwargs):
         from kurt.billing.client import active, WalletTransport
         from kurt.models.providers import uses_byok
-        byok = uses_byok(provider)
+        byok = uses_byok(provider) or provider == 'custom_endpoint'
         if byok:
             kwargs.setdefault('follow_redirects', False)
             kwargs.setdefault('trust_env', False)
-        if active() and not byok:
+        if active() and not byok and provider != 'ollama':
             kwargs['transport'] = WalletTransport()
             kwargs['follow_redirects'] = False
             kwargs['trust_env'] = False
@@ -181,8 +181,10 @@ class ModelRouter:
                         'https://api.deepseek.com/chat/completions': 'deepseek',
                         'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions': 'google',
                         'https://openrouter.ai/api/v1/chat/completions': 'openrouter'})
-        provider_id = origins.get(endpoint)
-        provider_label = specs[provider_id]['name'] if provider_id in specs else (provider_id or 'Model provider')
+        provider_id = origins.get(endpoint) or 'custom_endpoint'
+        provider_label = specs[provider_id]['name'] if provider_id in specs else (
+            'Custom endpoint' if provider_id == 'custom_endpoint' else provider_id
+        )
         async with self._http_client(provider=provider_id, timeout=60.0) as client:
             if not stream:
                 response = await client.post(endpoint, headers=headers, json=payload)
@@ -473,25 +475,37 @@ class ModelRouter:
         if temperature is not None:
             payload["options"] = {"temperature": temperature}
 
-        async with self._http_client(timeout=120.0) as client:
-            async with client.stream(
-                "POST",
-                f"{ollama_host}/api/chat",
-                json=payload,
-            ) as response:
-                if response.status_code >= 400:
-                    await response.aread()
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line:
-                        try:
-                            chunk = json.loads(line)
-                            if "message" in chunk and "content" in chunk["message"]:
-                                yield chunk["message"]["content"]
-                            if chunk.get("done", False):
-                                break
-                        except (json.JSONDecodeError, KeyError):
-                            continue
+        try:
+            async with self._http_client(provider='ollama', timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    f"{ollama_host}/api/chat",
+                    json=payload,
+                ) as response:
+                    if response.status_code == 404:
+                        await response.aread()
+                        raise RuntimeError(
+                            f"Ollama model '{model}' is not downloaded locally yet. "
+                            f"Run: ollama pull {model}"
+                        )
+                    if response.status_code >= 400:
+                        await response.aread()
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                if "message" in chunk and "content" in chunk["message"]:
+                                    yield chunk["message"]["content"]
+                                if chunk.get("done", False):
+                                    break
+                            except (json.JSONDecodeError, KeyError):
+                                continue
+        except httpx.ConnectError as exc:
+            raise RuntimeError(
+                f"Cannot reach local Ollama at {ollama_host}. Start Ollama first (e.g. 'ollama serve') "
+                f"and ensure '{model}' is pulled."
+            ) from exc
 
     # Replicate model name -> real owner/name slug on Replicate
     REPLICATE_MODEL_SLUGS = {
@@ -516,8 +530,38 @@ class ModelRouter:
         messages = redact_messages(messages)
 
         # Check if provider key exists, fallback to openrouter
-        from kurt.models.providers import NEW_BYOK_PROVIDERS, PROVIDERS as specs, uses_byok
-        supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"} | NEW_BYOK_PROVIDERS
+        from kurt.models.providers import (
+            RUNNABLE_BYOK_PROVIDERS, PROVIDERS as specs, uses_byok,
+            custom_endpoint_config, provider_key,
+        )
+        custom_cfg = custom_endpoint_config(provider, model)
+        if custom_cfg:
+            if media_kind:
+                if media_kind != 'image' or 'image' not in custom_cfg['roles']:
+                    raise ValueError(f"Saved custom JSON endpoint for {model} does not enable '{media_kind}'.")
+                from kurt.models.media_providers import generate_custom_endpoint_image
+                async for chunk in generate_custom_endpoint_image(self, provider, model, messages[-1]['content']):
+                    yield chunk
+                return
+            if 'chat' in custom_cfg['roles']:
+                base = custom_cfg['base_url'].rstrip('/')
+                if base.endswith('/chat/completions'):
+                    endpoint = base
+                elif base.endswith('/v1'):
+                    endpoint = base + '/chat/completions'
+                else:
+                    endpoint = base + '/v1/chat/completions'
+                headers = {'Content-Type': 'application/json', **custom_cfg.get('headers', {})}
+                token = custom_cfg.get('api_key') or self.byok_keys.get(provider) or (provider_key(provider) if provider in specs else '')
+                if token and not any(k.lower() == 'authorization' for k in headers):
+                    headers['Authorization'] = 'Bearer ' + token
+                async for chunk in self._call_tool_chat(
+                    custom_cfg['model'] or model, messages, stream, native_tools,
+                    endpoint, headers, temperature=temperature,
+                ):
+                    yield chunk
+                return
+        supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"} | RUNNABLE_BYOK_PROVIDERS
         if self.strict_selection and provider not in supported:
             raise ValueError(f"Unsupported provider: {provider}")
         if provider in self.excluded_providers or (not self._has_key(provider) and provider not in ("ollama",)):
@@ -531,7 +575,13 @@ class ModelRouter:
                 provider = "ollama"
                 model = "llama3"
 
-        if provider in NEW_BYOK_PROVIDERS and specs[provider].get('chat_url'):
+        if provider in ('huggingface_inference', 'huggingface_hub') and media_kind:
+            if media_kind not in ('image', 'video'):
+                raise ValueError('Hugging Face Inference currently supports chat, text-to-image, and text-to-video only.')
+            from kurt.models.media_providers import generate_huggingface_media
+            async for chunk in generate_huggingface_media(self, model, messages[-1]['content'], media_kind, catalog_provider=provider):
+                yield chunk
+        elif provider in RUNNABLE_BYOK_PROVIDERS and specs[provider].get('chat_url'):
             async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
                     specs[provider]['chat_url'], {'Authorization': 'Bearer ' + self.byok_keys[provider],
                                                  'Content-Type': 'application/json'}, temperature=temperature):
