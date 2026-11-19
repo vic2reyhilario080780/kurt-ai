@@ -1,6 +1,6 @@
 """
 KURT Models — fal.ai Live Model List
-Fetches all 1,400+ available generative media models in real-time.
+Fetches the complete available generative-media catalog.
 """
 
 import json
@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
+from kurt.models.catalog import read_cache, write_cache, validate_models
 
 console = Console()
 
@@ -28,40 +29,46 @@ def fetch_models(use_cache: bool = True) -> list:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = CACHE_DIR / "models.json"
 
-    if use_cache and cache_file.exists():
+    cached = read_cache(cache_file)
+    if use_cache and cached is not None and cache_file.exists():
         age = time.time() - cache_file.stat().st_mtime
         if age < CACHE_TTL:
-            with open(cache_file) as f:
-                return json.load(f)
+            return cached
 
     key = os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY", "")
     if not key:
         console.print("[red]❌ No FAL_API_KEY configured — run `kurt setup`.[/red]")
-        if cache_file.exists():
-            with open(cache_file) as f:
-                return json.load(f)
-        return []
+        return cached or []
 
     headers = {"Authorization": f"Key {key}"}
     models = []
     try:
         with httpx.Client(timeout=15) as client:
-            first = client.get(FAL_MODELS_API, headers=headers, params={"page": 1}).json()
-            models.extend(first.get("items", []))
-            total_pages = first.get("pages", 1)
+            response = client.get(FAL_MODELS_API, headers=headers, params={"page": 1})
+            response.raise_for_status()
+            first = response.json()
+            total_pages, total = first.get('pages'), first.get('total')
+            if (first.get('page') != 1 or type(total_pages) is not int or not 1 <= total_pages <= 10000 or
+                    type(total) is not int or total < 0):
+                raise ValueError('Invalid fal.ai pagination metadata.')
+            models.extend(validate_models(first.get('items')))
             for page in range(2, total_pages + 1):
                 resp = client.get(FAL_MODELS_API, headers=headers, params={"page": page})
-                models.extend(resp.json().get("items", []))
-
-        with open(cache_file, "w") as f:
-            json.dump(models, f)
+                resp.raise_for_status()
+                data = resp.json()
+                if data.get('page') != page or data.get('pages') != total_pages or data.get('total') != total:
+                    raise ValueError('fal.ai catalog changed during pagination; retry refresh.')
+                models.extend(validate_models(data.get('items')))
+        models = validate_models(models)
+        if len(models) != total:
+            raise ValueError('Incomplete fal.ai catalog; keeping previous cache.')
+        write_cache(cache_file, models)
         return models
 
     except Exception as e:
-        if cache_file.exists():
+        if cached is not None:
             console.print(f"[yellow]⚠️  API error, using cached data: {e}[/yellow]")
-            with open(cache_file) as f:
-                return json.load(f)
+            return cached
         console.print(f"[red]❌ Failed to fetch fal.ai models: {e}[/red]")
         return []
 
@@ -100,9 +107,9 @@ def models_list(
         box=box.ROUNDED,
         border_style="cyan",
         show_lines=False,
-        title=f"fal.ai Models ({len(filtered)} shown of {len(models)} total)",
+        title=f"fal.ai Models ({min(len(filtered), limit)} shown; {len(filtered)} matches / {len(models)} total)",
     )
-    table.add_column("Model ID (use with /model)", style="cyan", width=40)
+    table.add_column("Model ID", style="cyan", width=40)
     table.add_column("Title", style="white", width=26)
     table.add_column("Category", style="dim", width=16)
 
@@ -123,7 +130,8 @@ def models_list(
     console.print(f"[dim]  kurt models fal --category text-to-image[/dim]")
     console.print(f"[dim]  kurt models fal --search flux[/dim]")
     console.print(f"[dim]  kurt models fal --limit 100   — show more[/dim]")
-    console.print(f"[dim]  Then: /model <model-id>  — Kurt will call it and bill your fal.ai top-up[/dim]")
+    console.print('[dim]  Browse all categories in chat: /models → fal.ai → All models[/dim]')
+    console.print('[dim]  Use /image-model or /video-model for supported defaults; other workflows may need a dedicated adapter.[/dim]')
     console.print()
 
 

@@ -13,6 +13,43 @@ from kurt.utils.workspace import workspace
 
 
 class AIEnvironmentTests(unittest.TestCase):
+    def test_gemini_overload_explains_provider_failure_without_replay(self):
+        from kurt.core.execution_preferences import cli_failure_detail
+        failed = {'status': 'timed_out', 'exit_code': -9, 'stdout': '',
+                  'stderr': 'Attempt 6 failed with status 503: This model is currently experiencing high demand.'}
+        with patch('kurt.billing.client.active', return_value=False), \
+             patch.object(cli, 'run_ai_cli', return_value=failed) as run:
+            detail = cli_failure_detail('gemini', failed)
+            self.assertIn('not an authentication rejection', detail)
+            self.assertIn('No automatic task replay', detail)
+            self.assertIn('not an authentication rejection', cli._run_shell('/test/gemini', '-p synthetic'))
+            self.assertEqual(run.call_count, 1)
+
+    def test_gemini_model_selection_preserves_explicit_and_wallet_routes(self):
+        result = {'status': 'completed', 'stdout': '', 'stderr': '', 'exit_code': 0}
+        with patch.object(cli, '_ai_cli_env', return_value={}), \
+             patch.object(cli, 'service_argv', side_effect=lambda argv, name: argv), \
+             patch('kurt.utils.process.run_bounded', return_value=result) as run, \
+             patch('kurt.billing.client.active', return_value=False), \
+             patch.dict(os.environ, {'KURT_GEMINI_MODEL': ''}):
+            args = ['-p', 'synthetic']
+            cli.run_ai_cli('/test/gemini', args)
+            self.assertEqual(run.call_args.args[0][-2:], ['--model', 'gemini-3.8-flash'])
+            self.assertEqual(args, ['-p', 'synthetic'])
+            with patch.dict(os.environ, {'KURT_GEMINI_MODEL': 'custom-model'}):
+                cli.run_ai_cli('/test/gemini', args)
+                self.assertEqual(run.call_args.args[0][-1], 'custom-model')
+            for explicit in (['--model', 'chosen'], ['--model=chosen'], ['-m', 'chosen']):
+                cli.run_ai_cli('/test/gemini', args + explicit)
+                self.assertEqual(run.call_args.args[0], ['/test/gemini', *args, *explicit])
+            cli.run_ai_cli('/test/gemini', ['--version'])
+            self.assertEqual(run.call_args.args[0], ['/test/gemini', '--version'])
+            with patch('kurt.billing.client.active', return_value=True), \
+                 patch('kurt.billing.client.CLI_CONTEXT') as context:
+                context.get.return_value = object()
+                cli.run_ai_cli('/test/gemini', args)
+                self.assertEqual(run.call_args.args[0], ['/test/gemini', *args])
+
     def test_google_key_alias_is_mapped_without_leaking_other_provider_keys(self):
         with patch.dict(os.environ, {'GOOGLE_AI_KEY': 'synthetic-google-value', 'OPENAI_API_KEY': 'synthetic-openai-value'}, clear=True):
             env = cli._ai_cli_env('gemini')

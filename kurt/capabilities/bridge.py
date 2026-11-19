@@ -242,6 +242,28 @@ def function_schemas(include_legacy=True):
                             "required": contracts[tool["name"]][1], "additionalProperties": False}}}
             for tool in CHAT_TOOLS if include_legacy or tool['name'] not in {'desktop_action', 'open_app', 'focus_window'}]
 
+def groq_tool_schemas(catalog, selected=()):
+    """Expose all tools through model-selected discovery, without a keyword gate."""
+    names = [t['function']['name'] for t in catalog]
+    core = {'search_native', 'inspect_native', 'inspect_native_input', 'run_native',
+            'search_web', 'read_webpage', 'set_task_goal', 'list_apps', 'open_application'}
+    active = core | set(selected)
+    # Short descriptions are discovery hints only. Selected tools retain their
+    # exact full descriptions and contracts from function_schemas.
+    index = '\n'.join(t['function']['name'] + ': ' + t['function']['description'][:100]
+                      for t in catalog if t['function']['name'] not in core)
+    selector = {'type': 'function', 'function': {
+        'name': 'select_tools',
+        'description': 'Load full contracts for up to eight tools needed for the user goal. '
+                       'This only selects schemas; it executes no actions. Select again to switch tools. '
+                       'All available tools (choose by meaning):\n' + index,
+        'parameters': {'type': 'object', 'properties': {'names': {
+            'type': 'array', 'items': {'type': 'string', 'enum': names},
+            'minItems': 1, 'maxItems': 8, 'uniqueItems': True}},
+            'required': ['names'], 'additionalProperties': False}}}
+    return [t for t in catalog if t['function']['name'] in active] + [selector]
+
+
 CHAT_TOOL_PROMPT = """KURT_NATIVE_TOOLS_V1
 You can discover and execute Kurt's native CSV/JSON workflows, search/read live
 web sources, and use the available local app and desktop function tools.
@@ -600,6 +622,7 @@ class NativeToolRouter:
                 if receipt.get('foreground_verified') and receipt.get('status') == 'completed' and receipt.get('app', '').casefold() == goal['target_app'].casefold():
                     goal_receipt = receipt
         rejected_calls = set()
+        selected_tools = set()
         native_api = getattr(self.router, "supports_native_tools", False) and provider not in ("anthropic", "ollama")
         today_line = f"\nCurrent local date: {datetime.now().strftime('%Y-%m-%d (%A)')}\n"
         sys_content = (CHAT_TOOL_PROMPT_NATIVE if native_api else CHAT_TOOL_PROMPT) + ASSISTANT_POLICY + today_line
@@ -628,6 +651,9 @@ class NativeToolRouter:
                 if pinned:
                     options["native_tools"] = [t for t in options["native_tools"]
                                                if t["function"]["name"] not in orchestration_tools]
+                full_catalog = options['native_tools']
+                if provider == 'groq':
+                    options['native_tools'] = groq_tool_schemas(full_catalog, selected_tools)
             buffer = ""
             is_text = False
             request_messages = messages
@@ -711,7 +737,17 @@ class NativeToolRouter:
                     'click', 'type_text', 'hotkey', 'open_url', 'run_applescript',
                     'find_and_click', 'scroll', 'drag', 'clipboard', 'os_script',
                 } or (name == 'browser_action' and params.get('action') in {'open', 'click', 'type', 'search', 'close'})
-                if pinned and name in orchestration_tools:
+                if name == 'select_tools' and native_api and provider == 'groq':
+                    names = params.get('names')
+                    allowed = {t['function']['name'] for t in full_catalog}
+                    if (set(params) != {'names'} or not isinstance(names, list) or
+                            not 1 <= len(names) <= 8 or not all(isinstance(n, str) for n in names) or
+                            len(set(names)) != len(names) or not set(names) <= allowed):
+                        raise ValueError('Select one to eight distinct available tool names.')
+                    selected_tools = set(names)
+                    result = {'status': 'selected', 'tools': names,
+                              'note': 'Schemas loaded for the next decision. No action executed.'}
+                elif pinned and name in orchestration_tools:
                     result = {"status": "blocked", "reason": "A model is selected. Continue with this model and direct tools; model/CLI orchestration is disabled until quota failover or /model auto."}
                 elif mutates and not goal:
                     result = {'status': 'blocked', 'reason': 'First use set_task_goal to declare the full user goal and completion condition.'}

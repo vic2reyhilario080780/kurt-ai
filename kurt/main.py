@@ -208,7 +208,7 @@ plugin_app = typer.Typer(help="Manage KURT plugins")
 mcp_app = typer.Typer(help="🔌 MCP connects Kurt to outside tools (files, GitHub, etc.) — list, add, remove, test, call")
 hub_app = typer.Typer(help="🌐 Universal Hub — aitmpl.com, Composio, MCPs, n8n, Zapier")
 connect_app = typer.Typer(help="🔌 Connect apps via Composio (250+ apps)")
-models_app = typer.Typer(help="🤖 OpenRouter — 200+ live AI models")
+models_app = typer.Typer(help="🤖 Browse OpenRouter and fal.ai model catalogs")
 
 config_app = typer.Typer(help="🎨 Personalize KURT — themes, language, name, greeting")
 project_app = typer.Typer(help="📁 Manage projects with AI context")
@@ -331,7 +331,8 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
 
     except Exception as e:
         from kurt.billing.client import active as wallet_active
-        if wallet_active() or getattr(e, 'no_replay', False):
+        from kurt.models.providers import uses_byok
+        if (wallet_active() and not uses_byok(analysis.provider)) or getattr(e, 'no_replay', False):
             console.print(f"Wallet request incomplete: {redact(str(e))[:500]} Check /wallet history before retrying.", markup=False)
             return
         if execution and execution.pinned:
@@ -419,7 +420,7 @@ def setup():
 
 @models_app.callback(invoke_without_command=True)
 def models_callback(ctx: typer.Context):
-    """🤖 OpenRouter — browse 200+ live AI models with real-time pricing"""
+    """🤖 Browse OpenRouter models; use 'fal' for media or /models in chat for full categories."""
     if ctx.invoked_subcommand is None:
         from kurt.models.openrouter import models_list
         models_list()
@@ -432,7 +433,7 @@ def models_list_cmd(
     provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Filter by provider"),
     limit: int = typer.Option(30, "--limit", "-n", help="Max results"),
 ):
-    """📋 List all 200+ OpenRouter models with pricing"""
+    """📋 List OpenRouter models with pricing; use --limit to show more."""
     from kurt.models.openrouter import models_list
     models_list(search=search, free_only=free, provider=provider, limit=limit)
 
@@ -458,7 +459,7 @@ def models_fal_cmd(
     limit: int = typer.Option(30, "--limit", "-n", help="Max results"),
     stats: bool = typer.Option(False, "--stats", help="Show category breakdown instead of a list"),
 ):
-    """🎨 List 1,400+ fal.ai models (image/video/audio/speech/LLM) — all paid, billed to your fal.ai top-up.
+    """🎨 Browse fal.ai models (image/video/audio/speech/LLM) — billed to your fal.ai account.
 
     Halimbawa (example): kurt models fal --category text-to-image
     """

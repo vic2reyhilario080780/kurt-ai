@@ -58,6 +58,9 @@ class VoiceInputBridge:
             return
         app, loop, _ = binding
         def deliver():
+            if getattr(app, '_kurt_secret_input', False) is True:
+                app.invalidate()
+                return  # Keep events queued; never capture a password as a chat draft.
             with self._lock:
                 if self._binding is not binding or app.is_done:
                     return

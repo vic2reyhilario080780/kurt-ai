@@ -115,7 +115,7 @@ async def transcribe_online(path):
           'prompt':vocabulary_prompt()}
     if config['language']!='auto': data['language']=config['language']
     # One request, no paid fallback/replay; wallet transport remains authoritative.
-    async with ModelRouter()._http_client(timeout=45,follow_redirects=False,trust_env=False) as client:
+    async with ModelRouter()._http_client(provider='groq',timeout=45,follow_redirects=False,trust_env=False) as client:
         response=await client.post('https://api.groq.com/openai/v1/audio/transcriptions',
             headers={'Authorization':'Bearer '+key},data=data,files={'file':('voice.wav',_audio(path),'audio/wav')})
         response.raise_for_status()

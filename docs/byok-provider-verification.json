@@ -1,0 +1,89 @@
+{
+  "verified_at": "2026-11-19T05:46:28.596122+00:00",
+  "live_catalog_checks": {
+    "huggingface": {
+      "key_configured": false,
+      "loaded": 163,
+      "visible_after_dedup": 46,
+      "duplicates_excluded": 117,
+      "complete": true,
+      "more_pages": false,
+      "status": "catalog loaded",
+      "scope": "Hosted chat API models; not every repository on the Hub"
+    },
+    "together": {
+      "key_configured": false,
+      "loaded": 0,
+      "visible_after_dedup": 0,
+      "duplicates_excluded": 0,
+      "complete": false,
+      "more_pages": false,
+      "status": "Add your API key to load this catalog.",
+      "scope": "API model catalog"
+    },
+    "fireworks": {
+      "key_configured": false,
+      "loaded": 0,
+      "visible_after_dedup": 0,
+      "duplicates_excluded": 0,
+      "complete": false,
+      "more_pages": false,
+      "status": "Add your API key to load this catalog.",
+      "scope": "Public Fireworks account model catalog; some models need deployment"
+    },
+    "replicate": {
+      "key_configured": true,
+      "loaded": 75,
+      "visible_after_dedup": 70,
+      "duplicates_excluded": 5,
+      "complete": false,
+      "more_pages": true,
+      "status": "catalog loaded",
+      "scope": "Public API catalog, loaded in pages"
+    },
+    "wavespeed": {
+      "key_configured": false,
+      "loaded": 0,
+      "visible_after_dedup": 0,
+      "duplicates_excluded": 0,
+      "complete": false,
+      "more_pages": false,
+      "status": "Add your API key to load this catalog.",
+      "scope": "API media catalog"
+    },
+    "novita": {
+      "key_configured": false,
+      "loaded": 109,
+      "visible_after_dedup": 58,
+      "duplicates_excluded": 51,
+      "complete": true,
+      "more_pages": false,
+      "status": "catalog loaded",
+      "scope": "LLM API catalog; not the full media marketing catalog"
+    }
+  },
+  "regression_tests": {
+    "count": 558,
+    "passed": true
+  },
+  "provider_tests": {
+    "count": 14,
+    "passed": true
+  },
+  "verification_scope": {
+    "live_inference": false,
+    "paid_generation": false,
+    "personal_credentials_changed": false,
+    "account_creation_or_browser_login_performed": false,
+    "chat_routes": "Synthetic HTTP transports for Hugging Face, Together, Fireworks and Novita",
+    "wavespeed": "Synthetic submission and fixed-origin polling; no live account key",
+    "secret_input": "Actual prompt-toolkit key entry, browser action, undo clearing and confirmation; isolated synthetic credentials",
+    "voice": "Secret draft handoff blocked while masked input is active"
+  },
+  "pending": [
+    "User-supplied keys and authenticated inference for optional providers",
+    "Live WaveSpeed media generation and actual artifact/CDN compatibility",
+    "Unconfirmed cross-provider aliases are deliberately not merged",
+    "Replicate catalog remains paginated; loaded count is not the complete provider total"
+  ]
+}

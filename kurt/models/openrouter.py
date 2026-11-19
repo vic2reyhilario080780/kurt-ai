@@ -1,6 +1,6 @@
 """
 KURT Models — OpenRouter Live Model List
-Fetches all 200+ available AI models in real-time
+Fetches the complete provider model catalog.
 """
 
 import httpx
@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
+from kurt.models.catalog import read_cache, write_cache, validate_models
 
 console = Console()
 
@@ -26,31 +27,30 @@ def fetch_models(use_cache: bool = True) -> list:
     cache_file = CACHE_DIR / "models.json"
 
     # Check cache
-    if use_cache and cache_file.exists():
+    cached = read_cache(cache_file)
+    if use_cache and cached is not None and cache_file.exists():
         age = time.time() - cache_file.stat().st_mtime
         if age < CACHE_TTL:
-            with open(cache_file) as f:
-                return json.load(f)
+            return cached
 
     # Fetch from API
     try:
         with httpx.Client(timeout=15) as client:
             resp = client.get(OPENROUTER_API)
+            resp.raise_for_status()
             data = resp.json()
-            models = data.get("data", [])
+            models = validate_models(data.get("data"))
 
         # Save cache
-        with open(cache_file, "w") as f:
-            json.dump(models, f)
+        write_cache(cache_file, models)
 
         return models
 
     except Exception as e:
         # Return cached if available
-        if cache_file.exists():
+        if cached is not None:
             console.print(f"[yellow]⚠️  API error, using cached data: {e}[/yellow]")
-            with open(cache_file) as f:
-                return json.load(f)
+            return cached
         console.print(f"[red]❌ Failed to fetch models: {e}[/red]")
         return []
 

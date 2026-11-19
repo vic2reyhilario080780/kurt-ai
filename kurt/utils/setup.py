@@ -251,6 +251,15 @@ API_PROVIDERS = [
 ]
 
 
+from kurt.models.providers import PROVIDERS as _PROVIDER_SPECS, NEW_BYOK_PROVIDERS as _NEW_BYOK
+_byok_rows = [dict(name=_PROVIDER_SPECS[p]['name'], key=_PROVIDER_SPECS[p]['key'],
+                  description='Optional BYOK — uses your provider balance, separate from Kurt wallet',
+                  url=_PROVIDER_SPECS[p]['keys_url'], required=False, free=False,
+                  free_note='Provider pricing and account limits apply') for p in sorted(_NEW_BYOK)]
+_byok_rows[0]['section'] = '🤖 OPTIONAL BYOK PROVIDERS'
+API_PROVIDERS[9:9] = _byok_rows
+
+
 def run_setup():
     """Run the KURT setup wizard"""
     console.clear()

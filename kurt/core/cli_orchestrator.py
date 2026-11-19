@@ -75,7 +75,7 @@ SLASH_COMMANDS = {
     "/image": "Generate an image using the saved image default: /image <prompt>",
     "/video": "Generate a video using the saved video default: /video <prompt>",
     "/model":     "Switch the AI model  e.g. /model openai/gpt-oss-120b",
-    "/models":    "Show the live model routing table  e.g. /models",
+    "/models":    "Browse full OpenRouter/fal.ai catalogs; /models refresh or /models routing",
     "/skill":     "Apply a skill to the next message  e.g. /skill tiktok",
     "/skills":    "List or search Kurt's loaded skills  e.g. /skills trading",
     "/agents":    "Discover native workflow agents  e.g. /agents shopee gross_sales",
@@ -241,6 +241,12 @@ def run_ai_cli(cmd, args):
     if name not in {"claude", "gemini", "vibe"}:
         raise ValueError("Expected Claude Code, Gemini or Vibe CLI.")
     env = _ai_cli_env(cmd)
+    if name == 'gemini' and args not in (['--version'], ['--help']) and not active():
+        # Pin a current model instead of the CLI's overloaded/retired auto route.
+        # Explicit caller selection wins; wallet routing chooses its own model.
+        if not any(arg in ('-m', '--model') or arg.startswith(('--model=', '-m=')) for arg in args):
+            model = os.getenv('KURT_GEMINI_MODEL', '').strip() or 'gemini-3.8-flash'
+            args = [*args, '--model', model]
     if name == 'vibe' and args != ['--version'] and not env.get('MISTRAL_API_KEY'):
         raise ValueError('Vibe CLI uses the Mistral API key from Kurt /setup. Configure MISTRAL_API_KEY there first; no Vibe request was sent.')
     return run_bounded(service_argv([cmd, *args], name),
@@ -260,6 +266,9 @@ def _run_shell(cmd: str, args: str) -> str:
             result = run_ai_cli(cmd, shlex.split(args))
             out, err = redact(result['stdout'].strip()), redact(result['stderr'].strip())
             if result['status'] != 'completed':
+                if name == 'gemini':
+                    from kurt.core.execution_preferences import cli_failure_detail
+                    return f"❌ Error:\n{cli_failure_detail(name, result)}"
                 detail = err or f"CLI status: {result['status']}; exit code: {result['exit_code']}."
                 return f"❌ Error:\n{detail}\n[stdout]\n{out}" if out else f"❌ Error:\n{detail}"
             return out or '(no output)'
@@ -383,7 +392,7 @@ def handle_slash(
                 return SlashResult(True, f"Set: {cmd} <model-id> fal|replicate", True)
             from rich.prompt import Prompt
             try:
-                provider = Prompt.ask("Generation provider", choices=["fal", "replicate"])
+                provider = Prompt.ask("Generation provider", choices=["fal", "replicate", 'wavespeed'])
                 model_id = Prompt.ask(f"Exact text-to-{kind} model ID")
                 save_default_media(kind, model_id, provider)
             except (KeyboardInterrupt, EOFError):
@@ -451,7 +460,8 @@ def handle_slash(
         # "/model <id> <provider>" — explicit provider tag, needed because fal.ai
         # and OpenRouter model ids can look identical (both "vendor/name" style)
         # and auto-detection by id shape alone would guess wrong for fal models.
-        if len(parts) == 2 and parts[1] in ("openrouter", "fal", "groq", "anthropic", "replicate", "openai", "mistral", "deepseek", "google", "ollama"):
+        from kurt.core.execution_preferences import PROVIDERS
+        if len(parts) == 2 and parts[1] in PROVIDERS:
             model_id, explicit_provider = parts
             return SlashResult(
                 handled=True,
@@ -581,6 +591,20 @@ def handle_slash(
 
     # ── /models ─────────────────────────────────────────────────────
     if cmd == "/models":
+        if args.strip() != 'routing':
+            from kurt.core.command_palette import _catalog_models, refresh_model_catalogs
+            from kurt.models.catalog import groups, category_label
+            if args.strip() == 'refresh':
+                return SlashResult(handled=True, output=refresh_model_catalogs(), continue_chat=True)
+            lines = ['Complete provider model catalogs (cached; not a live inference test)']
+            for provider in ('openrouter', 'fal'):
+                models = _catalog_models(provider)
+                grouped = groups(provider, models)
+                lines.append(f'\n{provider}: {len(models):,} unique model IDs')
+                lines.extend(f'  {category_label(provider, cat)}: {len(items):,}' for cat, items in grouped.items())
+            lines += ['\nOpen /models in the picker to browse every model and its supported defaults.',
+                      'Refresh: /models refresh | Routing rules: /models routing']
+            return SlashResult(handled=True, output='\n'.join(lines), continue_chat=True)
         from kurt.core.orchestrator import ROUTING_TABLE
         lines = ["", "🤖  Model Routing Table (live)", "─" * 50]
         for task_type, route in ROUTING_TABLE.items():

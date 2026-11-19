@@ -32,12 +32,19 @@ class ModelRouter:
         self.fal_key = os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY", "")
         self.replicate_key = os.getenv("REPLICATE_API_TOKEN", "")
         self.mistral_key = os.getenv("MISTRAL_API_KEY", "")
+        from kurt.models.providers import NEW_BYOK_PROVIDERS, provider_key
+        self.byok_keys = {p: provider_key(p) for p in NEW_BYOK_PROVIDERS}
         self.strict_selection = False
         self.excluded_providers = set()
 
-    def _http_client(self, **kwargs):
+    def _http_client(self, provider=None, **kwargs):
         from kurt.billing.client import active, WalletTransport
-        if active():
+        from kurt.models.providers import uses_byok
+        byok = uses_byok(provider)
+        if byok:
+            kwargs.setdefault('follow_redirects', False)
+            kwargs.setdefault('trust_env', False)
+        if active() and not byok:
             kwargs['transport'] = WalletTransport()
             kwargs['follow_redirects'] = False
             kwargs['trust_env'] = False
@@ -46,7 +53,10 @@ class ModelRouter:
     def _has_key(self, provider: str) -> bool:
         """Check if a real API key exists (not empty, not a placeholder)"""
         from kurt.billing.client import active
-        if active() and provider != 'ollama':
+        from kurt.models.providers import uses_byok
+        if provider in self.byok_keys:
+            return bool(self.byok_keys[provider])
+        if active() and provider != 'ollama' and not uses_byok(provider):
             return provider in {'openrouter','openai','anthropic','groq','mistral','deepseek','google','fal','replicate'}
         PLACEHOLDER_PREFIXES = (
             "sk-or-v1-your", "AIzaSy-your", "gsk_your", "sk-your",
@@ -102,7 +112,7 @@ class ModelRouter:
         if temperature is not None:
             payload["temperature"] = temperature
 
-        async with self._http_client(timeout=60.0) as client:
+        async with self._http_client(provider='openrouter', timeout=60.0) as client:
             async with client.stream(
                 "POST",
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -163,7 +173,15 @@ class ModelRouter:
             payload["tools"] = native_tools
             payload["tool_choice"] = "auto"
             payload["parallel_tool_calls"] = False
-        async with self._http_client(timeout=60.0) as client:
+        from kurt.models.providers import PROVIDERS as specs
+        origins = {s['chat_url']: p for p, s in specs.items() if s.get('chat_url')}
+        origins.update({'https://api.openai.com/v1/chat/completions': 'openai',
+                        'https://api.groq.com/openai/v1/chat/completions': 'groq',
+                        'https://api.mistral.ai/v1/chat/completions': 'mistral',
+                        'https://api.deepseek.com/chat/completions': 'deepseek',
+                        'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions': 'google',
+                        'https://openrouter.ai/api/v1/chat/completions': 'openrouter'})
+        async with self._http_client(provider=origins.get(endpoint), timeout=60.0) as client:
             async with client.stream(
                 "POST",
                 endpoint,
@@ -249,7 +267,7 @@ class ModelRouter:
         files = {"file": (os.path.basename(file_path), file_bytes)}
         data = {"model": model}
 
-        async with self._http_client(timeout=120.0) as client:
+        async with self._http_client(provider='groq', timeout=120.0) as client:
             response = await client.post(
                 "https://api.groq.com/openai/v1/audio/transcriptions",
                 headers=headers,
@@ -278,7 +296,7 @@ class ModelRouter:
             payload['start_image_url'] = reference
 
 
-        async with self._http_client(timeout=600.0 if media_kind == "video" else 60.0) as client:
+        async with self._http_client(provider='fal', timeout=600.0 if media_kind == "video" else 60.0) as client:
             response = await client.post(f"https://fal.run/{model}", headers=headers, json=payload)
             try:
                 response.raise_for_status()
@@ -312,7 +330,7 @@ class ModelRouter:
         }
         payload = {"input": redact(input_params)}
 
-        async with self._http_client(timeout=600.0) as client:
+        async with self._http_client(provider='replicate', timeout=600.0) as client:
             # Not every model (official or community) supports the
             # /v1/models/{owner}/{name}/predictions shorthand — look up the
             # latest version hash and create the prediction the universal way.
@@ -386,7 +404,7 @@ class ModelRouter:
         if temperature is not None:
             payload["temperature"] = temperature
 
-        async with self._http_client(timeout=120.0) as client:
+        async with self._http_client(provider='anthropic', timeout=120.0) as client:
             async with client.stream(
                 "POST",
                 "https://api.anthropic.com/v1/messages",
@@ -471,11 +489,12 @@ class ModelRouter:
         messages = redact_messages(messages)
 
         # Check if provider key exists, fallback to openrouter
-        supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"}
+        from kurt.models.providers import NEW_BYOK_PROVIDERS, PROVIDERS as specs, uses_byok
+        supported = {"openrouter", "anthropic", "groq", "fal", "replicate", "ollama", "openai", "mistral", "deepseek", "google"} | NEW_BYOK_PROVIDERS
         if self.strict_selection and provider not in supported:
             raise ValueError(f"Unsupported provider: {provider}")
         if provider in self.excluded_providers or (not self._has_key(provider) and provider not in ("ollama",)):
-            if self.strict_selection:
+            if self.strict_selection or uses_byok(provider):
                 raise RuntimeError(f"Missing API key for selected provider {provider}. Update /setup or choose /model auto.")
             # Try openrouter as universal fallback
             if self._has_key("openrouter") and "openrouter" not in self.excluded_providers:
@@ -485,7 +504,16 @@ class ModelRouter:
                 provider = "ollama"
                 model = "llama3"
 
-        if provider == "openrouter":
+        if provider in NEW_BYOK_PROVIDERS and specs[provider].get('chat_url'):
+            async for chunk in self._call_tool_chat(model, messages, stream, native_tools,
+                    specs[provider]['chat_url'], {'Authorization': 'Bearer ' + self.byok_keys[provider],
+                                                 'Content-Type': 'application/json'}, temperature=temperature):
+                yield chunk
+        elif provider == 'wavespeed':
+            from kurt.models.media_providers import generate_wavespeed
+            async for chunk in generate_wavespeed(self, model, messages[-1]['content'], media_kind):
+                yield chunk
+        elif provider == "openrouter":
             async for chunk in self.call_openrouter(model, messages, stream, native_tools=native_tools, temperature=temperature):
                 yield chunk
         elif provider in ("openai", "mistral", "deepseek", "google"):

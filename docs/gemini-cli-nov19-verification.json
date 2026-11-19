@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-19",
+  "status": "provider_blocked",
+  "credential_values_recorded": false,
+  "model_listing": {
+    "python_http_status": 200,
+    "node_with_gemini_service_sandbox_http_status": 200
+  },
+  "generation": [
+    {"selection": "cli_default", "status": "failed", "observed_provider_status": 503},
+    {"selection": "gemini-2.5-flash", "status": "failed", "observed_provider_status": 404, "reason": "Unavailable to new users; Google recommended gemini-3.8-flash"},
+    {"selection": "gemini-3.8-flash", "status": "timed_out", "observed_provider_status": 503, "reason": "Model high demand"}
+  ],
+  "verified_final_answer": false,
+  "direct_api_comparison": {
+    "model": "gemini-3.8-flash",
+    "transport": "Kurt ModelRouter Google OpenAI-compatible endpoint",
+    "wallet_mode": false,
+    "status": "failed",
+    "error_type": "ReadTimeout",
+    "automatic_retry": false,
+    "verified_final_answer": false
+  },
+  "automatic_task_replay_by_kurt": false,
+  "gemini_internal_retries_observed": true,
+  "provider_charges_measured": false,
+  "workspace": "synthetic temporary directories with explicit test-only trust",
+  "remaining": "Live inference must be reverified when Google capacity recovers."
+}

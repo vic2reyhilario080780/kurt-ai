@@ -18,7 +18,7 @@ MAX_BYTES = 150 * 1024 * 1024
 
 def _check_url(url):
     p = urlsplit(url)
-    hosts = ('fal.media', 'replicate.delivery', 'storage.googleapis.com')
+    hosts = ('fal.media', 'replicate.delivery', 'storage.googleapis.com', 'wavespeed.ai')
     if p.scheme != 'https' or not p.hostname or p.username or p.password or p.port not in (None, 443):
         raise ValueError('Artifact requires an HTTPS provider URL.')
     if not any(p.hostname == h or p.hostname.endswith('.'+h) for h in hosts):

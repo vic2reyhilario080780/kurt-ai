@@ -138,6 +138,15 @@ kurt -v "solve this math problem: integrate x^2 + 3x"
 | `kurt plugin enable <id>` | Enable a plugin |
 | `kurt mcp list` | List MCP connections |
 
+Sa `kurt chat`, piliin ang **`/models`** para sa buong OpenRouter at fal.ai
+catalogs: **All models**, categories na tugma ang totals, search, official model
+pages, at compatible default actions. Available rin ang full-catalog links sa
+chat/image/video settings pickers. Use `/models refresh` para mag-update at
+`/models routing` para sa routing rules. [Catalog guide](docs/MODEL_CATALOGS.md).
+May optional BYOK catalogs din para sa Hugging Face, Together, Fireworks,
+Replicate, WaveSpeed at Novita. Kapag pumili ng model, may masked API-key input
+at official key/login-page link bago i-confirm ang selection. [BYOK guide](docs/BYOK_PROVIDERS.md).
+
 ## 🧠 Skills (Domain Expertise)
 
 Skills ay sistema ng knowledge na nag-guide sa AI behavior para sa specific na tasks.

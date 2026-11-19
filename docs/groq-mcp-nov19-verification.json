@@ -1,0 +1,174 @@
+{
+  "date": "2026-11-19",
+  "groq_small_request": {
+    "tested_at": "2026-11-19T03:22:36.807565+00:00",
+    "model": "openai/gpt-oss-120b",
+    "request": "one small synthetic prompt",
+    "automatic_retry": false,
+    "http_status": 200,
+    "rate_headers": {
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "999",
+      "x-ratelimit-remaining-tokens": "7893",
+      "x-ratelimit-reset-requests": "1m26.4s",
+      "x-ratelimit-reset-tokens": "802ms"
+    },
+    "response_received": true,
+    "usage": {
+      "queue_time": 0.252671275,
+      "prompt_tokens": 75,
+      "prompt_time": 0.012892064,
+      "completion_tokens": 32,
+      "completion_time": 0.067159887,
+      "total_tokens": 107,
+      "total_time": 0.080051951,
+      "completion_tokens_details": {
+        "reasoning_tokens": 23
+      }
+    }
+  },
+  "groq_workflow": {
+    "tested_at": "2026-11-19T03:26:12.343264+00:00",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "status": "unavailable",
+    "http_status": 429,
+    "retry_after": "51",
+    "tools": [
+      "inspect_native_input",
+      "search_native",
+      "inspect_native"
+    ],
+    "data": "synthetic fixture only",
+    "external_app_actions": false,
+    "provider_errors": [
+      {
+        "http_status": 429,
+        "rate_headers": {
+          "retry-after": "30",
+          "x-ratelimit-limit-requests": "1000",
+          "x-ratelimit-limit-tokens": "8000",
+          "x-ratelimit-remaining-requests": "999",
+          "x-ratelimit-remaining-tokens": "2448",
+          "x-ratelimit-reset-requests": "1m26.4s",
+          "x-ratelimit-reset-tokens": "41.64s"
+        },
+        "error": {
+          "type": "tokens",
+          "code": "rate_limit_exceeded"
+        }
+      },
+      {
+        "http_status": 429,
+        "rate_headers": {
+          "retry-after": "45",
+          "x-ratelimit-limit-requests": "1000",
+          "x-ratelimit-limit-tokens": "8000",
+          "x-ratelimit-remaining-requests": "998",
+          "x-ratelimit-remaining-tokens": "540",
+          "x-ratelimit-reset-requests": "2m52.8s",
+          "x-ratelimit-reset-tokens": "55.95s"
+        },
+        "error": {
+          "type": "tokens",
+          "code": "rate_limit_exceeded"
+        }
+      },
+      {
+        "http_status": 429,
+        "rate_headers": {
+          "retry-after": "51",
+          "x-ratelimit-limit-requests": "1000",
+          "x-ratelimit-limit-tokens": "8000",
+          "x-ratelimit-remaining-requests": "997",
+          "x-ratelimit-remaining-tokens": "459",
+          "x-ratelimit-reset-requests": "4m19.2s",
+          "x-ratelimit-reset-tokens": "56.557s"
+        },
+        "error": {
+          "type": "tokens",
+          "code": "rate_limit_exceeded"
+        }
+      }
+    ]
+  },
+  "mcp": {
+    "tested_at": "2026-11-19T03:22:59.632409+00:00",
+    "scope": "MCP initialize and list_tools only; no tool execution",
+    "results": [
+      {
+        "name": "filesystem",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 14
+      },
+      {
+        "name": "replicate",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 35
+      },
+      {
+        "name": "composio",
+        "transport": "http",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 12
+      },
+      {
+        "name": "github",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 26
+      },
+      {
+        "name": "puppeteer",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 25
+      },
+      {
+        "name": "sqlite",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "failed",
+        "error": "McpError: connection failed; check transport, endpoint and credentials."
+      },
+      {
+        "name": "mcp-wordmint",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "failed",
+        "error": "McpError: connection failed; check transport, endpoint and credentials."
+      },
+      {
+        "name": "postgres",
+        "transport": "stdio",
+        "enabled": true,
+        "status": "connected",
+        "tool_count": 1
+      }
+    ]
+  },
+  "diagnosis": {
+    "groq": "Tokens-per-minute throttling; not confirmed credit exhaustion",
+    "sqlite": "Saved config uses removed npm package; current bundled mcp-sqlite-server preset initialized with 5 tools",
+    "mcp-wordmint": "Missing X402_PRIVATE_KEY; package requires a funded USDC/Base wallet",
+    "composio": "Saved MCP endpoint initialized; separate management API previously returned 401"
+  },
+  "routing_policy_tests": {
+    "count": 32,
+    "passed": true
+  },
+  "limits": [
+    "MCP initialize/list_tools does not verify downstream account permissions or tool execution",
+    "No database queries, browser actions, document generation or crypto payments performed",
+    "Saved configurations, credentials and defaults were not changed",
+    "Provider charges not measured"
+  ]
+}

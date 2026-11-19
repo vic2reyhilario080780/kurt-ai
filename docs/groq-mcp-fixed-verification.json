@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-19",
+  "groq": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "status": "passed",
+    "tools": [
+      "inspect_native_input",
+      "search_native",
+      "inspect_native",
+      "run_native"
+    ],
+    "expected_rows": 8,
+    "expected_sum": 1160,
+    "data": "synthetic fixture only",
+    "external_app_actions": false
+  },
+  "schema_payload": {
+    "original_characters": 26884,
+    "final_discovery_characters": 10839,
+    "live_test_discovery_characters": 9088,
+    "note": "Live computation ran with the initial compact catalog. Final catalog additionally keeps core app/search tools immediately available; final version passed 534 regression tests."
+  },
+  "sqlite": {
+    "saved_recipe_updated": true,
+    "tool_count": 5,
+    "database_queried": false,
+    "previous_database_path_retained_in_description": true
+  },
+  "regression": {
+    "tests": 534,
+    "passed": true
+  },
+  "limits": [
+    "Groq provider TPM limits still apply; cooldowns can occur",
+    "No guarantee of latency or unlimited usage",
+    "WordMint crypto setup unchanged",
+    "Charges not measured"
+  ]
+}

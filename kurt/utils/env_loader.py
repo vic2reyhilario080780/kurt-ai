@@ -56,6 +56,11 @@ def check_setup() -> dict:
         "fal": bool(os.getenv("FAL_API_KEY")),
         "replicate": bool(os.getenv("REPLICATE_API_TOKEN")),
         "ollama": True,
+        "huggingface": bool(os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_API_KEY')),
+        "together": bool(os.getenv('TOGETHER_API_KEY')),
+        "fireworks": bool(os.getenv('FIREWORKS_API_KEY')),
+        "wavespeed": bool(os.getenv('WAVESPEED_API_KEY')),
+        "novita": bool(os.getenv('NOVITA_API_KEY')),
         # Connectors
         "composio": bool(os.getenv("COMPOSIO_API_KEY")),
         "zapier": bool(os.getenv("ZAPIER_NLA_API_KEY")),

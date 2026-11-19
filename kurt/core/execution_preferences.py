@@ -7,8 +7,9 @@ import httpx
 
 from kurt.core import persona
 
-PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate")
-TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate"))
+PROVIDERS = ("openrouter", "groq", "openai", "mistral", "deepseek", "anthropic", "ollama", "google", "fal", "replicate",
+             'huggingface', 'together', 'fireworks', 'wavespeed', 'novita')
+TEXT_PROVIDERS = tuple(p for p in PROVIDERS if p not in ("fal", "replicate", 'wavespeed'))
 DEFAULT_CLIS = ("auto", "codex", "claude", "gemini", "openclaw", "vibe", "deepseek", "deepseek-cli", "copilot")
 # Explicit API-compatible Vibe alias; avoid its remotely selected free-model route.
 VIBE_API_MODEL = "mistral-medium-3.5"
@@ -43,6 +44,12 @@ MEDIA_PRESETS = {
 
 
 def validate_media_kind(kind, model, provider):
+    if provider == 'wavespeed':
+        from kurt.models.additional import find_cached_model
+        from kurt.models.catalog import default_roles
+        contract = find_cached_model(provider, model)
+        if not contract or kind not in default_roles(provider, contract):
+            raise ValueError('Load the WaveSpeed catalog and choose a supported prompt-only media model.')
     if provider == 'fal':
         for category, models in MEDIA_PRESETS.items():
             if any(mid == model for _, mid in models) and category != kind:
@@ -145,8 +152,8 @@ def save_default_media(kind, value, provider=None):
             if provider is None:
                 raise ValueError("Specify fal or replicate after the model ID.")
         model, provider = parse_model(value, provider)
-        if provider not in ("fal", "replicate"):
-            raise ValueError("Image/video generators currently support fal and replicate.")
+        if provider not in ("fal", "replicate", 'wavespeed'):
+            raise ValueError("Image/video generators support fal, replicate and wavespeed.")
         # Model IDs become URL paths in the generation APIs.
         from urllib.parse import urlsplit
         if not model or any(c in model for c in ("?", "#", "\\")) or urlsplit(model).scheme or any(p in ("", ".", "..") for p in model.split("/")):
@@ -170,8 +177,8 @@ def media_target(kind, settings=None):
         target = ROUTING_TABLE[types[kind]]
         return {"model": target["model"], "provider": target["provider"]}
     model, provider = parse_model(selected)
-    if provider not in ("fal", "replicate"):
-        raise ValueError("Unsupported saved media provider; choose fal or replicate.")
+    if provider not in ("fal", "replicate", 'wavespeed'):
+        raise ValueError("Unsupported saved media provider; choose fal, replicate or wavespeed.")
     validate_media_kind(kind, model, provider)
     return {"model": model, "provider": provider}
 
@@ -290,6 +297,8 @@ def cli_failure_detail(name, result):
             continue
     if provider_error: details.append(provider_error)
     elif stderr: details.append(stderr if len(stderr) <= 1200 else stderr[:400]+'\n[intermediate log omitted]\n'+stderr[-800:])
+    if name == 'gemini' and ('"code":503' in stderr.replace(' ', '') or 'status: 503' in stderr or 'experiencing high demand' in stderr):
+        details.append('Google reports model unavailability/high demand (503), not an authentication rejection. Gemini may retry internally until the CLI time limit. No automatic task replay by Kurt; check the outcome before retrying. You can select another model with KURT_GEMINI_MODEL on the next launch.')
     if result.get('errors'): details.append(redact(str(result['errors']))[-1000:])
     if stdout: details.append('Partial CLI output (completion unverified): ' + stdout[-800:])
     from kurt.billing.client import active as wallet_active

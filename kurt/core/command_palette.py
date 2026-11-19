@@ -18,6 +18,8 @@ Commands tab, Ctrl-C cancels like a normal prompt.
 
 from dataclasses import dataclass, field
 from typing import Optional
+import time
+from urllib.parse import quote, unquote
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import get_app
@@ -43,6 +45,7 @@ OPEN_TARGETS = {
     "/agents": "agents",
     "/plugins": "plugins",
     "/model": "model",
+    "/models": "model_catalog",
     "/image-model": "media_image",
     "/video-model": "media_video",
     "/config": "config",
@@ -100,6 +103,8 @@ def _effective_query(state: "_PaletteState", buf_text: str) -> str:
     the argument text doesn't appear in /model's description). Nested
     views have no argument concept, so the whole typed text is the
     (possibly multi-word) search query."""
+    if state.view.startswith('provider_key_input:'):
+        return ''  # A secret is never a catalog/search query.
     rest = _after_slash(buf_text)
     if state.view in ("root", "show_all"):
         return rest.split(None, 1)[0].casefold() if rest.split() else ""
@@ -322,29 +327,32 @@ def _capability_items(query: str, kind: str, cmd: str) -> list[dict]:
 
 _openrouter_cache: Optional[list] = None
 _fal_cache: Optional[list] = None
+_openrouter_cache_at = 0
+_fal_cache_at = 0
 
 
 def _openrouter_models() -> list:
-    """All 400+ OpenRouter text models — cached in-memory for the session
+    """Complete OpenRouter catalog — cached in memory for up to an hour
     (fetch_models() itself disk-caches for an hour; this just avoids
     re-reading that file on every keystroke while browsing)."""
-    global _openrouter_cache
-    if _openrouter_cache is None:
+    global _openrouter_cache, _openrouter_cache_at
+    if _openrouter_cache is None or (_openrouter_cache_at and time.monotonic() - _openrouter_cache_at > 3600):
         from kurt.models.openrouter import fetch_models
         try:
             _openrouter_cache = fetch_models() or []
         except Exception:
             _openrouter_cache = []
+        _openrouter_cache_at = time.monotonic()
     return _openrouter_cache
 
 
 def _fal_models() -> list:
-    """All 1,400+ fal.ai generation models — only fetched if FAL_API_KEY is
+    """Complete fal.ai catalog — only fetched if FAL_API_KEY is
     configured (fetch_models() itself prints a setup hint and needs a real
     key; skip calling it at all here rather than let that print corrupt the
     live palette render)."""
-    global _fal_cache
-    if _fal_cache is None:
+    global _fal_cache, _fal_cache_at
+    if _fal_cache is None or (_fal_cache_at and time.monotonic() - _fal_cache_at > 3600):
         import os
         if not (os.getenv("FAL_API_KEY") or os.getenv("FAL_KEY")):
             _fal_cache = []
@@ -354,7 +362,183 @@ def _fal_models() -> list:
                 _fal_cache = fetch_models() or []
             except Exception:
                 _fal_cache = []
+        _fal_cache_at = time.monotonic()
     return _fal_cache
+
+
+def _catalog_models(provider):
+    from kurt.models.catalog import unique_models
+    from kurt.models.providers import EXTRA_PROVIDERS
+    if provider in EXTRA_PROVIDERS:
+        from kurt.models.additional import fetch_catalog, without_primary_duplicates
+        models = fetch_catalog(provider)['models']
+        return without_primary_duplicates(provider, models, _openrouter_models(), _fal_models())[0]
+    return unique_models(_openrouter_models() if provider == 'openrouter' else _fal_models())
+
+
+def _catalog_link(provider):
+    from kurt.models.providers import EXTRA_PROVIDERS, PROVIDERS
+    if provider in EXTRA_PROVIDERS:
+        from kurt.models.additional import peek_catalog, without_primary_duplicates
+        snapshot = peek_catalog(provider)
+        if not snapshot or not snapshot.get('models') and snapshot.get('error'):
+            text = 'connect / load catalog — BYOK'
+        else:
+            visible, excluded = without_primary_duplicates(provider, snapshot['models'], _openrouter_models(), _fal_models())
+            text = f'{len(visible):,} additional models; {len(excluded):,} primary duplicates excluded'
+            if snapshot.get('next'):
+                text += ' (more pages available)'
+        return {'label': f'{PROVIDERS[provider]["name"]} — {text}', 'kind': 'open',
+                'target': f'catalog_provider:{provider}', 'value': ''}
+    total = len(_catalog_models(provider))
+    label = PROVIDERS[provider]['name']
+    return {'label': f'Full {label} catalog — {total:,} models / all categories',
+            'kind': 'open', 'target': f'catalog_provider:{provider}', 'value': ''}
+
+
+def _catalog_root_items(query):
+    from kurt.models.providers import EXTRA_PROVIDERS
+    rows = [_catalog_link(p) for p in ('openrouter', 'fal', *EXTRA_PROVIDERS)]
+    rows.append({'label': 'Refresh provider catalogs', 'kind': 'catalog_refresh', 'value': ''})
+    if query and not any(_matches(query, r['label']) for r in rows):
+        from kurt.models.additional import peek_catalog, without_primary_duplicates
+        extra = [r for p in EXTRA_PROVIDERS for r in _catalog_model_rows(p,
+                 without_primary_duplicates(p, peek_catalog(p).get('models', []), _openrouter_models(), _fal_models())[0], query)]
+        return [r for provider in ('openrouter', 'fal')
+                for r in _catalog_model_rows(provider, _catalog_models(provider), query)] + extra
+    return [r for r in rows if _matches(query, r['label'])]
+
+
+def _catalog_model_rows(provider, models, query):
+    from kurt.models.catalog import category, category_label, default_roles
+    rows = []
+    for model in models:
+        mid = model['id']
+        cat = category_label(provider, category(provider, model))
+        title = model.get('name') or model.get('title') or mid
+        roles = default_roles(provider, model)
+        status = 'default: ' + '/'.join(roles) if roles else 'browse only — workflow not supported'
+        label = f'{title} [{mid}] — {cat} — {status}'
+        if _matches(query, label):
+            rows.append({'label': label, 'kind': 'open',
+                         'target': f'catalog_model:{provider}:{quote(mid, safe="")}', 'value': ''})
+    return rows
+
+
+def _catalog_provider_items(provider, query, selected_category=None):
+    from kurt.models.catalog import groups, category_label
+    models = _catalog_models(provider)
+    grouped = groups(provider, models)
+    from kurt.models.providers import PROVIDERS, EXTRA_PROVIDERS
+    label = PROVIDERS[provider]['name']
+    if selected_category is not None:
+        selected = models if selected_category == '*' else grouped.get(selected_category, [])
+        rows = _catalog_model_rows(provider, selected, query)
+        return [{'label': f'{label}: {len(selected):,} models in this view / {len(models):,} visible loaded models; {len(rows):,} matches', 'kind': 'info'}] + rows
+    if query:
+        return _catalog_provider_items(provider, query, '*')
+    rows = [{'label': f'{label}: {len(models):,} visible model IDs — category counts sum to {sum(map(len, grouped.values())):,}', 'kind': 'info'},
+            {'label': f'All models — {len(models):,}', 'kind': 'open', 'target': f'catalog_list:{provider}:*'}]
+    rows.extend({'label': f'{category_label(provider, cat)} — {len(items):,}', 'kind': 'open',
+                 'target': f'catalog_list:{provider}:{quote(cat, safe="")}'} for cat, items in grouped.items())
+    if not models:
+        rows.append({'label': 'No catalog loaded; check /setup or refresh. This is not a live availability check.', 'kind': 'info'})
+    rows += _provider_auth_items(provider)
+    if provider in EXTRA_PROVIDERS:
+        from kurt.models.additional import peek_catalog
+        snapshot = peek_catalog(provider)
+        rows.append({'label': PROVIDERS[provider]['scope'], 'kind': 'info'})
+        rows.append({'label': f'{len(snapshot.get("models", [])):,} source records loaded; {len(snapshot.get("models", [])) - len(models):,} exact primary duplicates excluded. '
+                     + ('Catalog complete.' if snapshot.get('complete') else 'More pages may be available; this is not a complete provider total.'), 'kind': 'info'})
+        if snapshot.get('error'):
+            rows.append({'label': snapshot['error'], 'kind': 'info'})
+        if snapshot.get('next'):
+            rows.append({'label': 'Load next catalog pages', 'kind': 'provider_more', 'provider': provider})
+    rows.append({'label': 'Refresh both provider catalogs', 'kind': 'catalog_refresh', 'value': ''})
+    return rows
+
+
+def _catalog_model_items(provider, mid, settings_only=False):
+    from kurt.models.catalog import category, category_label, default_roles
+    model = next((m for m in _catalog_models(provider) if m['id'] == mid), None)
+    if model is None:
+        return [{'label': 'Model no longer in this catalog; refresh and search again.', 'kind': 'info'}]
+    roles = default_roles(provider, model)
+    rows = [{'label': f'{mid} [{provider}] — {category_label(provider, category(provider, model))}', 'kind': 'info'}]
+    if provider == 'openrouter':
+        rows.append({'label': _pricing_hint(model), 'kind': 'info'})
+    if not roles:
+        rows.append({'label': 'Visible in the full catalog. This workflow is not supported by Kurt yet; cannot set as a default.', 'kind': 'info'})
+    if 'chat' in roles:
+        if not settings_only:
+            rows.append({'label': 'Use for chat in this session', 'kind': 'leaf', 'value': f'/model {mid} {provider}'})
+        rows.append({'label': 'Save as default Chat AI', 'kind': 'leaf', 'value': f'/model default {mid} {provider}'})
+    for kind in ('image', 'video'):
+        if kind in roles:
+            rows.append({'label': f'Save as default {kind.title()} AI', 'kind': 'leaf', 'value': f'/{kind}-model {mid} {provider}'})
+    from kurt.models.providers import PROVIDERS
+    base = 'https://openrouter.ai/' if provider == 'openrouter' else 'https://fal.ai/models/' if provider == 'fal' else None
+    url = base + quote(mid, safe='/') if base else PROVIDERS[provider]['models_url']
+    rows += _provider_auth_items(provider)
+    rows.append({'label': 'Open official model page / setup requirements', 'kind': 'browser', 'url': url})
+    rows.append({'label': 'Catalog listing is not proof of account access, credits or successful generation.', 'kind': 'info'})
+    return rows
+
+
+def _provider_auth_items(provider, command=''):
+    from kurt.models.providers import PROVIDERS, provider_key, NEW_BYOK_PROVIDERS
+    spec = PROVIDERS[provider]
+    configured = bool(provider_key(provider)) if spec['key'] else True
+    rows = [{'label': f'{spec["name"]}: ' + ('key saved (not live-verified)' if configured and spec['key'] else 'local; no API key needed' if not spec['key'] else 'API key not configured'), 'kind': 'info'}]
+    if spec['key']:
+        rows.append({'label': 'Enter / replace API key — hidden input', 'kind': 'provider_key', 'provider': provider})
+    rows.append({'label': 'Open official API key / login page' if spec['key'] else 'Open local provider setup page',
+                 'kind': 'browser', 'url': spec['keys_url']})
+    from kurt.models.providers import EXTRA_PROVIDERS
+    if provider in EXTRA_PROVIDERS:
+        rows.append({'label': 'Load / refresh this provider catalog (read-only)', 'kind': 'provider_refresh', 'provider': provider})
+    if command:
+        if configured:
+            rows.append({'label': 'Use my saved provider key (BYOK) and select model' if spec['key'] else 'Select local model',
+                         'kind': 'leaf', 'value': command, 'confirmed_provider': provider, 'billing': 'byok'})
+        else:
+            rows.append({'label': 'Add your API key above before selecting this model.', 'kind': 'info'})
+        from kurt.billing.client import active
+        if active() and provider not in NEW_BYOK_PROVIDERS and spec['key']:
+            rows.append({'label': 'Use Kurt wallet instead of my own provider key', 'kind': 'leaf',
+                         'value': command, 'confirmed_provider': provider, 'billing': 'wallet'})
+    rows.append({'label': 'BYOK uses your provider balance; it does not deduct Kurt wallet credits. Website login happens in your browser.', 'kind': 'info'})
+    return rows
+
+
+def _selection_provider(command):
+    from kurt.core.execution_preferences import parse_model
+    parts = command.split()
+    if not parts or parts[0] not in ('/model', '/image-model', '/video-model'):
+        return None
+    index = 2 if parts[:2] == ['/model', 'default'] else 1
+    if len(parts) <= index or parts[index] in ('auto', 'choose', 'choose-default'):
+        return None
+    try:
+        _, provider = parse_model(parts[index], parts[index + 1] if len(parts) > index + 1 else None)
+        return provider
+    except ValueError:
+        return None
+
+
+def refresh_model_catalogs():
+    """Explicit refresh is also available without leaving a settings picker."""
+    global _openrouter_cache, _fal_cache, _openrouter_cache_at, _fal_cache_at
+    from kurt.models.openrouter import fetch_models as fetch_openrouter
+    from kurt.models.fal import fetch_models as fetch_fal
+    _openrouter_cache = fetch_openrouter(use_cache=False)
+    _fal_cache = fetch_fal(use_cache=False)
+    _openrouter_cache_at = _fal_cache_at = time.monotonic()
+    from kurt.models.providers import EXTRA_PROVIDERS
+    from kurt.models.additional import fetch_catalog
+    for provider in EXTRA_PROVIDERS:
+        fetch_catalog(provider, refresh=True)
+    return f'Catalogs loaded: OpenRouter {len(_catalog_models("openrouter")):,}; fal.ai {len(_catalog_models("fal")):,}. Optional BYOK catalogs updated where accessible; unavailable providers retain saved data. Paginated catalogs may need Load next pages.'
 
 
 def _is_chat_model(model):
@@ -410,6 +594,8 @@ def _chat_choices():
 
 def _model_items(query: str) -> list[dict]:
     rows = [{"label": "Auto — route chat requests", "kind": "leaf", "value": "/model auto"}]
+    rows.append(_catalog_link('openrouter'))
+    rows.append({'label': 'Additional providers — BYOK catalogs', 'kind': 'open', 'target': 'model_catalog', 'value': ''})
     rows.extend({"label": label, "kind": "leaf", "value": f"/model {model}" + (f" {provider}" if provider != "openrouter" else "")}
                 for model, provider, label in _chat_choices())
     return [row for row in rows if _matches(query, row["label"])]
@@ -418,6 +604,8 @@ def _model_items(query: str) -> list[dict]:
 def _default_model_items(query):
     rows = [{"label": "Choose chat provider + exact model ID", "kind": "leaf", "value": "/model choose-default"},
             {"label": "Auto — let Kurt route chat requests", "kind": "leaf", "value": "/model default auto"}]
+    rows.append(_catalog_link('openrouter'))
+    rows.append({'label': 'Additional providers — BYOK catalogs', 'kind': 'open', 'target': 'model_catalog', 'value': ''})
     rows.extend({"label": label + " — save Chat AI default", "kind": "leaf", "value": f"/model default {model} {provider}"}
                 for model, provider, label in _chat_choices())
     return [row for row in rows if _matches(query, row["label"])]
@@ -462,6 +650,8 @@ def _media_model_items(kind, query):
         {"label": "Auto — use Kurt's generation default", "kind": "leaf", "value": f"{command} auto"},
         {"label": "Choose provider + exact model ID (fal / Replicate)", "kind": "leaf", "value": f"{command} choose"},
     ]
+    rows.append(_catalog_link('fal'))
+    rows.append({'label': 'Additional providers — BYOK catalogs', 'kind': 'open', 'target': 'model_catalog', 'value': ''})
     presets = MEDIA_PRESETS[kind]
     seen = set()
     for label, mid in presets:
@@ -487,6 +677,22 @@ def _config_items(query: str) -> list[dict]:
 
 
 def _current_items(state: _PaletteState, query: str) -> list[dict]:
+    if state.view.startswith('provider_key_input:'):
+        return [{'label': 'Paste API key (hidden). Enter saves privately; Esc cancels. Nothing is sent to an AI.', 'kind': 'info'}]
+    if state.view.startswith('model_setup:'):
+        _, provider, command = state.view.split(':', 2)
+        return [r for r in _provider_auth_items(provider, unquote(command)) if _matches(query, r['label'])]
+    if state.view == 'model_catalog':
+        return _catalog_root_items(query)
+    if state.view.startswith('catalog_provider:'):
+        return _catalog_provider_items(state.view.split(':', 1)[1], query)
+    if state.view.startswith('catalog_list:'):
+        _, provider, category = state.view.split(':', 2)
+        return _catalog_provider_items(provider, query, unquote(category))
+    if state.view.startswith('catalog_model:'):
+        _, provider, mid = state.view.split(':', 2)
+        rows = _catalog_model_items(provider, unquote(mid), state.settings_only)
+        return [r for r in rows if _matches(query, r['label'])]
     if state.view == "execution_defaults":
         return _execution_default_items(query)
     if state.view in ("media_image", "media_video"):
@@ -584,6 +790,16 @@ def _render(state: _PaletteState, buf_text: str):
         icon = {"skills": "🧠", "mcp": "🔌", "connectors": "🔗", "zapier": "⚡", "n8n": "⚙️",
                 "agents": "⚙️", "plugins": "⚙️", "model": "🤖", "config": "🛠️"}.get(state.view, "")
         title = {"execution_defaults": "Choose a default", "default_models": "Chat AI — save default", "model": "Chat AI — this session", "cli_settings": "CLI — save default", "media_image": "Image AI — save default", "media_video": "Video AI — save default"}.get(state.view, state.view)
+        if state.view == 'model_catalog':
+            title = 'Complete AI model catalogs'
+        elif state.view.startswith(('catalog_provider:', 'catalog_list:', 'catalog_model:')):
+            from kurt.models.providers import PROVIDERS
+            title = PROVIDERS[state.view.split(':')[1]]['name'] + ' — model catalog'
+        elif state.view.startswith('model_setup:'):
+            from kurt.models.providers import PROVIDERS
+            title = PROVIDERS[state.view.split(':')[1]]['name'] + ' — connect / select model'
+        elif state.view.startswith('provider_key_input:'):
+            title = 'Enter API key — hidden, not submitted to chat'
         lines.append([("bold", f"{icon} {title}"), ("", "\n")])
 
     if not items:
@@ -595,7 +811,7 @@ def _render(state: _PaletteState, buf_text: str):
             style = highlight if i == state.index else ""
             lines.append([(style, f"{marker}{item['label']}"), ("", "\n")])
         if len(items) > WINDOW:
-            lines.append([("dim", f"  ... {len(items)} total, scroll with ↑↓"), ("", "\n")])
+            lines.append([("dim", f"  ... {len(items)} menu rows, scroll with ↑↓"), ("", "\n")])
 
     if state.notice:
         lines.append([("", state.notice), ("", "\n")])
@@ -613,6 +829,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     kb = KeyBindings()
 
     palette_open = Condition(lambda: state.is_open)
+    browsing = palette_open & Condition(lambda: not state.view.startswith('provider_key_input:'))
     at_root = Condition(lambda: state.is_open and state.view == "root")
 
     def _reset_query(buf):
@@ -642,26 +859,26 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         state.index = 0
         _reset_query(event.current_buffer)
 
-    @kb.add("up", filter=palette_open, eager=True)
+    @kb.add("up", filter=browsing, eager=True)
     def _up(event):
         items = _current_items(state, _effective_query(state, event.current_buffer.text))
         if items:
             state.index = (state.index - 1) % len(items)
 
-    @kb.add("down", filter=palette_open, eager=True)
+    @kb.add("down", filter=browsing, eager=True)
     def _down(event):
         items = _current_items(state, _effective_query(state, event.current_buffer.text))
         if items:
             state.index = (state.index + 1) % len(items)
 
-    @kb.add("?", filter=palette_open, eager=True)
+    @kb.add("?", filter=browsing, eager=True)
     def _show_all(event):
         state.view = "execution_defaults" if state.settings_only else "show_all"
         state.stack = []
         state.index = 0
         _reset_query(event.current_buffer)
 
-    @kb.add("tab", filter=palette_open, eager=True)
+    @kb.add("tab", filter=browsing, eager=True)
     def _home(event):
         state.view = "execution_defaults" if state.settings_only else "root"
         state.tab = "commands"
@@ -671,6 +888,9 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("escape", filter=palette_open, eager=True)
     def _back(event):
+        if state.view.startswith('provider_key_input:'):
+            event.current_buffer.reset(append_to_history=False)
+            event.app._kurt_secret_input = False
         if state.stack:
             state.view, state.tab = state.stack.pop()
             state.index = 0
@@ -685,11 +905,30 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
 
     @kb.add("c-c", filter=palette_open, eager=True)
     def _cancel(event):
+        if state.view.startswith('provider_key_input:'):
+            event.current_buffer.reset(append_to_history=False)
+            event.app._kurt_secret_input = False
+            state.view, state.stack = 'root', []
         state.is_open = False
         event.app.exit(exception=KeyboardInterrupt())
 
     @kb.add("enter", filter=palette_open, eager=True)
     def _select(event):
+        if state.view.startswith('provider_key_input:'):
+            from kurt.models.providers import save_provider_key
+            provider = state.view.split(':', 1)[1]
+            try:
+                save_provider_key(provider, event.current_buffer.text)
+            except (ValueError, OSError):
+                state.notice = 'Key not saved. Enter one API token without spaces/placeholders, or Esc to cancel.'
+                return
+            event.current_buffer.reset(append_to_history=False)  # Drop secret undo/redo drafts too.
+            _reset_query(event.current_buffer)  # Clear before turning off masking.
+            event.app._kurt_secret_input = False
+            state.view, state.tab = state.stack.pop()
+            state.index = 0
+            state.notice = 'API key saved privately, not live-verified. Load/refresh the provider catalog if needed.'
+            return
         buf_text = event.current_buffer.text
         from kurt.core.attachments import is_local_path_input
         if not state.settings_only and is_local_path_input(buf_text):
@@ -706,6 +945,28 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         item = items[state.index % len(items)]
         args = _pending_args(state, buf_text)
         if item["kind"] == "info":
+            return
+        if item['kind'] == 'provider_key':
+            state.stack.append((state.view, state.tab))
+            state.view = 'provider_key_input:' + item['provider']
+            event.app._kurt_secret_input = True
+            state.notice = ''
+            state.index = 0
+            event.current_buffer.reset(append_to_history=False)
+            return
+        if item['kind'] in ('provider_refresh', 'provider_more'):
+            from kurt.models.additional import fetch_catalog
+            result = fetch_catalog(item['provider'], refresh=item['kind'] == 'provider_refresh', more=item['kind'] == 'provider_more')
+            state.notice = result.get('error') or f'{len(result["models"]):,} source model records loaded.'
+            state.index = 0
+            return
+        if item['kind'] == 'catalog_refresh':
+            import io
+            from contextlib import redirect_stdout
+            with redirect_stdout(io.StringIO()) as captured:
+                notice = refresh_model_catalogs()
+            state.notice = notice + (' Refresh reported an error; cached data may be shown. Check provider credentials/network.' if captured.getvalue() else '')
+            state.index = 0
             return
         if item["kind"] == "browser":
             from kurt.core.connector_pages import open_page
@@ -729,6 +990,22 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         value = item["value"]
         if value and args:
             value = f"{value} {args}"
+        provider = _selection_provider(value)
+        if provider and item.get('confirmed_provider') != provider:
+            state.is_open = True
+            state.stack.append((state.view, state.tab))
+            state.view = f'model_setup:{provider}:{quote(value, safe="")}'
+            state.index = 0
+            _reset_query(event.current_buffer)
+            return
+        if provider and item.get('billing'):
+            from kurt.models.providers import confirm_byok, confirm_wallet
+            try:
+                (confirm_byok if item['billing'] == 'byok' else confirm_wallet)(provider)
+            except (ValueError, OSError):
+                state.is_open = True
+                state.notice = 'Provider setup incomplete; key/billing selection was not applied. Check setup and try again.'
+                return
         event.current_buffer.text = value
         event.app.exit(result=value)
 
@@ -739,11 +1016,14 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             [("dim", f"🎤 {_active_voice_input.status} · F5 toggle")]
             if _active_voice_input is not None else None),
         style=_STYLE,
+        is_password=Condition(lambda: state.is_open and state.view.startswith('provider_key_input:')),
     )
     def sync_palette(buffer):
         # A deleted/replaced slash must not leave Enter trapped in an empty
         # picker. Standalone settings deliberately accept plain search text.
         from kurt.core.attachments import is_local_path_input
+        if state.view.startswith('provider_key_input:'):
+            return
         if state.is_open and not state.settings_only and (not buffer.text.startswith('/') or is_local_path_input(buffer.text)):
             state.is_open = False
             state.stack = []

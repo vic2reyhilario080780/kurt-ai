@@ -1,0 +1,70 @@
+{
+  "openrouter": {
+    "total": 480,
+    "all_models_view_count": 480,
+    "category_sum": 480,
+    "categories": {
+      "audio+text": 4,
+      "image+text": 13,
+      "text": 461,
+      "text+video": 2
+    },
+    "default_eligible": 461
+  },
+  "fal": {
+    "total": 1356,
+    "all_models_view_count": 1356,
+    "category_sum": 1356,
+    "categories": {
+      "3d-to-3d": 17,
+      "audio-to-audio": 45,
+      "audio-to-text": 4,
+      "audio-to-video": 13,
+      "image-to-3d": 41,
+      "image-to-image": 361,
+      "image-to-json": 2,
+      "image-to-text": 2,
+      "image-to-video": 179,
+      "json": 4,
+      "llm": 8,
+      "speech-to-speech": 5,
+      "speech-to-text": 11,
+      "text-to-3d": 16,
+      "text-to-audio": 56,
+      "text-to-image": 176,
+      "text-to-json": 3,
+      "text-to-speech": 37,
+      "text-to-text": 3,
+      "text-to-video": 105,
+      "training": 45,
+      "unknown": 3,
+      "video-to-audio": 6,
+      "video-to-text": 4,
+      "video-to-video": 174,
+      "vision": 29,
+      "workflow": 1,
+      "worlds": 6
+    },
+    "default_eligible": 283
+  },
+  "verified_at": "2026-11-19T05:16:24.252245+00:00",
+  "scope": "Fresh provider catalog requests with temporary caches; complete picker row counts and category sums, not inference or generation.",
+  "regression_tests": {
+    "count": 544,
+    "passed": true
+  },
+  "catalog_tests": {
+    "count": 10,
+    "passed": true
+  },
+  "checks": [
+    "Exact provider IDs counted once; model versions preserved",
+    "Unsupported workflows remain visible with official model links",
+    "Only implemented workflows expose default-setting actions",
+    "Failed or incomplete refreshes retain the previous complete cache",
+    "Actual prompt-toolkit navigation and in-picker refresh tested"
+  ],
+  "new_providers_added": false,
+  "future_provider_policy": "Optional BYOK; exclude only verified exact-model/version duplicates already offered by OpenRouter or fal.ai when those providers are implemented.",
+  "personal_credentials_or_defaults_changed": false
+}

@@ -12,7 +12,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from kurt.capabilities import runtime
-from kurt.capabilities.bridge import NativeToolRouter, invoke_native, user_paths, function_schemas
+from kurt.capabilities.bridge import NativeToolRouter, invoke_native, user_paths, function_schemas, groq_tool_schemas
 
 PLUGIN = "kurt-plugin--shopee-orders--gross_sales--describe"
 SKILL = PLUGIN.replace("kurt-plugin", "kurt-skill")
@@ -38,6 +38,51 @@ class Replies:
 
 
 class WiringTests(unittest.TestCase):
+    def test_groq_discovery_reduces_catalog_and_preserves_full_contracts(self):
+        catalog = function_schemas(False)
+        compact = groq_tool_schemas(catalog, ['open_application'])
+        self.assertLess(len(json.dumps(compact)), len(json.dumps(catalog)) * .5)
+        selector = compact[-1]['function']
+        self.assertEqual(set(selector['parameters']['properties']['names']['items']['enum']),
+                         {t['function']['name'] for t in catalog})
+        original = next(t for t in catalog if t['function']['name'] == 'open_application')
+        self.assertIn(original, compact)
+
+    def test_groq_tool_selection_executes_no_action_and_keeps_goal_guard(self):
+        class NativeReplies(Replies):
+            supports_native_tools = True
+            def __init__(self, replies):
+                super().__init__(replies)
+                self.options = []
+            async def route(self, *args, **kwargs):
+                self.options.append(kwargs)
+                async for chunk in super().route(*args, **kwargs):
+                    yield chunk
+        replies = NativeReplies([request('select_tools', names=['generate_qr', 'open_application']),
+                                 request('open_application', app='Notes'), 'Action blocked.'])
+        messages = self.messages()
+        with patch('kurt.capabilities.bridge.invoke_native') as invoke:
+            async def run():
+                return ''.join([c async for c in NativeToolRouter(replies).route('groq', 'test', messages)])
+            self.assertEqual(asyncio.run(run()), 'Action blocked.')
+        invoke.assert_not_called()
+        self.assertNotIn('generate_qr', {t['function']['name'] for t in replies.options[0]['native_tools']})
+        self.assertIn('generate_qr', {t['function']['name'] for t in replies.options[1]['native_tools']})
+        self.assertTrue(any('First use set_task_goal' in str(m['content']) for m in messages))
+
+    def test_groq_discovery_cannot_select_pinned_orchestration(self):
+        class PinnedReplies(Replies):
+            supports_native_tools = True
+            strict_selection = True
+        replies = PinnedReplies([request('select_tools', names=['call_model']), 'Unavailable.'])
+        messages = self.messages()
+        with patch('kurt.capabilities.bridge.invoke_native') as invoke:
+            async def run():
+                return ''.join([c async for c in NativeToolRouter(replies).route('groq', 'test', messages)])
+            asyncio.run(run())
+        invoke.assert_not_called()
+        self.assertTrue(any('distinct available tool names' in str(m['content']) for m in messages))
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
