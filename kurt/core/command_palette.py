@@ -210,8 +210,12 @@ def _catalog_entries() -> list:
 def _mcp_items(query: str) -> list[dict]:
     from kurt.core.mcp_client import PRESETS, load_registry
 
-    registry = load_registry()
     items = []
+    try:
+        registry = load_registry()
+    except (ValueError, OSError) as exc:
+        registry = {}
+        items.append({"label": f"MCP registry unavailable ({exc}); showing built-in presets & catalog", "kind": "info"})
     for name, conn in registry.items():
         if _matches(query, name, conn.description):
             items.append({
@@ -309,7 +313,10 @@ def _connector_detail_items(provider: str, ref: str, query: str) -> list[dict]:
     items = []
     entry = None
     if provider == "mcp":
-        saved = load_registry().get(ref)
+        try:
+            saved = load_registry().get(ref)
+        except (ValueError, OSError):
+            saved = None
         entry = next((e for e in _catalog_entries() if e["id"] == ref), None)
         if saved:
             items.append({"label": "Test saved connection / list available tools", "kind": "leaf", "value": f"/mcp tools {ref}"})
@@ -1197,7 +1204,7 @@ def _split_item_columns(item: dict) -> tuple[str, str, str]:
     if item.get("kind") == "info":
         return (label, "", "")
     if " — " in label:
-        parts = label.split(" — ")
+        parts = [p.strip() for p in label.split(" — ")]
         # Preserve provider titles that include an em-dash (e.g. "Hugging Face — Full Hub")
         if len(parts) >= 3 and parts[0] == "Hugging Face" and parts[1] in ("Full Hub", "Inference Available"):
             title = f"{parts[0]} — {parts[1]}"

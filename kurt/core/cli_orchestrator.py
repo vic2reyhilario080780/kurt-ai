@@ -112,7 +112,7 @@ SLASH_COMMANDS = {
 }
 
 SLASH_GROUPS = [
-    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setup"]),
+    ("🧭 Navigation", ["/help", "/clear", "/exit", "/quit", "/history", "/info", "/save", "/config", "/setting", "/setup"]),
     ("🧠 AI Tools", ["/model", "/models", "/speech", "/image", "/video", "/image-model", "/video-model", "/skill", "/skills", "/agents", "/plugins", "/library", "/subagent", "/plan"]),
     ("⚙️  System", ["/run", "/gh", "/codex", "/claude", "/gemini", "/deepseek", "/deepseek-cli", "/copilot", "/openclaw", "/peekaboo", "/cli", "/wallet", "/mcp", "/connect", "/zapier", "/n8n", "/doctor", "/grep", "/find", "/tasks", "/zip"]),
     ("🖱️  Web & Computer", ["/web", "/browser", "/computer"]),

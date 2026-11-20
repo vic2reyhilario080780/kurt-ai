@@ -316,6 +316,46 @@ class PaletteRenderingTests(unittest.TestCase):
                     items = cp._current_items(cp._PaletteState(is_open=True, view=view_name), "")
                     self.assertTrue(any(r.get("kind") == "leaf" for r in items), f"No leaf rows in {view_name}")
 
+    def test_cli_audit_bug_fixes(self):
+        from kurt.core import command_palette as cp, execution_preferences as prefs, memory, mcp_client
+        from typer.testing import CliRunner
+        from kurt import main as kurt_main
+        # 1. /setting appears in SLASH_GROUPS and /help output
+        grouped = {c for _, cmds in orch.SLASH_GROUPS for c in cmds}
+        self.assertIn("/setting", grouped)
+        help_res = orch.handle_slash("/help", "s1", "auto", None)
+        self.assertIn("/setting", help_res.output)
+        # 2. media_label never crashes when a saved media default is uncached/invalid
+        bad_label = prefs.media_label("image", {"default_image_model": "org/missing|wavespeed"})
+        self.assertIn("org/missing|wavespeed", bad_label)
+        self.assertIn("refresh", bad_label)
+        # 3. _mcp_items survives corrupt mcp_connections.json without crashing picker
+        with tempfile.TemporaryDirectory() as tmp:
+            troot = Path(tmp)
+            bad_reg = troot / "mcp_connections.json"
+            bad_reg.write_text("{not valid json")
+            with patch.object(mcp_client, "KURT_DIR", troot), \
+                 patch.object(mcp_client, "MCP_REGISTRY_PATH", bad_reg):
+                mcp_rows = cp._mcp_items("")
+            self.assertTrue(any(r.get("kind") == "info" and "unavailable" in r.get("label", "") for r in mcp_rows))
+            self.assertTrue(any(r.get("kind") == "open" for r in mcp_rows))
+        # 4. memory.get_history auto-initializes DB on fresh dir (no OperationalError)
+        with tempfile.TemporaryDirectory() as tmp:
+            troot = Path(tmp)
+            with patch.object(memory, "KURT_DIR", troot), patch.object(memory, "DB_PATH", troot / "memory.db"):
+                self.assertEqual(memory.get_history("fresh-session"), [])
+                memory.save_message("fresh-session", "user", "hello")
+                self.assertEqual(len(memory.get_history("fresh-session")), 1)
+                self.assertEqual(len(memory.list_sessions()), 1)
+                memory.clear_session("fresh-session")
+                self.assertEqual(memory.get_history("fresh-session"), [])
+        # 5. _split_item_columns trims double-spaced em-dash labels like /skills
+        self.assertEqual(cp._split_item_columns({"label": "tiktok  —  Viral hooks", "kind": "leaf"}), ("tiktok", "Viral hooks", ""))
+        # 6. `kurt library domains` CLI subcommand works cleanly
+        res = CliRunner().invoke(kurt_main.app, ["library", "domains"])
+        self.assertEqual(res.exit_code, 0, res.output)
+        self.assertIn("domains available", res.output)
+
 
 if __name__ == "__main__":
     unittest.main()

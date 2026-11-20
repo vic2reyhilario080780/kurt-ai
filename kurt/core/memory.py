@@ -16,13 +16,14 @@ KURT_DIR = Path.home() / ".kurt"
 DB_PATH = KURT_DIR / "memory.db"
 
 
-def init_db():
-    """Initialize the memory database"""
-    KURT_DIR.mkdir(exist_ok=True)
+def _connect() -> sqlite3.Connection:
+    KURT_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    os.chmod(DB_PATH, 0o600)
+    try:
+        os.chmod(DB_PATH, 0o600)
+    except OSError:
+        pass
     cursor = conn.cursor()
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +35,6 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
@@ -43,78 +43,76 @@ def init_db():
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
     conn.commit()
+    return conn
+
+
+def init_db():
+    """Initialize the memory database"""
+    conn = _connect()
     conn.close()
 
 
 def save_message(session_id: str, role: str, content: str,
                   model: str = None, task_type: str = None):
     """Save a message to memory"""
-    conn = sqlite3.connect(DB_PATH)
-    os.chmod(DB_PATH, 0o600)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO conversations (session_id, role, content, model, task_type)
-        VALUES (?, ?, ?, ?, ?)
-    """, (session_id, role, redact(content), model, task_type))
-
-    # Update session
-    cursor.execute("""
-        INSERT OR REPLACE INTO sessions (id, title, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-    """, (session_id, f"Session {session_id[:8]}"))
-
-    conn.commit()
-    conn.close()
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO conversations (session_id, role, content, model, task_type)
+            VALUES (?, ?, ?, ?, ?)
+        """, (session_id, role, redact(content), model, task_type))
+        cursor.execute("""
+            INSERT OR REPLACE INTO sessions (id, title, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        """, (session_id, f"Session {session_id[:8]}"))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_history(session_id: str, limit: int = 20) -> list:
     """Get conversation history for a session"""
-    conn = sqlite3.connect(DB_PATH)
-    os.chmod(DB_PATH, 0o600)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT role, content FROM conversations
-        WHERE session_id = ?
-        ORDER BY timestamp DESC, id DESC
-        LIMIT ?
-    """, (session_id, limit))
-
-    rows = cursor.fetchall()
-    conn.close()
-
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT role, content FROM conversations
+            WHERE session_id = ?
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ?
+        """, (session_id, limit))
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
     # Reverse to get chronological order
-    messages = [{"role": row[0], "content": redact(row[1])} for row in reversed(rows)]
-    return messages
+    return [{"role": row[0], "content": redact(row[1])} for row in reversed(rows)]
 
 
 def list_sessions(limit: int = 10) -> list:
     """List recent sessions"""
-    conn = sqlite3.connect(DB_PATH)
-    os.chmod(DB_PATH, 0o600)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT id, title, updated_at FROM sessions
-        ORDER BY updated_at DESC
-        LIMIT ?
-    """, (limit,))
-
-    rows = cursor.fetchall()
-    conn.close()
-
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, title, updated_at FROM sessions
+            ORDER BY updated_at DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
     return [{"id": r[0], "title": r[1], "updated_at": r[2]} for r in rows]
 
 
 def clear_session(session_id: str):
     """Clear a specific session"""
-    conn = sqlite3.connect(DB_PATH)
-    os.chmod(DB_PATH, 0o600)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
-    cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-    conn.commit()
-    conn.close()
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        conn.commit()
+    finally:
+        conn.close()

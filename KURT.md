@@ -40,6 +40,18 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-20 — Full Kurt CLI audit & 8 bug fixes on the spot (Antigravity)
+- Ano:
+  - **Missing `/setting` in `/help` & `/` picker**: Added `/setting` to `SLASH_GROUPS` in [kurt/core/cli_orchestrator.py](kurt/core/cli_orchestrator.py) so it is visible in `/help` and the root Commands picker.
+  - **Slash output Rich markup bug**: Changed `console.print(slash_result.output)` to `markup=False` in [kurt/main.py](kurt/main.py) so plain-text/JSON slash outputs containing `[brackets]` (`/history`, `/skills`, `/models`, `/grep`, `/wallet`, `/tasks`, `/run`) never lose text or raise `MarkupError`.
+  - **Stale live `/config` display in active chat**: Refreshed `_persona`, `_theme`, `_icon`, and `_kurt_name` inside the `kurt chat` loop right after `/config` or `/setting` commands in [kurt/main.py](kurt/main.py) so theme/icon/name changes apply immediately without restarting chat.
+  - **Uncached/invalid media default banner & picker crash**: Guarded `media_label()` in [kurt/core/execution_preferences.py](kurt/core/execution_preferences.py) against `ValueError` so expired/cleared provider caches cannot crash the welcome banner, `/config show`, or `/image-model`/`/video-model` pickers (keeping strict validation in `media_target()`).
+  - **Corrupt MCP registry picker crash & `/skills` alignment**: Guarded `load_registry()` in `_mcp_items()` and `_connector_detail_items()` in [kurt/core/command_palette.py](kurt/core/command_palette.py) against `(ValueError, OSError)` with an `info` warning row, and trimmed split columns in `_split_item_columns()` so double-spaced `  —  ` items align cleanly.
+  - **Uninitialized SQLite crash in `memory.py`**: Added `_connect()` auto-initialization and `try/finally` connection closing in [kurt/core/memory.py](kurt/core/memory.py) so `/history` on `--no-memory` or fresh installs never fails with `OperationalError: no such table`.
+  - **CLI parity for `kurt library domains`**: Added `@app.command("domains")` to [kurt/capabilities/commands.py](kurt/capabilities/commands.py) matching `/library domains [name]` in chat.
+- Bakit: Full-CLI static, import, Typer tree, and slash/picker audit requested by the user to find and fix real bugs on the spot.
+- Validation: Audited all 168 `kurt.*` modules (0 import errors, 0 undefined names), all 217 Typer CLI `--help` commands (0 errors), and all 33 picker views (0 picker/slash issues). Added `test_cli_audit_bug_fixes` in [tests/test_command_palette.py](tests/test_command_palette.py); 100/100 isolated regression tests passed and `compileall` passed across `kurt/` and `tests/`.
+
 ## 2026-11-20 — Violet aligned picker UI, theme backgrounds, `/config` & full slash-menu pickers (Antigravity)
 - Ano:
   - **Violet + aligned picker layout**: Redesigned `_render` in [kurt/core/command_palette.py](kurt/core/command_palette.py) with violet clickable item titles (`#a78bfa`, selected bold lavender `#e9d5ff` + glowing orchid `▶`), soft sky-cyan descriptions (`#7dd3fc` / `#67e8f9`), soft emerald badges (`#6ee7b7`) for runnable defaults / local Ollama GGUF, muted slate for browse-only, subtle deep-violet header divider, and per-page vertical column alignment across commands, providers (preserving `Hugging Face — Full Hub` / `Inference Available` names), categories, and 3-column model lists.

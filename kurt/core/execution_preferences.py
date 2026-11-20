@@ -190,8 +190,12 @@ def media_target(kind, settings=None):
 
 def media_label(kind, settings=None):
     settings = persona.load_persona() if settings is None else settings
-    target = media_target(kind, settings)
-    prefix = "auto → " if settings.get(f"default_{kind}_model", "auto") == "auto" else ""
+    selected = settings.get(f"default_{kind}_model", "auto")
+    try:
+        target = media_target(kind, settings)
+    except ValueError:
+        return f"{selected} (needs catalog refresh or re-selection)"
+    prefix = "auto → " if selected == "auto" else ""
     return f"{prefix}{target['model']} [{target['provider']}]"
 
 

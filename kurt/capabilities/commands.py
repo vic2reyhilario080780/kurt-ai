@@ -108,6 +108,15 @@ def register_commands(main_app, skill_app, plugin_app, console):
     def stats():
         console.print(summary(), markup=False)
 
+    @app.command("domains")
+    def domains_cmd(name: Optional[str] = typer.Argument(None, help="Optional domain name to inspect")):
+        """List all 100 native dataset domains, or inspect one domain's metrics and operations."""
+        try:
+            text = describe_domain(name) if name else list_domains()
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(text, markup=False)
+
     @app.command("search")
     def search(query: str = typer.Argument(""), kind: Optional[str] = typer.Option(None),
                limit: int = typer.Option(20, min=1, max=30000)):

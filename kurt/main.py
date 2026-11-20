@@ -813,9 +813,14 @@ def chat(
 
                 if slash_result.handled:
                     if slash_result.output:
-                        console.print(slash_result.output)
+                        console.print(slash_result.output, markup=False)
                         if slash_result.continue_chat:
                             _voice_reply(slash_result.output)
+                    if prompt.lower().startswith(("/config", "/setting")):
+                        _persona = load_persona()
+                        _theme = get_theme()
+                        _icon = get_icon()
+                        _kurt_name = _persona.get("kurt_name", "KURT")
                     if slash_result.model_override:
                         current_model = slash_result.model_override
                         execution.model = current_model
