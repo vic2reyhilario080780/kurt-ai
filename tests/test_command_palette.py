@@ -209,5 +209,113 @@ class ConnectorDirectoryTests(unittest.TestCase):
             fake_open.assert_called_with("https://n8n.io/integrations/slack/")
 
 
+class PaletteRenderingTests(unittest.TestCase):
+    def test_violet_items_aligned_descriptions_and_non_clickable_info_skipping(self):
+        from kurt.core import command_palette as cp
+        rows = [
+            {"label": "Header count info", "kind": "info"},
+            {"label": "Hugging Face — Full Hub — 277 additional models", "kind": "open", "target": "catalog_provider:huggingface_hub"},
+            {"label": "Qwen3 [Qwen/Qwen3-14B] — Text Generation — default: chat", "kind": "open", "target": "catalog_model:huggingface_inference:Qwen"},
+            {"label": "Footer scope description", "kind": "info"},
+            {"label": "Load next catalog pages", "kind": "provider_more", "provider": "huggingface_hub"},
+        ]
+        # Navigation helpers skip info rows cleanly
+        self.assertEqual(cp._first_selectable(rows), 1)
+        self.assertEqual(cp._step_selectable(rows, 1, 1), 2)
+        self.assertEqual(cp._step_selectable(rows, 2, 1), 4)
+        self.assertEqual(cp._step_selectable(rows, 4, 1), 1)
+        self.assertEqual(cp._step_selectable(rows, 1, -1), 4)
+        # Splitting preserves HF provider names and 3-column model rows
+        self.assertEqual(cp._split_item_columns(rows[1]), ("Hugging Face — Full Hub", "277 additional models", ""))
+        self.assertEqual(cp._split_item_columns(rows[2]), ("Qwen3 [Qwen/Qwen3-14B]", "Text Generation", "default: chat"))
+        # Rendering uses violet item styles, sky-cyan descriptions, emerald runnable badge, and ℹ for info rows
+        state = cp._PaletteState(is_open=True, view="model_catalog", index=1)
+        with patch.object(cp, "_current_items", return_value=rows):
+            fragments = cp._render(state, "/")
+        rendered = "".join(t for _, t in fragments)
+        self.assertIn("ℹ Header count info", rendered)
+        self.assertNotIn("▶ Header count info", rendered)
+        self.assertTrue(any(s == cp._STYLE_ITEM_SELECTED and "Hugging Face — Full Hub" in t for s, t in fragments))
+        self.assertTrue(any(s == cp._STYLE_ITEM and "Qwen3 [Qwen/Qwen3-14B]" in t for s, t in fragments))
+        self.assertTrue(any(s == cp._STYLE_DESC_SELECTED and "277 additional models" in t for s, t in fragments))
+        self.assertTrue(any(s == cp._STYLE_BADGE_OK and "default: chat" in t for s, t in fragments))
+        self.assertTrue(any(s == cp._STYLE_INFO and "ℹ Footer scope description" in t for s, t in fragments))
+        # Aligned description columns start at matching visual offsets
+        lines = [ln for ln in rendered.splitlines() if "277 additional models" in ln or "Text Generation" in ln]
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0].index("277 additional models"), lines[1].index("Text Generation"))
+
+    def test_config_pickers_theme_backgrounds_and_converted_slash_pickers(self):
+        from kurt.core import command_palette as cp, persona
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(persona, "KURT_DIR", root), \
+                 patch.object(persona, "PERSONA_PATH", root / "persona.json"), \
+                 patch.object(manager, "SKILLS_DIR", root / "skills"):
+                # All config choices open pickers (no manual typing)
+                cfg_items = cp._config_items("")
+                targets = {r.get("target") for r in cfg_items if r.get("kind") == "open"}
+                for expected in ("config_theme", "config_background", "config_icon", "config_language",
+                                 "config_voice", "config_greeting", "config_aimode", "config_display",
+                                 "config_reset", "default_models", "cli_settings", "media_image", "media_video"):
+                    self.assertIn(expected, targets)
+                # Theme & background pickers carry live per-row bg_hex swatches
+                theme_rows = cp._config_theme_items("")
+                violet_row = next(r for r in theme_rows if r.get("value") == "/config theme violet")
+                self.assertEqual(violet_row["bg_hex"], "#160a2b")
+                state = cp._PaletteState(is_open=True, view="config_theme", index=1)
+                fragments = cp._render(state, "/")
+                self.assertTrue(any("bg:#160a2b" in s for s, _ in fragments))
+                # Direct one-shot /config commands save without prompting and update dynamic toolbar bg
+                for cmd_str in (
+                    "/config theme violet",
+                    "/config icon crown",
+                    "/config language tl",
+                    "/config voice default",
+                    "/config greeting hype",
+                    "/config aimode kurt_only",
+                    "/config compact on",
+                    "/config routing on",
+                ):
+                    res = orch.handle_slash(cmd_str, "s1", "auto", None)
+                    self.assertTrue(res.handled)
+                    self.assertIn("✅", res.output)
+                saved = persona.load_persona()
+                self.assertEqual(saved["theme"], "violet")
+                self.assertEqual(saved["icon"], "crown")
+                self.assertEqual(saved["language"], "tl")
+                self.assertEqual(saved["voice"], "default")
+                self.assertEqual(saved["greeting_style"], "hype")
+                self.assertEqual(saved["ai_mode"], "kurt_only")
+                self.assertTrue(saved["compact_mode"])
+                self.assertTrue(saved["show_routing_info"])
+                self.assertEqual(cp._active_bg_hex(), "#160a2b")
+                # Custom background override & transparent mode
+                res = orch.handle_slash("/config background royal_navy", "s1", "auto", None)
+                self.assertIn("#071426", res.output)
+                self.assertEqual(cp._active_bg_hex(), "#071426")
+                self.assertEqual(persona.get_theme()["background"], "on #071426")
+                res = orch.handle_slash("/config background none", "s1", "auto", None)
+                self.assertEqual(cp._active_bg_hex(), "")
+                self.assertEqual(persona.get_theme()["background"], "")
+                # Cancel reset preserves settings
+                res = orch.handle_slash("/config reset cancel", "s1", "auto", None)
+                self.assertEqual(persona.load_persona()["theme"], "violet")
+                # All previously non-picker slash menus now open real pickers
+                for slash_cmd, view_name in (
+                    ("/skill", "skills"),
+                    ("/speech", "speech"),
+                    ("/wallet", "wallet"),
+                    ("/doctor", "doctor"),
+                    ("/computer", "computer"),
+                    ("/browser", "browser"),
+                    ("/tasks", "tasks"),
+                    ("/library", "library"),
+                ):
+                    self.assertEqual(cp.OPEN_TARGETS[slash_cmd], view_name)
+                    items = cp._current_items(cp._PaletteState(is_open=True, view=view_name), "")
+                    self.assertTrue(any(r.get("kind") == "leaf" for r in items), f"No leaf rows in {view_name}")
+
+
 if __name__ == "__main__":
     unittest.main()

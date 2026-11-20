@@ -528,10 +528,13 @@ def handle_slash(
 
     # ── /config ─────────────────────────────────────────────────────
     if cmd == "/config":
-        if args.strip() in ("model", "cli", "image", "video"):
+        raw_parts = args.strip().split(None, 1)
+        sub = raw_parts[0].lower() if raw_parts else ""
+        sub_val = raw_parts[1].strip() if len(raw_parts) > 1 else ""
+        if sub in ("model", "cli", "image", "video") and not sub_val:
             from kurt.core.persona import load_persona
             settings = load_persona()
-            kind = args.strip()
+            kind = sub
             usage = "/model default <model-id> [provider]" if kind == "model" else (f"/{kind}-model <model-id> fal|replicate" if kind in ("image", "video") else "/cli default <name>")
             key = f"default_{kind}_model" if kind in ("image", "video") else f"default_{kind}"
             return SlashResult(True, f"Default {kind}: {settings.get(key, 'auto')}\nSet: {usage}\nOr choose from / → /config → {kind}.", True)
@@ -539,7 +542,38 @@ def handle_slash(
             config_show, config_theme_wizard, config_name_wizard,
             config_icon_wizard, config_language_wizard, config_aimode_wizard,
             config_projects_wizard, config_full_wizard, reset_persona,
+            set_theme, set_background, set_icon, set_language,
+            set_voice, set_greeting_style, set_ai_mode, set_bool_option,
         )
+        direct_setters = {
+            "theme": set_theme,
+            "background": set_background,
+            "bg": set_background,
+            "language": set_language,
+            "lang": set_language,
+            "voice": set_voice,
+            "greeting": set_greeting_style,
+            "aimode": set_ai_mode,
+        }
+        if sub in direct_setters and sub_val:
+            try:
+                return SlashResult(handled=True, output=direct_setters[sub](sub_val), continue_chat=True)
+            except ValueError as exc:
+                return SlashResult(handled=True, output=f"❌ {exc}", continue_chat=True)
+        if sub == "icon" and sub_val:
+            if sub_val.lower() == "custom":
+                config_icon_wizard()
+                return SlashResult(handled=True, output="", continue_chat=True)
+            try:
+                return SlashResult(handled=True, output=set_icon(sub_val), continue_chat=True)
+            except ValueError as exc:
+                return SlashResult(handled=True, output=f"❌ {exc}", continue_chat=True)
+        if sub in ("compact", "routing") and sub_val:
+            field = "compact_mode" if sub == "compact" else "show_routing_info"
+            try:
+                return SlashResult(handled=True, output=set_bool_option(field, sub_val), continue_chat=True)
+            except ValueError as exc:
+                return SlashResult(handled=True, output=f"❌ {exc}", continue_chat=True)
         wizards = {
             "": config_show,
             "show": config_show,
@@ -552,15 +586,16 @@ def handle_slash(
             "projects": config_projects_wizard,
             "setup": config_full_wizard,
         }
-        sub = args.strip().lower()
         if sub == "reset":
+            if sub_val.lower() == "cancel":
+                return SlashResult(handled=True, output="Cancelled; persona unchanged.", continue_chat=True)
             reset_persona()
             return SlashResult(handled=True, output="♻️  Persona reset to defaults.", continue_chat=True)
         wizard = wizards.get(sub)
         if wizard is None:
             return SlashResult(
                 handled=True,
-                output="Usage: /config [show|theme|name|icon|language|aimode|projects|setup|reset]",
+                output="Usage: /config [show|theme|background|icon|language|voice|greeting|aimode|compact|routing|name|projects|setup|reset]",
                 continue_chat=True,
             )
         # These wizards print/prompt directly (interactive Rich prompts) — run them

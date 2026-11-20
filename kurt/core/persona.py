@@ -45,7 +45,25 @@ BUILTIN_THEMES = {
         "banner_color": "bold cyan",
         "box_style": "ROUNDED",
         "emoji_prefix": "🤖",
-        "background": "on #001414",
+        "bg_hex": "#061b1e",
+        "background": "on #061b1e",
+    },
+    "violet": {
+        "name": "Violet Glow",
+        "primary": "bold #c084fc",
+        "secondary": "#a78bfa",
+        "accent": "bold #67e8f9",
+        "border": "#a78bfa",
+        "dim": "dim",
+        "success": "bold green",
+        "error": "bold red",
+        "warning": "bold yellow",
+        "info": "dim #a78bfa",
+        "banner_color": "bold #c084fc",
+        "box_style": "ROUNDED",
+        "emoji_prefix": "🔮",
+        "bg_hex": "#160a2b",
+        "background": "on #160a2b",
     },
     "neon": {
         "name": "Neon Pink",
@@ -61,7 +79,8 @@ BUILTIN_THEMES = {
         "banner_color": "bold magenta",
         "box_style": "DOUBLE",
         "emoji_prefix": "✨",
-        "background": "on #15001a",
+        "bg_hex": "#1e0726",
+        "background": "on #1e0726",
     },
     "matrix": {
         "name": "Matrix Green",
@@ -77,7 +96,8 @@ BUILTIN_THEMES = {
         "banner_color": "bold green",
         "box_style": "MINIMAL",
         "emoji_prefix": "🟢",
-        "background": "on #000a00",
+        "bg_hex": "#061709",
+        "background": "on #061709",
     },
     "gold": {
         "name": "Gold / Royal",
@@ -93,7 +113,8 @@ BUILTIN_THEMES = {
         "banner_color": "bold yellow",
         "box_style": "HEAVY",
         "emoji_prefix": "👑",
-        "background": "on #1a1500",
+        "bg_hex": "#1e1705",
+        "background": "on #1e1705",
     },
     "minimal": {
         "name": "Minimal White",
@@ -109,6 +130,7 @@ BUILTIN_THEMES = {
         "banner_color": "bold white",
         "box_style": "SIMPLE",
         "emoji_prefix": "◆",
+        "bg_hex": "",
         "background": "",
     },
     "sunset": {
@@ -125,7 +147,8 @@ BUILTIN_THEMES = {
         "banner_color": "bold orange1",
         "box_style": "ROUNDED",
         "emoji_prefix": "🌅",
-        "background": "on #1a0a00",
+        "bg_hex": "#240e06",
+        "background": "on #240e06",
     },
     "ocean": {
         "name": "Ocean Blue",
@@ -141,7 +164,8 @@ BUILTIN_THEMES = {
         "banner_color": "bold blue",
         "box_style": "ROUNDED",
         "emoji_prefix": "🌊",
-        "background": "on #00091a",
+        "bg_hex": "#071426",
+        "background": "on #071426",
     },
     "pinoy": {
         "name": "Pinoy — Blue, Red, Yellow",
@@ -157,8 +181,21 @@ BUILTIN_THEMES = {
         "banner_color": "bold blue",
         "box_style": "ROUNDED",
         "emoji_prefix": "🇵🇭",
-        "background": "on #00071a",
+        "bg_hex": "#09132b",
+        "background": "on #09132b",
     },
+}
+
+BUILTIN_BACKGROUNDS = {
+    "theme":         {"name": "Theme Default",     "hex": "",        "desc": "Follow the active theme's background color"},
+    "deep_violet":   {"name": "Deep Violet",       "hex": "#160a2b", "desc": "Rich dark violet backdrop"},
+    "midnight_cyan": {"name": "Midnight Cyan",     "hex": "#061b1e", "desc": "Dark cyber teal-cyan backdrop"},
+    "neon_plum":     {"name": "Neon Plum",         "hex": "#1e0726", "desc": "Dark magenta-plum backdrop"},
+    "royal_navy":    {"name": "Royal Navy",        "hex": "#071426", "desc": "Deep ocean navy backdrop"},
+    "matrix_dark":   {"name": "Matrix Dark",       "hex": "#061709", "desc": "Deep emerald-black backdrop"},
+    "warm_sunset":   {"name": "Warm Sunset",       "hex": "#240e06", "desc": "Warm dark amber-brown backdrop"},
+    "obsidian":      {"name": "Obsidian Slate",    "hex": "#11131a", "desc": "Neutral dark charcoal slate"},
+    "none":          {"name": "Transparent / None","hex": "none",    "desc": "Use your terminal's own background"},
 }
 
 # ══════════════════════════════════════════════════════════════
@@ -302,6 +339,7 @@ DEFAULT_PERSONA = {
     "kurt_name": "KURT",          # Pwedeng palitan ang pangalan ni KURT
     # Theme
     "theme": "cyber",             # Key from BUILTIN_THEMES
+    "custom_background": "theme", # Key from BUILTIN_BACKGROUNDS or #rrggbb
     "icon": "robot",              # Key from BUILTIN_ICONS
     "custom_icon": None,          # Kung "custom" ang icon, dito ilagay
     # Voice (TTS persona for wake_word.speak())
@@ -365,10 +403,122 @@ def reset_persona():
 # GETTERS (shortcuts para sa main.py)
 # ══════════════════════════════════════════════════════════════
 
+def get_theme_bg_hex(p: Optional[dict] = None) -> str:
+    """Return active background hex color (e.g. '#160a2b') or '' for terminal default."""
+    import re
+    if p is None:
+        p = load_persona()
+    bg_choice = (p.get("custom_background") or "theme").strip()
+    if bg_choice == "none":
+        return ""
+    if bg_choice in BUILTIN_BACKGROUNDS and bg_choice != "theme":
+        hx = BUILTIN_BACKGROUNDS[bg_choice]["hex"]
+        return "" if hx == "none" else hx
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", bg_choice):
+        return bg_choice.lower()
+    base = BUILTIN_THEMES.get(p.get("theme", "cyber"), BUILTIN_THEMES["cyber"])
+    return base.get("bg_hex", "")
+
+
 def get_theme() -> dict:
-    """Return current theme dict"""
+    """Return current theme dict with resolved active background."""
     p = load_persona()
-    return BUILTIN_THEMES.get(p.get("theme", "cyber"), BUILTIN_THEMES["cyber"])
+    theme = dict(BUILTIN_THEMES.get(p.get("theme", "cyber"), BUILTIN_THEMES["cyber"]))
+    bg_hex = get_theme_bg_hex(p)
+    theme["bg_hex"] = bg_hex
+    theme["background"] = f"on {bg_hex}" if bg_hex else ""
+    return theme
+
+
+def set_theme(choice: str) -> str:
+    key = (choice or "").strip().lower()
+    if key not in BUILTIN_THEMES:
+        raise ValueError("Choose theme: " + ", ".join(BUILTIN_THEMES.keys()))
+    p = load_persona()
+    p["theme"] = key
+    save_persona(p)
+    theme = BUILTIN_THEMES[key]
+    return f"✅ Theme set to: {theme.get('emoji_prefix', '')} {theme['name']} (background: {get_theme_bg_hex(p) or 'terminal default'})"
+
+
+def set_background(choice: str) -> str:
+    import re
+    key = (choice or "").strip().lower()
+    if key not in BUILTIN_BACKGROUNDS and not re.fullmatch(r"#[0-9a-fA-F]{6}", key):
+        raise ValueError("Choose background: " + ", ".join(BUILTIN_BACKGROUNDS.keys()) + " or #rrggbb")
+    p = load_persona()
+    p["custom_background"] = key
+    save_persona(p)
+    label = BUILTIN_BACKGROUNDS[key]["name"] if key in BUILTIN_BACKGROUNDS else key
+    return f"✅ Background set to: {label} ({get_theme_bg_hex(p) or 'transparent'})"
+
+
+def set_icon(choice: str) -> str:
+    key = (choice or "").strip().lower()
+    if key not in BUILTIN_ICONS or key == "custom":
+        raise ValueError("Choose icon: " + ", ".join(k for k in BUILTIN_ICONS if k != "custom"))
+    p = load_persona()
+    p["icon"] = key
+    save_persona(p)
+    return f"✅ Icon set to: {get_icon()} ({key})"
+
+
+def set_language(code: str) -> str:
+    key = (code or "").strip().lower()
+    if key not in SUPPORTED_LANGUAGES:
+        raise ValueError("Choose language: " + ", ".join(SUPPORTED_LANGUAGES.keys()))
+    p = load_persona()
+    p["language"] = key
+    save_persona(p)
+    lang = SUPPORTED_LANGUAGES[key]
+    return f"✅ Language set to: {lang['flag']} {lang['name']}"
+
+
+def set_voice(choice: str) -> str:
+    key = (choice or "").strip().lower()
+    if key not in VOICE_PRESETS:
+        raise ValueError("Choose voice: " + ", ".join(VOICE_PRESETS.keys()))
+    p = load_persona()
+    p["voice"] = key
+    save_persona(p)
+    return f"✅ Voice set to: {VOICE_PRESETS[key]['label']} ({key})"
+
+
+def set_greeting_style(style: str) -> str:
+    key = (style or "").strip().lower()
+    if key not in ("casual", "professional", "hype"):
+        raise ValueError("Choose greeting style: casual, professional, hype")
+    p = load_persona()
+    p["greeting_style"] = key
+    save_persona(p)
+    return f"✅ Greeting style set to: {key}\nPreview: {get_greeting()}"
+
+
+def set_ai_mode(mode: str) -> str:
+    key = (mode or "").strip().lower()
+    if key not in ("hybrid", "kurt_only", "claude_only"):
+        raise ValueError("Choose AI mode: hybrid, kurt_only, claude_only")
+    p = load_persona()
+    p["ai_mode"] = key
+    save_persona(p)
+    return f"✅ AI Mode set to: {key}"
+
+
+def set_bool_option(field: str, value: str) -> str:
+    if field not in ("compact_mode", "show_routing_info"):
+        raise ValueError("Unsupported display toggle.")
+    norm = (value or "").strip().lower()
+    if norm in ("on", "true", "1", "yes"):
+        enabled = True
+    elif norm in ("off", "false", "0", "no"):
+        enabled = False
+    else:
+        raise ValueError("Use on or off.")
+    p = load_persona()
+    p[field] = enabled
+    save_persona(p)
+    label = "Compact Mode" if field == "compact_mode" else "Show Routing Info"
+    return f"✅ {label}: {'ON' if enabled else 'OFF'}"
 
 
 def get_voice_preset() -> dict:
@@ -439,7 +589,7 @@ def get_ai_mode() -> str:
 def config_show():
     """Display current persona config"""
     p = load_persona()
-    theme = BUILTIN_THEMES.get(p.get("theme", "cyber"), BUILTIN_THEMES["cyber"])
+    theme = get_theme()
     lang = SUPPORTED_LANGUAGES.get(p.get("language", "taglish"), SUPPORTED_LANGUAGES["taglish"])
     icon = get_icon()
 
@@ -449,6 +599,7 @@ def config_show():
         title=f"{icon} KURT Persona Config",
         box=box.ROUNDED,
         border_style=theme["border"],
+        style=theme.get("background", ""),
         show_header=True,
         header_style=theme["primary"],
     )
@@ -459,6 +610,9 @@ def config_show():
     table.add_row("User Name", p.get("user_name", "Boss"), "Kung paano kang tatawagin ni KURT")
     table.add_row("KURT Name", p.get("kurt_name", "KURT"), "Pangalan ni KURT")
     table.add_row("Theme", f"{p.get('theme','cyber')} — {theme['name']}", "Color palette")
+    bg_key = p.get("custom_background", "theme")
+    bg_hex = get_theme_bg_hex(p) or "transparent"
+    table.add_row("Background", f"{bg_key} ({bg_hex})", "Theme / picker background color")
     table.add_row("Icon", f"{icon} ({p.get('icon','robot')})", "KURT icon")
     voice = VOICE_PRESETS.get(p.get("voice", "young_boy"), VOICE_PRESETS["young_boy"])
     table.add_row("Voice", f"{p.get('voice','young_boy')} — {voice['label']}", "TTS voice (Hey Kurt / F5)")

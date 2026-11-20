@@ -2402,13 +2402,32 @@ def config_setup_cmd():
 
 @config_app.command("theme")
 def config_theme_cmd():
-    """🎨 Change color theme — cyber, neon, matrix, gold, minimal, sunset, ocean, pinoy"""
+    """🎨 Change color theme — violet, cyber, neon, matrix, gold, minimal, sunset, ocean, pinoy"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("theme")
+        return
     config_theme_wizard()
+
+
+@config_app.command("background")
+def config_background_cmd():
+    """🎨 Change theme / picker background color"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("background")
+        return
+    from kurt.core.persona import BUILTIN_BACKGROUNDS
+    console.print("Available backgrounds: " + ", ".join(BUILTIN_BACKGROUNDS.keys()))
 
 
 @config_app.command("language")
 def config_language_cmd():
     """🌐 Set output language — en, tl, taglish, ja, zh, es, ko"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("language")
+        return
     config_language_wizard()
 
 
@@ -2421,12 +2440,41 @@ def config_name_cmd():
 @config_app.command("icon")
 def config_icon_cmd():
     """🎯 Change KURT's icon"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("icon")
+        return
     config_icon_wizard()
+
+
+@config_app.command("voice")
+def config_voice_cmd():
+    """🎤 Choose Kurt's spoken TTS voice preset"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("voice")
+        return
+    from kurt.core.persona import VOICE_PRESETS
+    console.print("Available voices: " + ", ".join(VOICE_PRESETS.keys()))
+
+
+@config_app.command("greeting")
+def config_greeting_cmd():
+    """👋 Choose greeting style — casual, professional, hype"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("greeting")
+        return
+    console.print("Greeting styles: casual, professional, hype")
 
 
 @config_app.command("aimode")
 def config_aimode_cmd():
     """🤖 Set AI mode — hybrid (KURT+Claude), kurt_only, claude_only"""
+    if sys.stdin.isatty():
+        from kurt.core.command_palette import pick_execution_default
+        pick_execution_default("aimode")
+        return
     config_aimode_wizard()
 
 

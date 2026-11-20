@@ -27,7 +27,7 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.styles import Style
+from prompt_toolkit.styles import DynamicStyle, Style
 
 from kurt.core.cli_orchestrator import SLASH_COMMANDS, SLASH_GROUPS
 
@@ -37,6 +37,7 @@ WINDOW = 10  # max visible rows at once
 
 # Categories whose root-level command row opens a nested browsing list.
 OPEN_TARGETS = {
+    "/skill": "skills",
     "/skills": "skills",
     "/mcp": "mcp",
     "/connect": "connectors",
@@ -44,6 +45,7 @@ OPEN_TARGETS = {
     "/n8n": "n8n",
     "/agents": "agents",
     "/plugins": "plugins",
+    "/library": "library",
     "/model": "model",
     "/models": "model_catalog",
     "/image-model": "media_image",
@@ -51,21 +53,31 @@ OPEN_TARGETS = {
     "/config": "config",
     "/setting": "execution_defaults",
     "/cli": "cli_settings",
+    "/speech": "speech",
+    "/wallet": "wallet",
+    "/doctor": "doctor",
+    "/computer": "computer",
+    "/browser": "browser",
+    "/tasks": "tasks",
 }
 
 CONFIG_SUBCOMMANDS = [
     ("show", "Show current persona/theme settings"),
-    ("theme", "Pick a color theme"),
-    ("name", "Set Kurt's display name"),
-    ("icon", "Set Kurt's icon/emoji"),
-    ("language", "Set reply language (Tagalog/English/Taglish)"),
+    ("theme", "Pick a color theme (with background preview)"),
+    ("background", "Pick a background color for themes & pickers"),
+    ("icon", "Pick Kurt's icon/emoji"),
+    ("language", "Pick reply language (Tagalog/English/Taglish)"),
+    ("voice", "Pick Kurt's spoken TTS voice"),
+    ("greeting", "Pick greeting style (casual/professional/hype)"),
+    ("aimode", "Pick AI mode (hybrid/kurt_only/claude_only)"),
+    ("display", "Toggle compact mode & routing info"),
     ("model", "Chat AI — choose default conversational model"),
     ("cli", "CLI — choose default command-line AI"),
     ("image", "Choose a default image generator"),
     ("video", "Choose a default video generator"),
-    ("aimode", "Set AI personality mode"),
-    ("projects", "Manage per-project context"),
-    ("setup", "Run the full setup wizard"),
+    ("name", "Set Kurt's display name (text input)"),
+    ("projects", "Manage per-project context (text input)"),
+    ("setup", "Run the full personalization wizard"),
     ("reset", "Reset persona to defaults"),
 ]
 
@@ -75,7 +87,23 @@ CONFIG_SUBCOMMANDS = [
 # attributes a later rule explicitly sets, and "" sets nothing, so the
 # inherited reverse=True from the built-in default style survives untouched.
 # "noreverse" is the explicit attribute that actually clears it.
-_STYLE = Style.from_dict({"bottom-toolbar": "noreverse", "bottom-toolbar.text": "noreverse"})
+def _active_bg_hex() -> str:
+    try:
+        from kurt.core.persona import PERSONA_PATH, get_theme_bg_hex
+        if not PERSONA_PATH.exists():
+            return ""
+        return get_theme_bg_hex() or ""
+    except OSError:
+        return ""
+
+
+def _build_toolbar_style() -> Style:
+    bg = _active_bg_hex()
+    rule = f"noreverse bg:{bg}" if bg else "noreverse"
+    return Style.from_dict({"bottom-toolbar": rule, "bottom-toolbar.text": rule})
+
+
+_STYLE = DynamicStyle(_build_toolbar_style)
 
 
 @dataclass
@@ -746,14 +774,264 @@ def _media_model_items(kind, query):
     return [row for row in rows if _matches(query, row["label"])]
 
 
+_CONFIG_PICKER_TARGETS = {
+    "theme": "config_theme",
+    "background": "config_background",
+    "icon": "config_icon",
+    "language": "config_language",
+    "voice": "config_voice",
+    "greeting": "config_greeting",
+    "aimode": "config_aimode",
+    "display": "config_display",
+    "reset": "config_reset",
+    "model": "default_models",
+    "cli": "cli_settings",
+    "image": "media_image",
+    "video": "media_video",
+}
+
+
+def _safe_persona() -> dict:
+    try:
+        from kurt.core.persona import load_persona
+        return load_persona()
+    except OSError:
+        from kurt.core.persona import DEFAULT_PERSONA
+        return dict(DEFAULT_PERSONA)
+
+
 def _config_items(query: str) -> list[dict]:
     return [
-        {"label": f"{sub:<10} {desc}", "kind": "open", "target": {"model": "default_models", "cli": "cli_settings", "image": "media_image", "video": "media_video"}[sub]}
-        if sub in ("model", "cli", "image", "video") else
-        {"label": f"{sub:<10} {desc}", "kind": "leaf", "value": f"/config {sub}"}
+        {"label": f"{sub:<12} {desc}", "kind": "open", "target": _CONFIG_PICKER_TARGETS[sub]}
+        if sub in _CONFIG_PICKER_TARGETS else
+        {"label": f"{sub:<12} {desc}", "kind": "leaf", "value": f"/config {sub}"}
         for sub, desc in CONFIG_SUBCOMMANDS
         if _matches(query, sub, desc)
     ]
+
+
+def _config_theme_items(query: str) -> list[dict]:
+    from kurt.core.persona import BUILTIN_THEMES
+    p = _safe_persona()
+    cur = p.get("theme", "cyber")
+    rows = [{"label": f"Current theme: {cur} — Enter to apply immediately (preview shows each theme's background)", "kind": "info"}]
+    for key, theme in BUILTIN_THEMES.items():
+        prefix = theme.get("emoji_prefix", "●")
+        bg_hex = theme.get("bg_hex", "")
+        mark = " · ✓ current" if key == cur else ""
+        bg_note = bg_hex or "transparent"
+        rows.append({
+            "label": f"{prefix} {key} — {theme['name']} (bg: {bg_note}){mark}",
+            "kind": "leaf",
+            "value": f"/config theme {key}",
+            "bg_hex": bg_hex or "none",
+        })
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_background_items(query: str) -> list[dict]:
+    from kurt.core.persona import BUILTIN_BACKGROUNDS, get_theme_bg_hex
+    p = _safe_persona()
+    cur = p.get("custom_background", "theme")
+    rows = [{"label": f"Current background: {cur} ({get_theme_bg_hex(p) or 'transparent'}) — Enter to apply", "kind": "info"}]
+    for key, spec in BUILTIN_BACKGROUNDS.items():
+        mark = " · ✓ current" if key == cur else ""
+        hx = spec["hex"]
+        preview = hx if hx.startswith("#") else ("none" if hx == "none" else get_theme_bg_hex(p) or "none")
+        rows.append({
+            "label": f"{spec['name']} [{key}] — {spec['desc']}{mark}",
+            "kind": "leaf",
+            "value": f"/config background {key}",
+            "bg_hex": preview,
+        })
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_icon_items(query: str) -> list[dict]:
+    from kurt.core.persona import BUILTIN_ICONS
+    cur = _safe_persona().get("icon", "robot")
+    rows = [{"label": f"Current icon: {cur} — Enter to select", "kind": "info"}]
+    for key, emoji in BUILTIN_ICONS.items():
+        mark = " · ✓ current" if key == cur else ""
+        if emoji is None:
+            rows.append({"label": f"✨ custom — Enter your own emoji/icon{mark}", "kind": "leaf", "value": "/config icon custom"})
+        else:
+            rows.append({"label": f"{emoji} {key} — Use {emoji} as Kurt's icon{mark}", "kind": "leaf", "value": f"/config icon {key}"})
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_language_items(query: str) -> list[dict]:
+    from kurt.core.persona import SUPPORTED_LANGUAGES
+    cur = _safe_persona().get("language", "taglish")
+    rows = [{"label": f"Current language: {cur} — Enter to select", "kind": "info"}]
+    for code, lang in SUPPORTED_LANGUAGES.items():
+        mark = " · ✓ current" if code == cur else ""
+        rows.append({"label": f"{lang['flag']} {lang['name']} [{code}] — Reply in {lang['name']}{mark}", "kind": "leaf", "value": f"/config language {code}"})
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_voice_items(query: str) -> list[dict]:
+    from kurt.core.persona import VOICE_PRESETS
+    cur = _safe_persona().get("voice", "young_boy")
+    rows = [{"label": f"Current TTS voice: {cur} — Enter to select", "kind": "info"}]
+    for key, spec in VOICE_PRESETS.items():
+        mark = " · ✓ current" if key == cur else ""
+        rows.append({"label": f"🎤 {spec['label']} [{key}] — Edge voice {spec['edge_voice']}{mark}", "kind": "leaf", "value": f"/config voice {key}"})
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_greeting_items(query: str) -> list[dict]:
+    cur = _safe_persona().get("greeting_style", "casual")
+    opts = [
+        ("casual", "Relaxed, friendly Taglish/English greetings"),
+        ("professional", "Formal, respectful greetings"),
+        ("hype", "Energetic, excited greetings 🔥"),
+    ]
+    rows = [{"label": f"Current greeting style: {cur} — Enter to select", "kind": "info"}]
+    for key, desc in opts:
+        mark = " · ✓ current" if key == cur else ""
+        rows.append({"label": f"{key} — {desc}{mark}", "kind": "leaf", "value": f"/config greeting {key}"})
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_aimode_items(query: str) -> list[dict]:
+    cur = _safe_persona().get("ai_mode", "hybrid")
+    opts = [
+        ("hybrid", "KURT routing + Claude fallback/boost"),
+        ("kurt_only", "KURT providers only (OpenRouter/Groq/Ollama/BYOK)"),
+        ("claude_only", "Claude only (requires ANTHROPIC_API_KEY)"),
+    ]
+    rows = [{"label": f"Current AI mode: {cur} — Enter to select", "kind": "info"}]
+    for key, desc in opts:
+        mark = " · ✓ current" if key == cur else ""
+        rows.append({"label": f"{key} — {desc}{mark}", "kind": "leaf", "value": f"/config aimode {key}"})
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _config_display_items(query: str) -> list[dict]:
+    p = _safe_persona()
+    compact = bool(p.get("compact_mode", False))
+    routing = bool(p.get("show_routing_info", False))
+    rows = [
+        {"label": f"Compact Mode — currently {'ON' if compact else 'OFF'} (toggle {'OFF' if compact else 'ON'})",
+         "kind": "leaf", "value": f"/config compact {'off' if compact else 'on'}"},
+        {"label": f"Show Routing Info — currently {'ON' if routing else 'OFF'} (toggle {'OFF' if routing else 'ON'})",
+         "kind": "leaf", "value": f"/config routing {'off' if routing else 'on'}"},
+    ]
+    return [r for r in rows if _matches(query, r["label"])]
+
+
+def _config_reset_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Warning: resets theme, background, icon, language, voice & defaults to factory values.", "kind": "info"},
+        {"label": "Cancel — keep current persona settings", "kind": "leaf", "value": "/config reset cancel"},
+        {"label": "Confirm Reset — restore all persona defaults", "kind": "leaf", "value": "/config reset"},
+    ]
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _speech_items(query: str) -> list[dict]:
+    p = _safe_persona()
+    prov = p.get("speech_provider", "auto")
+    lang = p.get("speech_language", "auto")
+    pause = p.get("speech_pause_seconds", 2.0)
+    rows = [
+        {"label": f"Speech settings: provider={prov} · language={lang} · pause={pause}s", "kind": "info"},
+        {"label": "Status — inspect speech readiness, mic & vocabulary", "kind": "leaf", "value": "/speech status"},
+        {"label": f"Provider: Auto — Groq when configured, else cached local{' · ✓' if prov == 'auto' else ''}", "kind": "leaf", "value": "/speech provider auto"},
+        {"label": f"Provider: Groq — Whisper large-v3/turbo online{' · ✓' if prov == 'groq' else ''}", "kind": "leaf", "value": "/speech provider groq"},
+        {"label": f"Provider: Local — cached local Whisper only{' · ✓' if prov == 'local' else ''}", "kind": "leaf", "value": "/speech provider local"},
+        {"label": f"Language: Auto (Taglish) — automatic mixed Filipino/English{' · ✓' if lang == 'auto' else ''}", "kind": "leaf", "value": "/speech language auto"},
+        {"label": f"Language: Tagalog (tl) — explicit Filipino speech recognition{' · ✓' if lang == 'tl' else ''}", "kind": "leaf", "value": "/speech language tl"},
+        {"label": f"Language: English (en) — explicit English speech recognition{' · ✓' if lang == 'en' else ''}", "kind": "leaf", "value": "/speech language en"},
+        {"label": "Pause: 1.0s — faster reply after speaking", "kind": "leaf", "value": "/speech pause 1.0"},
+        {"label": "Pause: 1.5s — balanced trailing silence", "kind": "leaf", "value": "/speech pause 1.5"},
+        {"label": "Pause: 2.0s — default trailing silence", "kind": "leaf", "value": "/speech pause 2.0"},
+        {"label": "Pause: 3.0s — extra thinking time mid-sentence", "kind": "leaf", "value": "/speech pause 3.0"},
+        {"label": "Pause: 4.0s — maximum pause before sending", "kind": "leaf", "value": "/speech pause 4.0"},
+        {"label": "Tip: add custom vocabulary words via /speech word-add <name>", "kind": "info"},
+    ]
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _wallet_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Kurt Wallet — USD actual provider costs, 0% markup", "kind": "info"},
+        {"label": "Status — view USD balance, holds & available funds", "kind": "leaf", "value": "/wallet status"},
+        {"label": "History — view recent wallet ledger entries", "kind": "leaf", "value": "/wallet history"},
+        {"label": "Catalog — view wallet-supported providers", "kind": "leaf", "value": "/wallet catalog"},
+        {"label": "Top up $5 — create $5 USD Stripe Checkout link", "kind": "leaf", "value": "/wallet topup 5"},
+        {"label": "Top up $10 — create $10 USD Stripe Checkout link", "kind": "leaf", "value": "/wallet topup 10"},
+        {"label": "Top up $25 — create $25 USD Stripe Checkout link", "kind": "leaf", "value": "/wallet topup 25"},
+    ]
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _doctor_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Summary — overall system health diagnostics", "kind": "leaf", "value": "/doctor summary"},
+        {"label": "CPU — top CPU-consuming processes", "kind": "leaf", "value": "/doctor cpu"},
+        {"label": "Memory — RAM & swap pressure report", "kind": "leaf", "value": "/doctor mem"},
+        {"label": "Disk — free storage space & largest folders", "kind": "leaf", "value": "/doctor disk"},
+        {"label": "Network — active interfaces & connectivity", "kind": "leaf", "value": "/doctor net"},
+        {"label": "Crashes — recent crash reports & logs", "kind": "leaf", "value": "/doctor crashes"},
+        {"label": "Startup — login items & background launch agents", "kind": "leaf", "value": "/doctor startup"},
+    ]
+    return [r for r in rows if _matches(query, r["label"])]
+
+
+def _computer_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Screenshot — capture current screen to ~/.kurt/screenshots", "kind": "leaf", "value": "/computer screenshot"},
+        {"label": "Analyze screen — describe what is currently on screen", "kind": "leaf", "value": "/computer analyze"},
+        {"label": "Open current folder — reveal workspace in Finder/Explorer", "kind": "leaf", "value": "/computer open ."},
+        {"label": "Open Downloads — reveal ~/Downloads folder", "kind": "leaf", "value": "/computer open ~/Downloads"},
+        {"label": "Open Desktop — reveal ~/Desktop folder", "kind": "leaf", "value": "/computer open ~/Desktop"},
+    ]
+    return [r for r in rows if _matches(query, r["label"])]
+
+
+def _browser_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Playwright browser controls (type /browser open <url> to navigate)", "kind": "info"},
+        {"label": "Screenshot — save screenshot of current open page", "kind": "leaf", "value": "/browser screenshot"},
+        {"label": "Close — shut down persistent browser session", "kind": "leaf", "value": "/browser close"},
+    ]
+    return [r for r in rows if r["kind"] == "info" or _matches(query, r["label"])]
+
+
+def _tasks_items(query: str) -> list[dict]:
+    rows = [{"label": "List tasks — show all background shell tasks", "kind": "leaf", "value": "/tasks list"}]
+    try:
+        from kurt.core.subagents import manage_background_task
+        listed = manage_background_task(action="list")
+        for task in listed.get("tasks", []) if isinstance(listed, dict) else []:
+            tid = task.get("id") or task.get("task_id")
+            if not tid:
+                continue
+            status = task.get("status", "unknown")
+            cmd = str(task.get("cmd", ""))[:36]
+            rows.append({"label": f"Status {tid} — [{status}] {cmd}", "kind": "leaf", "value": f"/tasks status {tid}"})
+            if status == "running":
+                rows.append({"label": f"Kill {tid} — stop running task ({cmd})", "kind": "leaf", "value": f"/tasks kill {tid}"})
+    except Exception:
+        pass
+    return [r for r in rows if _matches(query, r["label"])]
+
+
+def _library_items(query: str) -> list[dict]:
+    rows = [
+        {"label": "Stats — native library overview & counts", "kind": "leaf", "value": "/library stats"},
+        {"label": "All domains — list all 100 native data domains", "kind": "leaf", "value": "/library domains"},
+    ]
+    try:
+        from kurt.capabilities import runtime
+        domains = sorted({e["domain"] for e in runtime.manifest().get("index", []) if e.get("domain")})
+        for dom in domains:
+            rows.append({"label": f"{dom} — inspect native workflows & metrics", "kind": "leaf", "value": f"/library domains {dom}"})
+    except Exception:
+        pass
+    return [r for r in rows if _matches(query, r["label"])]
 
 
 def _current_items(state: _PaletteState, query: str) -> list[dict]:
@@ -807,6 +1085,38 @@ def _current_items(state: _PaletteState, query: str) -> list[dict]:
         return _model_items(query)
     if state.view == "config":
         return _config_items(query)
+    if state.view == "config_theme":
+        return _config_theme_items(query)
+    if state.view == "config_background":
+        return _config_background_items(query)
+    if state.view == "config_icon":
+        return _config_icon_items(query)
+    if state.view == "config_language":
+        return _config_language_items(query)
+    if state.view == "config_voice":
+        return _config_voice_items(query)
+    if state.view == "config_greeting":
+        return _config_greeting_items(query)
+    if state.view == "config_aimode":
+        return _config_aimode_items(query)
+    if state.view == "config_display":
+        return _config_display_items(query)
+    if state.view == "config_reset":
+        return _config_reset_items(query)
+    if state.view == "speech":
+        return _speech_items(query)
+    if state.view == "wallet":
+        return _wallet_items(query)
+    if state.view == "doctor":
+        return _doctor_items(query)
+    if state.view == "computer":
+        return _computer_items(query)
+    if state.view == "browser":
+        return _browser_items(query)
+    if state.view == "tasks":
+        return _tasks_items(query)
+    if state.view == "library":
+        return _library_items(query)
 
     # state.view == "root"
     if state.tab == "commands":
@@ -834,18 +1144,112 @@ def _current_items(state: _PaletteState, query: str) -> list[dict]:
 
 
 def _personalized_highlight_style() -> str:
-    """Plain text (no color, no background block) until the user has
-    actually personalized Kurt via `kurt setting` — persona.json existing on
-    disk is that signal. Once personalized, the active tab / selected row
-    use the user's own theme color instead of a hardcoded reversed block,
-    so the highlight is never a flat white/inverted bar in a stock terminal."""
-    from kurt.core.persona import PERSONA_PATH, get_theme
+    """Selected clickable item highlight style (bright lavender-violet)."""
+    return _STYLE_ITEM_SELECTED
 
-    if not PERSONA_PATH.exists():
-        return ""
-    color = get_theme().get("primary", "bold cyan").split()[-1]
-    color = {"orange1": "orange"}.get(color, color)
-    return f"bold fg:{color}"
+
+# Palette visual styles (explicit noreverse + clean contrast on dark/stock terminals)
+_STYLE_HEADER = "bold fg:#c084fc"          # rich violet title
+_STYLE_RULE = "fg:#5b21b6"                 # subtle deep-violet divider
+_STYLE_TAB_ACTIVE = "bold fg:#e9d5ff underline"
+_STYLE_TAB_INACTIVE = "fg:#94a3b8"
+_STYLE_MARKER = "bold fg:#f0abfc"          # bright orchid ▶ indicator
+_STYLE_ITEM = "fg:#a78bfa"                 # violet item names
+_STYLE_ITEM_SELECTED = "bold fg:#e9d5ff"   # bright lavender-violet selected item
+_STYLE_DESC = "fg:#7dd3fc"                 # soft sky-cyan descriptions
+_STYLE_DESC_SELECTED = "fg:#67e8f9"        # crisp cyan selected description
+_STYLE_BADGE_OK = "fg:#6ee7b7"             # soft emerald for runnable defaults / Ollama GGUF
+_STYLE_BADGE_DIM = "fg:#94a3b8"            # muted slate for browse-only
+_STYLE_INFO = "fg:#64748b italic"          # non-clickable info notes (prefixed with ℹ)
+_STYLE_PAGE = "fg:#a5b4fc"                 # indigo page indicator
+_STYLE_NOTICE = "fg:#fde047"               # warm yellow feedback notice
+_STYLE_HINT = "fg:#64748b"                 # dim shortcut hint bar
+
+
+def _first_selectable(items: list[dict], start: int = 0) -> int:
+    if not items:
+        return 0
+    for i in range(start, len(items)):
+        if items[i].get("kind") != "info":
+            return i
+    for i in range(0, min(start, len(items))):
+        if items[i].get("kind") != "info":
+            return i
+    return 0
+
+
+def _step_selectable(items: list[dict], index: int, step: int) -> int:
+    if not items:
+        return 0
+    n = len(items)
+    cur = index % n
+    for _ in range(n):
+        cur = (cur + step) % n
+        if items[cur].get("kind") != "info":
+            return cur
+    return (index + step) % n
+
+
+def _split_item_columns(item: dict) -> tuple[str, str, str]:
+    """Split a clickable item label into (title, description, badge) for aligned rendering."""
+    import re
+    label = item.get("label", "")
+    if item.get("kind") == "info":
+        return (label, "", "")
+    if " — " in label:
+        parts = label.split(" — ")
+        # Preserve provider titles that include an em-dash (e.g. "Hugging Face — Full Hub")
+        if len(parts) >= 3 and parts[0] == "Hugging Face" and parts[1] in ("Full Hub", "Inference Available"):
+            title = f"{parts[0]} — {parts[1]}"
+            rest = parts[2:]
+            if len(rest) >= 2:
+                return (title, rest[0], " — ".join(rest[1:]))
+            return (title, rest[0], "")
+        if len(parts) >= 3 and "[" in parts[0] and "]" in parts[0]:
+            return (parts[0], parts[1], " — ".join(parts[2:]))
+        return (parts[0], " — ".join(parts[1:]), "")
+    match = re.search(r"\s{2,}", label)
+    if match:
+        left = label[:match.start()].strip()
+        right = label[match.end():].strip()
+        if left and right:
+            return (left, right, "")
+    return (label, "", "")
+
+
+def _with_row_bg(style: str, row_bg: str) -> str:
+    if not row_bg or row_bg == "none":
+        return style
+    return f"{style} bg:{row_bg}".strip()
+
+
+def _format_aligned_row(item: dict, selected: bool, title_w: int, desc_w: int) -> list[tuple[str, str]]:
+    if item.get("kind") == "info":
+        return [(_STYLE_INFO, f"  ℹ {item.get('label', '')}"), ("", "\n")]
+    row_bg = item.get("bg_hex", "")
+    title, desc, badge = _split_item_columns(item)
+    marker_chunk = (_with_row_bg(_STYLE_MARKER, row_bg), "▶ ") if selected else (_with_row_bg("", row_bg), "  ")
+    title_style = _with_row_bg(_STYLE_ITEM_SELECTED if selected else _STYLE_ITEM, row_bg)
+    desc_style = _with_row_bg(_STYLE_DESC_SELECTED if selected else _STYLE_DESC, row_bg)
+    chunks = [marker_chunk]
+    if desc or badge:
+        padded_title = title.ljust(title_w) if len(title) < title_w else title
+        chunks.append((title_style, padded_title))
+        if desc:
+            if badge:
+                padded_desc = desc.ljust(desc_w) if len(desc) < desc_w else desc
+                chunks.append((desc_style, f"  {padded_desc}"))
+            else:
+                chunks.append((desc_style, f"  {desc}"))
+        if badge:
+            low = badge.lower()
+            is_runnable = low.startswith("default:") or "ollama gguf" in low
+            badge_style = _with_row_bg(_STYLE_BADGE_OK if is_runnable else _STYLE_BADGE_DIM, row_bg)
+            chunks.append((badge_style, f"  · {badge}"))
+    else:
+        chunks.append((title_style, title))
+    chunks.append(("", "\n"))
+    return chunks
 
 
 def _paginated_provider(state: _PaletteState) -> Optional[str]:
@@ -867,22 +1271,52 @@ def _render(state: _PaletteState, buf_text: str):
     else:
         state.index = 0
 
-    highlight = _personalized_highlight_style()
     lines = []
 
     if state.view == "root":
         tab_bar = []
         for t in ROOT_TABS:
             label = f" {TAB_LABELS[t]} "
-            tab_bar.append((highlight if t == state.tab else "", label))
+            tab_bar.append((_STYLE_TAB_ACTIVE if t == state.tab else _STYLE_TAB_INACTIVE, label))
             tab_bar.append(("", "  "))
         lines.append(tab_bar + [("", "\n")])
     elif state.view == "show_all":
-        lines.append([("bold", "📖 All commands"), ("", "\n")])
+        lines.append([(_STYLE_HEADER, "📖 All commands"), ("", "\n")])
     else:
         icon = {"skills": "🧠", "mcp": "🔌", "connectors": "🔗", "zapier": "⚡", "n8n": "⚙️",
-                "agents": "⚙️", "plugins": "⚙️", "model": "🤖", "config": "🛠️"}.get(state.view, "")
-        title = {"execution_defaults": "Choose a default", "default_models": "Chat AI — save default", "model": "Chat AI — this session", "cli_settings": "CLI — save default", "media_image": "Image AI — save default", "media_video": "Video AI — save default"}.get(state.view, state.view)
+                "agents": "⚙️", "plugins": "⚙️", "model": "🤖", "config": "🛠️",
+                "config_theme": "🎨", "config_background": "🖼️", "config_icon": "🎯",
+                "config_language": "🌐", "config_voice": "🎤", "config_greeting": "👋",
+                "config_aimode": "🤖", "config_display": "🖥️", "config_reset": "♻️",
+                "speech": "🎤", "wallet": "💳", "doctor": "🩺", "computer": "🖱️",
+                "browser": "🌐", "tasks": "🗂️", "library": "📚",
+                "model_catalog": "📚", "execution_defaults": "⚙️", "default_models": "💬",
+                "cli_settings": "⌨️", "media_image": "🎨", "media_video": "🎬"}.get(state.view, "✨")
+        title = {
+            "execution_defaults": "Choose a default",
+            "default_models": "Chat AI — save default",
+            "model": "Chat AI — this session",
+            "cli_settings": "CLI — save default",
+            "media_image": "Image AI — save default",
+            "media_video": "Video AI — save default",
+            "config": "Personalize Kurt — pick a setting",
+            "config_theme": "Color Themes — live background preview",
+            "config_background": "Theme & Picker Background",
+            "config_icon": "Kurt Icon — pick an emoji",
+            "config_language": "Reply Language",
+            "config_voice": "TTS Voice Preset",
+            "config_greeting": "Greeting Style",
+            "config_aimode": "AI Mode",
+            "config_display": "Display Toggles",
+            "config_reset": "Reset Persona Settings",
+            "speech": "Voice & Speech Recognition",
+            "wallet": "Kurt USD Wallet",
+            "doctor": "System Diagnostics",
+            "computer": "Desktop & Screen Actions",
+            "browser": "Playwright Browser",
+            "tasks": "Background Shell Tasks",
+            "library": "Native Data Library (100 Domains)",
+        }.get(state.view, state.view)
         if state.view == 'model_catalog':
             title = 'Complete AI model catalogs'
         elif state.view.startswith(('catalog_provider:', 'catalog_list:', 'catalog_model:')):
@@ -894,33 +1328,41 @@ def _render(state: _PaletteState, buf_text: str):
         elif state.view.startswith('provider_key_input:'):
             title = 'Enter API key — hidden, not submitted to chat'
         elif state.view.startswith('model_json_input:'):
-            title = 'Paste JSON config (GitHub repo / custom model / MCP) — saved privately'
-        lines.append([("bold", f"{icon} {title}"), ("", "\n")])
+            title = 'Paste JSON config (custom endpoint / GitHub repo / MCP) — saved privately'
+        lines.append([(_STYLE_HEADER, f"{icon} {title}"), ("", "\n")])
+
+    lines.append([(_STYLE_RULE, "  " + "─" * 58), ("", "\n")])
 
     if not items:
-        lines.append([("dim", "  (no matches)"), ("", "\n")])
+        lines.append([(_STYLE_INFO, "  (no matches)"), ("", "\n")])
     else:
         page = state.index // WINDOW
         total_pages = max(1, (len(items) + WINDOW - 1) // WINDOW)
         start = page * WINDOW
         end = min(len(items), start + WINDOW)
-        for i, item in enumerate(items[start:end], start=start):
-            marker = "▶ " if i == state.index else "  "
-            style = highlight if i == state.index else ""
-            lines.append([(style, f"{marker}{item['label']}"), ("", "\n")])
+        visible = items[start:end]
+        parsed = [_split_item_columns(item) for item in visible]
+        title_lengths = [len(t) for item, (t, d, b) in zip(visible, parsed) if item.get("kind") != "info" and (d or b)]
+        desc_lengths = [len(d) for item, (t, d, b) in zip(visible, parsed) if item.get("kind") != "info" and d and b]
+        title_w = min(max(title_lengths, default=0), 42)
+        if title_w:
+            title_w = max(title_w, 14)
+        desc_w = min(max(desc_lengths, default=0), 22)
+        for i, item in enumerate(visible, start=start):
+            lines.append(_format_aligned_row(item, i == state.index, title_w, desc_w))
         more_remote = bool(_paginated_provider(state)) and not query
         if len(items) > WINDOW or more_remote:
             jump = " · PgUp/PgDn ±10p" if total_pages >= 10 else ""
             more_hint = " · → at last page loads more" if more_remote else ""
-            lines.append([("dim", f"  Page {page + 1:,}/{total_pages:,}{'+' if more_remote else ''}  ({start + 1:,}–{end:,} of {len(items):,}) · ←→ page{jump}{more_hint}"), ("", "\n")])
+            lines.append([(_STYLE_PAGE, f"  Page {page + 1:,}/{total_pages:,}{'+' if more_remote else ''}  ({start + 1:,}–{end:,} of {len(items):,}) · ←→ page{jump}{more_hint}"), ("", "\n")])
 
     if state.notice:
-        lines.append([("", state.notice), ("", "\n")])
+        lines.append([(_STYLE_NOTICE, f"  {state.notice}"), ("", "\n")])
 
-    hint = ("↑↓ select  ←→ tabs  ? all  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel"
+    hint = ("  ↑↓ select  ←→ tabs  ? all  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel"
             if state.view == "root" else
-            "↑↓ select  ←→ page  PgUp/PgDn ±10p  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel")
-    lines.append([("dim", hint)])
+            "  ↑↓ select  ←→ page  PgUp/PgDn ±10p  Tab⇥ home  Enter open/run  Esc back  Ctrl-C cancel")
+    lines.append([(_STYLE_HINT, hint)])
 
     result = []
     for chunk in lines:
@@ -960,7 +1402,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
         target_page = max(0, min(target_page, total_pages - 1))
         new_index = target_page * WINDOW
         page_end = min(len(items), new_index + WINDOW)
-        if items[new_index].get('kind') == 'info' and new_index + 1 < page_end:
+        while new_index + 1 < page_end and items[new_index].get('kind') == 'info':
             new_index += 1
         state.index = new_index
 
@@ -1007,13 +1449,13 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
     def _up(event):
         items = _current_items(state, _effective_query(state, event.current_buffer.text))
         if items:
-            state.index = (state.index - 1) % len(items)
+            state.index = _step_selectable(items, state.index, -1)
 
     @kb.add("down", filter=browsing, eager=True)
     def _down(event):
         items = _current_items(state, _effective_query(state, event.current_buffer.text))
         if items:
-            state.index = (state.index + 1) % len(items)
+            state.index = _step_selectable(items, state.index, 1)
 
     @kb.add("?", filter=browsing, eager=True)
     def _show_all(event):
@@ -1037,7 +1479,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             event.app._kurt_secret_input = False
         if state.stack:
             state.view, state.tab = state.stack.pop()
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, ""))
             _reset_query(event.current_buffer)
         else:
             if state.settings_only:
@@ -1071,7 +1513,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             _reset_query(event.current_buffer)
             event.app._kurt_secret_input = False
             state.view, state.tab = state.stack.pop()
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, ""))
             state.notice = saved['message']
             return
         if state.view.startswith('provider_key_input:'):
@@ -1100,7 +1542,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             _reset_query(event.current_buffer)  # Clear before turning off masking.
             event.app._kurt_secret_input = False
             state.view, state.tab = state.stack.pop()
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, ""))
             state.notice = 'API key saved privately, not live-verified. Load/refresh the provider catalog if needed.'
             return
         buf_text = event.current_buffer.text
@@ -1140,19 +1582,19 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             from kurt.models.providers import delete_model_config
             removed = delete_model_config(item['provider'], item.get('mid', ''))
             state.notice = 'Saved JSON config removed.' if removed else 'No saved JSON config to remove.'
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, _effective_query(state, buf_text)))
             return
         if item['kind'] in ('provider_refresh', 'provider_more'):
             from kurt.models.additional import fetch_catalog
             result = fetch_catalog(item['provider'], refresh=item['kind'] == 'provider_refresh', more=item['kind'] == 'provider_more')
             state.notice = result.get('error') or f'{len(result["models"]):,} source model records loaded.'
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, _effective_query(state, buf_text)))
             return
         if item['kind'] == 'provider_search':
             from kurt.models.additional import search_catalog
             result = search_catalog(item['provider'], item['query'])
             state.notice = result.get('error') or f'{result["matched"]:,} live API matches loaded ({result["total_loaded"]:,} cached total).'
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, _effective_query(state, buf_text)))
             return
         if item['kind'] == 'catalog_refresh':
             import io
@@ -1160,7 +1602,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             with redirect_stdout(io.StringIO()) as captured:
                 notice = refresh_model_catalogs()
             state.notice = notice + (' Refresh reported an error; cached data may be shown. Check provider credentials/network.' if captured.getvalue() else '')
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, _effective_query(state, buf_text)))
             return
         if item["kind"] == "browser":
             from kurt.core.connector_pages import open_page
@@ -1177,7 +1619,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
                 return
             state.stack.append((state.view, state.tab))
             state.view = item["target"]
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, ""))
             _reset_query(event.current_buffer)
             return
         state.is_open = False
@@ -1189,7 +1631,7 @@ def _build_session() -> tuple[PromptSession, _PaletteState]:
             state.is_open = True
             state.stack.append((state.view, state.tab))
             state.view = f'model_setup:{provider}:{quote(value, safe="")}'
-            state.index = 0
+            state.index = _first_selectable(_current_items(state, ""))
             _reset_query(event.current_buffer)
             return
         if provider and item.get('billing'):
@@ -1272,7 +1714,7 @@ def read_chat_input(console, prompt_label: str = "You", *, voice_input=None):
 
 
 def pick_execution_default(kind=None):
-    """Open the four-category picker outside chat; run only a settings action."""
+    """Open the settings/config picker outside chat; run only a settings/config action."""
     import sys
     from kurt.core.persona import load_persona
     from kurt.core.cli_orchestrator import handle_slash
@@ -1280,20 +1722,26 @@ def pick_execution_default(kind=None):
     load_env()
     if not sys.stdin.isatty():
         return False
-    views = {None: "execution_defaults", "model": "default_models", "cli": "cli_settings",
-             "image": "media_image", "video": "media_video"}
+    views = {
+        None: "execution_defaults", "model": "default_models", "cli": "cli_settings",
+        "image": "media_image", "video": "media_video",
+        "config": "config", "theme": "config_theme", "background": "config_background",
+        "icon": "config_icon", "language": "config_language", "voice": "config_voice",
+        "greeting": "config_greeting", "aimode": "config_aimode", "display": "config_display",
+    }
     if kind not in views:
-        raise ValueError("Choose model, cli, image or video.")
+        raise ValueError("Choose model, cli, image, video, theme, background, icon, language, voice, greeting, aimode or config.")
     session, state = _build_session()
     state.is_open = True
     state.view = views[kind]
     state.settings_only = True
+    state.index = _first_selectable(_current_items(state, ""))
     try:
         with patch_stdout():
             command = session.prompt(default="/")
     except (KeyboardInterrupt, EOFError):
         return False
-    allowed = ("/model default ", "/model choose-default", "/cli default ", "/image-model ", "/video-model ")
+    allowed = ("/model default ", "/model choose-default", "/cli default ", "/image-model ", "/video-model ", "/config ")
     if not command.startswith(allowed):
         return False
     settings = load_persona()
