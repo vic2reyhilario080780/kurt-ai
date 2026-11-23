@@ -62,3 +62,7 @@ control.db-*
 
 # graphify knowledge-graph output — generated, regenerate with `/graphify .`
 graphify-out/
+
+# Advisory "who's editing right now" signal for concurrent AI tool sessions
+# (Claude Code / Antigravity / Codex) — local-only, never shared via git.
+.kurt-active-session

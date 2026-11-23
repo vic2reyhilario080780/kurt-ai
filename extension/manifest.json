@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Kurt",
+  "version": "0.1.0",
+  "description": "Kurt AI assistant — quick access while browsing. Talks to a kurt/saas hosted API instance; see extension/README.md before changing host_permissions for production use.",
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Kurt"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["http://localhost:8099/*"]
+}

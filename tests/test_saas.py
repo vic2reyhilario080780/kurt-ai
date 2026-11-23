@@ -187,6 +187,146 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('tools',payload)
 
 
+class AuthTests(unittest.IsolatedAsyncioTestCase):
+    """Self-serve signup/login/logout + CORS, added alongside the existing
+    operator-issued-token flow — Bearer header and the kurt_session cookie
+    both resolve through the same Store.identity(), so every APITests
+    guarantee above (redaction, quotas, no-cors-by-default, etc.) still
+    applies identically to cookie-authenticated requests."""
+
+    async def asyncSetUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.store = Store(self.tmp.name)
+        self.app = App(self.store, FakeGateway(), allowed_origin='https://app.example')
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url='https://test')
+        self.addAsyncCleanup(self.client.aclose)
+
+    def _cookie_from(self, response):
+        """Explicit Cookie header, not httpx's cookies=/client jar — this
+        client is reused across signup+login within one test, and the jar
+        would otherwise silently overwrite session A's cookie with B's
+        (same name/domain/path), hiding exactly the bug this test suite
+        needs to catch (logout scoping)."""
+        set_cookie = response.headers['set-cookie']
+        self.assertIn('HttpOnly', set_cookie); self.assertIn('Secure', set_cookie); self.assertIn('SameSite=Strict', set_cookie)
+        return {'Cookie': set_cookie.split(';', 1)[0]}
+
+    async def test_signup_issues_cookie_session_on_trial_plan(self):
+        response = await self.client.post('/v1/signup', json={'email': 'tito@example.com', 'password': 'correct horse battery'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['tenant']['plan'], 'trial')
+        me = await self.client.get('/v1/me', headers=self._cookie_from(response))
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.json()['tenant']['plan'], 'trial')
+
+    async def test_bearer_mode_signup_returns_token_in_body_and_sets_no_cookie(self):
+        response = await self.client.post('/v1/signup', json={'email': 'ext@example.com', 'password': 'correct horse battery', 'client': 'bearer'})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('set-cookie', response.headers)
+        token = response.json()['token']
+        self.assertTrue(token.startswith('kurt_live_'))
+        me = await self.client.get('/v1/me', headers={'Authorization': 'Bearer ' + token})
+        self.assertEqual(me.status_code, 200)
+
+    async def test_bearer_mode_login_returns_token_in_body_and_sets_no_cookie(self):
+        await self.client.post('/v1/signup', json={'email': 'ext2@example.com', 'password': 'correct horse battery'})
+        response = await self.client.post('/v1/login', json={'email': 'ext2@example.com', 'password': 'correct horse battery', 'client': 'bearer'})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('set-cookie', response.headers)
+        token = response.json()['token']
+        me = await self.client.get('/v1/me', headers={'Authorization': 'Bearer ' + token})
+        self.assertEqual(me.status_code, 200)
+
+    async def test_cookie_mode_response_never_includes_raw_token(self):
+        response = await self.client.post('/v1/signup', json={'email': 'web@example.com', 'password': 'correct horse battery'})
+        self.assertNotIn('token', response.json())
+
+    async def test_invalid_client_field_rejected(self):
+        response = await self.client.post('/v1/signup', json={'email': 'bad@example.com', 'password': 'correct horse battery', 'client': 'evil'})
+        self.assertEqual(response.status_code, 400)
+
+    async def test_duplicate_email_rejected(self):
+        await self.client.post('/v1/signup', json={'email': 'dupe@example.com', 'password': 'correct horse battery'})
+        response = await self.client.post('/v1/signup', json={'email': 'dupe@example.com', 'password': 'another password'})
+        self.assertEqual(response.status_code, 409)
+
+    async def test_invalid_email_and_weak_password_rejected(self):
+        for payload in ({'email': 'not-an-email', 'password': 'correct horse battery'},
+                         {'email': 'ok@example.com', 'password': 'short'}):
+            response = await self.client.post('/v1/signup', json=payload)
+            self.assertEqual(response.status_code, 400)
+
+    async def test_login_wrong_password_rejected_and_correct_password_issues_new_session(self):
+        await self.client.post('/v1/signup', json={'email': 'login@example.com', 'password': 'correct horse battery'})
+        wrong = await self.client.post('/v1/login', json={'email': 'login@example.com', 'password': 'nope nope nope'})
+        self.assertEqual(wrong.status_code, 401)
+        unknown = await self.client.post('/v1/login', json={'email': 'ghost@example.com', 'password': 'whatever12'})
+        self.assertEqual(unknown.status_code, 401)
+        right = await self.client.post('/v1/login', json={'email': 'login@example.com', 'password': 'correct horse battery'})
+        self.assertEqual(right.status_code, 200)
+        me = await self.client.get('/v1/me', headers=self._cookie_from(right))
+        self.assertEqual(me.status_code, 200)
+
+    async def test_logout_revokes_only_that_session_not_the_whole_tenant(self):
+        signup = await self.client.post('/v1/signup', json={'email': 'multi@example.com', 'password': 'correct horse battery'})
+        first_cookie = self._cookie_from(signup)
+        login = await self.client.post('/v1/login', json={'email': 'multi@example.com', 'password': 'correct horse battery'})
+        second_cookie = self._cookie_from(login)
+        self.assertNotEqual(first_cookie, second_cookie)
+        await self.client.post('/v1/logout', headers=first_cookie)
+        after_logout_first = await self.client.get('/v1/me', headers=first_cookie)
+        still_works_second = await self.client.get('/v1/me', headers=second_cookie)
+        self.assertEqual(after_logout_first.status_code, 401)
+        self.assertEqual(still_works_second.status_code, 200)
+
+    async def test_bearer_token_flow_is_unaffected_by_cookie_support(self):
+        _, token = self.store.grant('starter')
+        response = await self.client.get('/v1/me', headers={'Authorization': 'Bearer ' + token})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['tenant']['plan'], 'starter')
+
+    async def test_cors_preflight_and_headers_only_for_allowed_origin(self):
+        allowed = await self.client.options('/v1/signup', headers={'Origin': 'https://app.example', 'Access-Control-Request-Method': 'POST'})
+        self.assertEqual(allowed.status_code, 204)
+        self.assertEqual(allowed.headers['access-control-allow-origin'], 'https://app.example')
+        self.assertEqual(allowed.headers['access-control-allow-credentials'], 'true')
+        denied = await self.client.options('/v1/signup', headers={'Origin': 'https://evil.test'})
+        self.assertEqual(denied.status_code, 404)
+        signup = await self.client.post('/v1/signup', headers={'Origin': 'https://evil.test'}, json={'email': 'origin@example.com', 'password': 'correct horse battery'})
+        self.assertNotIn('access-control-allow-origin', signup.headers)
+
+    async def test_signup_rate_limited_per_source(self):
+        with patch.object(Store, 'check_rate_limit', side_effect=Denied(429, 'rate_limited')):
+            response = await self.client.post('/v1/signup', json={'email': 'limited@example.com', 'password': 'correct horse battery'})
+        self.assertEqual(response.status_code, 429)
+
+
+class StoreAuthTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.store = Store(self.tmp.name)
+
+    def test_rate_limit_blocks_after_threshold_and_resets_next_window(self):
+        for _ in range(3):
+            self.store.check_rate_limit('k', 3600, 3)
+        with self.assertRaises(Denied) as denied:
+            self.store.check_rate_limit('k', 3600, 3)
+        self.assertEqual(denied.exception.code, 'rate_limited')
+        with self.store.db() as db:
+            db.execute("UPDATE auth_counters SET window='3600:0'")
+        self.store.check_rate_limit('k', 3600, 3)  # old window pruned, fresh count
+
+    def test_issue_token_cannot_outlive_subscription(self):
+        tenant, _ = self.store.grant('starter', days=1)
+        token = self.store.issue_token(tenant, days=30)
+        identity = self.store.identity(token)
+        self.assertLessEqual(identity['active_until'], time.time() + 86400 + 5)
+
+    def test_issue_token_rejects_unknown_tenant(self):
+        with self.assertRaises(Denied):
+            self.store.issue_token('not-a-real-tenant')
+
+
 class CreateAppTests(unittest.TestCase):
     """create_app() is the real uvicorn entrypoint (deploy/saas/kurt-api.service
     runs it directly) and had zero coverage; APITests only exercises App()

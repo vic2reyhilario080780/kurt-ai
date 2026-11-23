@@ -20,7 +20,8 @@ class Denied(Exception):
 
 
 PLANS = {"starter": {"daily": 100, "minute": 10, "concurrent": 1},
-         "pro": {"daily": 1000, "minute": 30, "concurrent": 2}}
+         "pro": {"daily": 1000, "minute": 30, "concurrent": 2},
+         "trial": {"daily": 20, "minute": 5, "concurrent": 1}}
 
 
 class Store:
@@ -43,6 +44,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS counters(tenant TEXT, window TEXT, used INTEGER NOT NULL, PRIMARY KEY(tenant,window));
             CREATE TABLE IF NOT EXISTS leases(id TEXT PRIMARY KEY, tenant TEXT NOT NULL, expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY, tenant TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, tenant TEXT NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS auth_counters(key TEXT, window TEXT, used INTEGER NOT NULL, PRIMARY KEY(key,window));
             ''')
 
     @contextmanager
@@ -75,6 +78,67 @@ class Store:
     def revoke(self, tenant):
         with self.db() as db:
             db.execute("UPDATE tokens SET revoked=1 WHERE tenant=?", (tenant,))
+
+    def revoke_token(self, token):
+        """Revoke one session/device token without touching the tenant's
+        other tokens — used by /v1/logout, unlike revoke() (whole tenant)."""
+        with self.db() as db:
+            db.execute("UPDATE tokens SET revoked=1 WHERE hash=?", (self.digest(token),))
+
+    def issue_token(self, tenant, days=30):
+        """Mint an additional token for an EXISTING tenant (no plan/active_until
+        change) — used for login sessions, as opposed to grant() which also
+        creates/updates the subscription itself."""
+        now = time.time()
+        with self.db() as db:
+            row = db.execute("SELECT plan, active_until FROM tenants WHERE id=?", (tenant,)).fetchone()
+            if row is None:
+                raise Denied(401, "invalid_token")
+            expires = min(now + days * 86400, row["active_until"])
+            if expires <= now:
+                raise Denied(403, "subscription_inactive")
+            token = "kurt_live_" + secrets.token_urlsafe(32)
+            db.execute("INSERT INTO tokens(hash,tenant,expires) VALUES(?,?,?)", (self.digest(token), tenant, expires))
+            db.commit()
+        return token
+
+    def check_rate_limit(self, key, window_seconds, max_count):
+        """Generic per-key sliding-window counter for unauthenticated actions
+        (signup/login) that happen before any tenant/token exists — same
+        bucketed-counter shape as reserve()'s per-tenant quotas, just keyed
+        by an arbitrary caller-supplied string (e.g. 'signup:<client ip>')."""
+        now = time.time()
+        bucket = str(int(now // window_seconds))
+        window = f"{window_seconds}:{bucket}"
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("DELETE FROM auth_counters WHERE window<>? AND key=?", (window, key))
+            count = db.execute("SELECT used FROM auth_counters WHERE key=? AND window=?", (key, window)).fetchone()
+            if count and count[0] >= max_count:
+                db.commit()
+                raise Denied(429, "rate_limited")
+            db.execute("INSERT INTO auth_counters VALUES(?,?,1) ON CONFLICT(key,window) DO UPDATE SET used=used+1", (key, window))
+            db.commit()
+
+    def create_account(self, email, password_hash, plan="trial", days=14):
+        if self.account_by_email(email) is not None:
+            raise Denied(409, "email_taken")
+        tenant, _ = self.grant(plan, days)
+        now = time.time()
+        with self.db() as db:
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("INSERT INTO accounts VALUES(?,?,?,?,?)", (str(uuid.uuid4()), email, password_hash, tenant, now))
+                db.commit()
+            except sqlite3.IntegrityError:
+                db.rollback()
+                raise Denied(409, "email_taken")
+        return tenant
+
+    def account_by_email(self, email):
+        with self.db() as db:
+            row = db.execute("SELECT id, email, password_hash, tenant FROM accounts WHERE email=?", (email,)).fetchone()
+        return dict(row) if row else None
 
     def _identity(self, db, token):
         if not isinstance(token, str) or not 40 <= len(token) <= 100:
