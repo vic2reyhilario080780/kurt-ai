@@ -306,18 +306,23 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     base_router = router
     base_router.strict_selection = bool(execution and execution.pinned)
     base_router.excluded_providers = {execution.exhausted_provider} if execution and execution.exhausted_provider else set()
+    live_holder = {"live": None}
+    full_response = ""
     if analysis.task_type not in {TaskType.IMAGE, TaskType.MUSIC, TaskType.VIDEO, TaskType.TRANSCRIBE}:
         from kurt.capabilities.bridge import NativeToolRouter
         on_tool = (lambda name: console.print(f"[dim]🔧 {name}[/dim]")) if verbose else None
-        on_status = (lambda text: console.print(text, markup=False)) if verbose else None
-        router = NativeToolRouter(router, on_tool=on_tool, on_status=on_status)
+        def _on_status(text):
+            if verbose:
+                console.print(text, markup=False)
+            elif live_holder["live"] is not None and not full_response:
+                live_holder["live"].update(Text(redact(text), style="dim cyan"))
+        router = NativeToolRouter(router, on_tool=on_tool, on_status=_on_status)
 
     console.print()
 
-    full_response = ""
-
     try:
         with Live(Text(""), refresh_per_second=10, console=console) as live:
+            live_holder["live"] = live
             async for chunk in router.route(
                 provider=analysis.provider,
                 model=analysis.model,
@@ -572,6 +577,16 @@ def _kurt_welcome_banner(kurt_name, kurt_version, theme, user_name, current_mode
         except ValueError:
             label = "Invalid selection — update settings"
         defaults_table.add_row(f"{kind.title()} default:", Text(label))
+    try:
+        from kurt.core.cli_readiness import cached_unhealthy_clis
+        unhealthy = cached_unhealthy_clis()
+    except Exception:
+        unhealthy = []
+    if unhealthy:
+        defaults_table.add_row(
+            "CLI health:",
+            Text(f"⚠ last probe flagged {', '.join(unhealthy)} — run `kurt cli probe` to recheck", style="yellow"),
+        )
     return Group(grid, Text(""), defaults_table, Text(""), tail)
 
 

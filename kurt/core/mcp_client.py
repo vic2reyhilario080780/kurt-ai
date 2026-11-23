@@ -8,7 +8,10 @@ from kurt.utils.security import redact, child_env, register_secrets, require_sec
 from kurt.utils.execution import service_argv
 
 import os
+import re
 import json
+import time
+import hashlib
 import asyncio
 import httpx
 from pathlib import Path
@@ -35,10 +38,55 @@ class MCPTool:
     description: str
     input_schema: dict = field(default_factory=dict)
     server_name: str = ""
+    destructive_hint: bool = False
 
     def to_tools_prompt_line(self) -> str:
         params = json.dumps(self.input_schema.get("properties", {}), ensure_ascii=False)[:120]
         return f'- **{self.server_name}/{self.name}**: {self.description}\n  Params: {params}'
+
+
+# In-session TTL cache for MCP tool discovery (avoids respawning stdio servers
+# or repeating HTTP handshakes on multi-step tool chains).
+_TOOLS_CACHE: dict[str, tuple[float, str, list[MCPTool]]] = {}
+TOOLS_CACHE_TTL_SECONDS = 120.0
+
+_DESTRUCTIVE_TOOL_RE = re.compile(
+    r"(?:^|[._\-/])("
+    r"delete|destroy|drop|purge|wipe|remove|rm|erase|revoke|"
+    r"send_email|send_mail|send_message|send_sms|send_dm|post_tweet|publish|"
+    r"purchase|buy|pay|charge|transfer|wire|refund|cancel_subscription"
+    r")(?:$|[._\-/])",
+    re.IGNORECASE,
+)
+
+
+def _conn_fingerprint(conn: "MCPConnection") -> str:
+    payload = json.dumps({
+        "transport": conn.transport,
+        "command": conn.command,
+        "args": conn.args,
+        "env_keys": sorted((conn.env or {}).keys()),
+        "url": conn.url,
+        "header_keys": sorted((conn.headers or {}).keys()),
+        "enabled": bool(conn.enabled),
+    }, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def clear_tools_cache(server_name: Optional[str] = None):
+    """Invalidate cached MCP tool schemas for one server or all servers."""
+    if server_name is None:
+        _TOOLS_CACHE.clear()
+    else:
+        _TOOLS_CACHE.pop(server_name, None)
+
+
+def is_destructive_mcp_tool(tool_name: str, tool_meta: Optional[MCPTool] = None) -> bool:
+    """Return True when an MCP tool advertises destructiveHint or a high-impact irreversible verb."""
+    if tool_meta is not None and tool_meta.destructive_hint:
+        return True
+    short = (tool_name or "").rsplit("/", 1)[-1]
+    return bool(_DESTRUCTIVE_TOOL_RE.search(short))
 
 
 @dataclass
@@ -104,6 +152,7 @@ def save_registry(connections: dict[str, MCPConnection]):
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+    clear_tools_cache()
 
 
 def add_connection(conn: MCPConnection) -> str:
@@ -179,9 +228,13 @@ async def probe_connection(conn: MCPConnection) -> list[MCPTool]:
         seen = set()
         while True:
             result = await session.list_tools(cursor=cursor)
-            tools.extend(MCPTool(name=t.name, description=t.description or "",
-                                 input_schema=t.inputSchema, server_name=conn.name)
-                         for t in result.tools)
+            tools.extend(MCPTool(
+                name=t.name,
+                description=t.description or "",
+                input_schema=t.inputSchema,
+                server_name=conn.name,
+                destructive_hint=bool(getattr(getattr(t, "annotations", None), "destructiveHint", False)),
+            ) for t in result.tools)
             cursor = result.nextCursor
             if not cursor:
                 break
@@ -209,12 +262,29 @@ def connection_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: connection failed; check transport, endpoint and credentials."
 
 
-async def list_tools(conn: MCPConnection) -> list[MCPTool]:
+async def list_tools(conn: MCPConnection, *, refresh: bool = False) -> list[MCPTool]:
+    fp = _conn_fingerprint(conn)
+    if not refresh:
+        entry = _TOOLS_CACHE.get(conn.name)
+        if entry is not None:
+            cached_at, cached_fp, cached_tools = entry
+            if cached_fp == fp and (time.monotonic() - cached_at) < TOOLS_CACHE_TTL_SECONDS:
+                return list(cached_tools)
     try:
-        return await probe_connection(conn)
+        tools = await probe_connection(conn)
+        _TOOLS_CACHE[conn.name] = (time.monotonic(), fp, list(tools))
+        return tools
     except Exception as exc:
         console.print(f"❌ {conn.name}: {connection_error(exc)}", markup=False)
         return []
+
+
+def has_fresh_tools_cache(conn: MCPConnection) -> bool:
+    entry = _TOOLS_CACHE.get(conn.name)
+    if entry is None:
+        return False
+    cached_at, cached_fp, _ = entry
+    return cached_fp == _conn_fingerprint(conn) and (time.monotonic() - cached_at) < TOOLS_CACHE_TTL_SECONDS
 
 
 async def call_tool(conn: MCPConnection, tool_name: str, params: dict) -> str:
@@ -247,18 +317,44 @@ async def list_all_tools() -> dict[str, list[MCPTool]]:
     return results
 
 
-async def execute_mcp_tool(tool_ref: str, params: dict) -> str:
+async def execute_mcp_tool(tool_ref: str, params: dict, *, confirmed: bool = False) -> str:
     """
     Execute a tool by reference: "server_name/tool_name" or just "tool_name"
-    Searches all enabled connections.
+    Searches all enabled connections. Potentially irreversible/destructive tools
+    require explicit confirmation (`confirmed=True`) after user authorization.
     """
     registry = load_registry()
+
+    def _cached_meta(srv_name: str, t_name: str) -> Optional[MCPTool]:
+        entry = _TOOLS_CACHE.get(srv_name)
+        if entry is None:
+            return None
+        for t in entry[2]:
+            if t.name == t_name:
+                return t
+        return None
+
+    def _guard_destructive(srv_name: str, t_name: str, meta: Optional[MCPTool] = None) -> Optional[str]:
+        if confirmed:
+            return None
+        if is_destructive_mcp_tool(t_name, meta):
+            return (
+                f"⚠️ Confirmation required before running potentially irreversible MCP tool "
+                f"'{srv_name}/{t_name}'. Ask the user to confirm first, or re-call mcp_tool "
+                f"with confirmed=true ONLY if the user explicitly authorized this action."
+            )
+        return None
 
     # Parse server/tool format
     if "/" in tool_ref:
         server_name, tool_name = tool_ref.rsplit("/", 1)
         if server_name not in registry:
             return f"❌ MCP server not found: {server_name}"
+        if not registry[server_name].enabled:
+            return f"❌ MCP server is disabled: {server_name}"
+        blocked = _guard_destructive(server_name, tool_name, _cached_meta(server_name, tool_name))
+        if blocked:
+            return blocked
         return await call_tool(registry[server_name], tool_name, params)
 
     # Search all servers for the tool
@@ -268,6 +364,9 @@ async def execute_mcp_tool(tool_ref: str, params: dict) -> str:
         tools = await list_tools(conn)
         for t in tools:
             if t.name == tool_ref:
+                blocked = _guard_destructive(name, tool_ref, t)
+                if blocked:
+                    return blocked
                 return await call_tool(conn, tool_ref, params)
 
     return f"❌ Tool not found in any MCP server: {tool_ref}"

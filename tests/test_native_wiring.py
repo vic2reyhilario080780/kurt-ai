@@ -434,6 +434,187 @@ class WiringTests(unittest.TestCase):
         sleep.assert_awaited_once()
         self.assertAlmostEqual(sleep.await_args.args[0], 12.7)
 
+    def test_mcp_and_prompt_skill_auto_discovery_in_chat(self):
+        from kurt.core import mcp_client, persona
+        from kurt.skills import manager as skill_mgr
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reg_path = root / "mcp_connections.json"
+            skills_dir = root / "skills"
+            conns = {
+                "github": mcp_client.MCPConnection(
+                    name="github", transport="stdio", command="npx", args=["-y", "github-mcp"],
+                    env={"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_secret_must_not_leak_123456"},
+                    enabled=True, description="GitHub repos and PRs",
+                ),
+                "disabled-srv": mcp_client.MCPConnection(
+                    name="disabled-srv", transport="http", url="https://secret.example/?token=topsecret",
+                    headers={"Authorization": "Bearer header-secret-999"},
+                    enabled=False, description="Disabled server",
+                ),
+            }
+            with patch.object(mcp_client, "KURT_DIR", root), \
+                 patch.object(mcp_client, "MCP_REGISTRY_PATH", reg_path), \
+                 patch.object(persona, "KURT_DIR", root), \
+                 patch.object(persona, "PERSONA_PATH", root / "persona.json"), \
+                 patch.object(skill_mgr, "SKILLS_DIR", skills_dir):
+                mcp_client.save_registry(conns)
+                # 1. mcp_list_servers returns safe metadata only — zero secrets/URLs/headers
+                srv_res = invoke_native("mcp_list_servers", {})
+                self.assertEqual(srv_res["status"], "ok")
+                self.assertEqual([s["name"] for s in srv_res["servers"]], ["github"])
+                serialized = json.dumps(srv_res)
+                self.assertNotIn("ghp_secret_must_not_leak_123456", serialized)
+                self.assertNotIn("topsecret", serialized)
+                self.assertNotIn("header-secret-999", serialized)
+                all_srv = invoke_native("mcp_list_servers", {"include_disabled": True})
+                self.assertEqual({s["name"] for s in all_srv["servers"]}, {"github", "disabled-srv"})
+                # 2. list_skills & load_skill discover built-in prompt skills and reject path traversal
+                sk_list = invoke_native("list_skills", {"query": "tiktok"})
+                self.assertEqual(sk_list["status"], "ok")
+                self.assertTrue(any(s["id"] == "tiktok" for s in sk_list["skills"]))
+                loaded = invoke_native("load_skill", {"skill_id": "tiktok"})
+                self.assertEqual(loaded["status"], "ok")
+                self.assertTrue(loaded["guidance"])
+                missing = invoke_native("load_skill", {"skill_id": "nonexistent-skill-xyz"})
+                self.assertEqual(missing["status"], "not_found")
+                self.assertIn("tiktok", missing["available_prompt_skills"])
+                with self.assertRaises(ValueError):
+                    invoke_native("load_skill", {"skill_id": "../persona"})
+                # 3. NativeToolRouter injects discovery summary & runs tools even when model is pinned
+                replies = Replies([
+                    request("mcp_list_servers"),
+                    request("load_skill", skill_id="tiktok"),
+                    "Hook idea ready using TikTok skill.",
+                ])
+                replies.strict_selection = True
+                messages = [{"role": "user", "content": "Help me write a viral TikTok hook and check GitHub"}]
+                async def run():
+                    return "".join([c async for c in NativeToolRouter(replies).route("openrouter", "test/model", messages)])
+                final = asyncio.run(run())
+                self.assertEqual(final, "Hook idea ready using TikTok skill.")
+                sys_prompt = replies.calls[0]["messages"][0]["content"]
+                self.assertIn("Connected MCP servers", sys_prompt)
+                self.assertIn("github", sys_prompt)
+                self.assertNotIn("disabled-srv", sys_prompt)
+                self.assertNotIn("ghp_secret_must_not_leak_123456", sys_prompt)
+                self.assertIn("Installed prompt skills", sys_prompt)
+                self.assertIn("tiktok", sys_prompt)
+                # 4. All 3 new tools appear in function_schemas and keep Groq compact ratio < 50%
+                names = {t["function"]["name"] for t in function_schemas(False)}
+                self.assertTrue({"mcp_list_servers", "list_skills", "load_skill"} <= names)
+
+    def test_six_orchestration_upgrades_runtime_cache_guard_pinned_subagent_and_legacy_cleanup(self):
+        from kurt.core import mcp_client, persona
+        from kurt.skills import manager as skill_mgr
+        from kurt.capabilities.bridge import CHAT_TOOL_PROMPT
+
+        # #1 & #3 & #6: Schema completeness, legacy duplicate cleanup, and semantic routing guide
+        schemas_default = {t["function"]["name"]: t["function"]["parameters"] for t in function_schemas(False)}
+        schemas_all = {t["function"]["name"]: t["function"]["parameters"] for t in function_schemas(True)}
+        self.assertIn("list_runtime_capabilities", schemas_default)
+        self.assertIn("huggingface", schemas_default["call_model"]["properties"]["provider"]["enum"])
+        self.assertIn("huggingface_inference", schemas_default["call_model"]["properties"]["provider"]["enum"])
+        self.assertIn("huggingface_hub", schemas_default["call_model"]["properties"]["provider"]["enum"])
+        self.assertIn("copilot", schemas_default["delegate_cli"]["properties"]["tool"]["enum"])
+        self.assertIn("confirmed", schemas_default["mcp_tool"]["properties"])
+        self.assertIn("refresh", schemas_default["mcp_list_tools"]["properties"])
+        self.assertIn("skill", schemas_default["spawn_subagent"]["properties"])
+        # Legacy duplicates removed from default chat schemas, retained in include_legacy=True
+        for dup in ("open_url", "click", "scroll", "mac_doctor", "desktop_action", "open_app", "focus_window"):
+            self.assertNotIn(dup, schemas_default)
+            self.assertIn(dup, schemas_all)
+        self.assertIn("CAPABILITY ROUTING GUIDE", CHAT_TOOL_PROMPT)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reg_path = root / "mcp_connections.json"
+            skills_dir = root / "skills"
+            conn = mcp_client.MCPConnection(
+                name="github", transport="http", url="https://api.example/mcp", enabled=True, description="GitHub"
+            )
+            fake_tools = [
+                mcp_client.MCPTool(name="list_issues", description="List issues", input_schema={}, server_name="github"),
+                mcp_client.MCPTool(name="delete_repo", description="Delete repo", input_schema={}, server_name="github", destructive_hint=True),
+            ]
+            with patch.object(mcp_client, "KURT_DIR", root), \
+                 patch.object(mcp_client, "MCP_REGISTRY_PATH", reg_path), \
+                 patch.object(persona, "KURT_DIR", root), \
+                 patch.object(persona, "PERSONA_PATH", root / "persona.json"), \
+                 patch.object(skill_mgr, "SKILLS_DIR", skills_dir):
+                mcp_client.save_registry({"github": conn})
+
+                # #1: list_runtime_capabilities returns secret-free readiness
+                with patch("kurt.models.providers.provider_key", side_effect=lambda p: "hf_secret_tok" if p == "huggingface" else ""), \
+                     patch("kurt.capabilities.bridge.shutil.which", side_effect=lambda c: f"/usr/bin/{c}" if c in {"gh", "codex"} else None):
+                    cap = invoke_native("list_runtime_capabilities", {})
+                self.assertEqual(cap["status"], "ok")
+                self.assertIn("huggingface", cap["configured_providers"])
+                self.assertEqual(cap["installed_clis"], ["codex", "gh"])
+                self.assertEqual(cap["enabled_mcp_servers"], ["github"])
+                self.assertNotIn("hf_secret_tok", json.dumps(cap))
+
+                # #4: MCP tools cache + refresh + destructive confirmation guard
+                mcp_client.clear_tools_cache()
+                with patch.object(mcp_client, "probe_connection", AsyncMock(return_value=fake_tools)) as probe:
+                    first = asyncio.run(mcp_client.list_tools(conn))
+                    second = asyncio.run(mcp_client.list_tools(conn))
+                    self.assertEqual(len(first), 2)
+                    self.assertEqual(len(second), 2)
+                    self.assertEqual(probe.await_count, 1)  # served from cache on 2nd call
+                    asyncio.run(mcp_client.list_tools(conn, refresh=True))
+                    self.assertEqual(probe.await_count, 2)  # refresh bypassed cache
+
+                with patch.object(mcp_client, "call_tool", AsyncMock(return_value="ok-executed")) as call_mock:
+                    read_res = asyncio.run(mcp_client.execute_mcp_tool("github/list_issues", {}))
+                    self.assertEqual(read_res, "ok-executed")
+                    self.assertEqual(call_mock.await_count, 1)
+
+                    blocked = asyncio.run(mcp_client.execute_mcp_tool("github/delete_repo", {}))
+                    self.assertIn("Confirmation required", blocked)
+                    self.assertEqual(call_mock.await_count, 1)  # did NOT execute unconfirmed destructive tool
+
+                    confirmed = asyncio.run(mcp_client.execute_mcp_tool("github/delete_repo", {}, confirmed=True))
+                    self.assertEqual(confirmed, "ok-executed")
+                    self.assertEqual(call_mock.await_count, 2)
+
+                # #2 & #5: Live status badges + pinned model allows spawn_subagent inheriting pinned model
+                statuses = []
+                captured_subagent = []
+                replies = Replies([
+                    request("load_skill", skill_id="tiktok"),
+                    request("spawn_subagent", role="research", task="Check docs", model="wrong/model-override"),
+                    request("call_model", provider="openai", model="gpt-4o", prompt="hi"),
+                    "All done with pinned subagent.",
+                ])
+                replies.strict_selection = True
+
+                def fake_invoke(name, params, paths):
+                    if name == "spawn_subagent":
+                        captured_subagent.append(dict(params))
+                        return json.dumps({"status": "completed", "role": "research", "summary": "ok"})
+                    return invoke_native(name, params, paths)
+
+                with patch("kurt.capabilities.bridge.invoke_native", side_effect=fake_invoke):
+                    async def run():
+                        router = NativeToolRouter(replies, on_status=statuses.append)
+                        return "".join([c async for c in router.route("huggingface", "Qwen/Qwen2.5-72B-Instruct",
+                                       [{"role": "user", "content": "Research TikTok strategy"}])])
+                    out = asyncio.run(run())
+
+                self.assertEqual(out, "All done with pinned subagent.")
+                self.assertEqual(len(captured_subagent), 1)
+                self.assertEqual(captured_subagent[0]["provider"], "huggingface")
+                self.assertEqual(captured_subagent[0]["model"], "Qwen/Qwen2.5-72B-Instruct")
+                self.assertTrue(captured_subagent[0]["_strict_selection"])
+                # call_model was still blocked while pinned
+                self.assertTrue(any("model is selected" in str(m.get("content", "")) for m in replies.calls[-1]["messages"]))
+                # Live status badges fired for skill and subagent
+                self.assertTrue(any("Loading skill: tiktok" in s for s in statuses))
+                self.assertTrue(any("Skill active:" in s for s in statuses))
+                self.assertTrue(any("Subagent (research) running" in s for s in statuses))
+                self.assertTrue(any("Subagent (research) done" in s for s in statuses))
+
 
 if __name__ == "__main__":
     unittest.main()

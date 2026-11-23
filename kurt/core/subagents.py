@@ -218,6 +218,8 @@ async def run_subagent_async(
     model: Optional[str] = None,
     provider: Optional[str] = None,
     max_steps: int = 8,
+    skill: Optional[str] = None,
+    strict_selection: bool = False,
 ) -> dict:
     """
     Launch an isolated subagent loop with its own role and context window.
@@ -240,6 +242,8 @@ async def run_subagent_async(
         analysis.provider = provider
 
     router = ModelRouter()
+    if strict_selection or (provider and model):
+        router.strict_selection = bool(strict_selection)
     enriched_task = f"[SUBAGENT ROLE: {role}]\n{role_instructions}\n\nAssigned Sub-Task: {task}"
     max_steps = max(1, min(int(max_steps), 15))
 
@@ -250,10 +254,12 @@ async def run_subagent_async(
         cwd=cwd,
         max_steps=max_steps,
         verbose=False,
+        skill=skill,
     )
     return {
         "status": "completed" if result.success else "incomplete",
         "role": role,
+        "provider": analysis.provider,
         "model": analysis.model,
         "steps_taken": len(result.steps),
         "files_changed": result.files_changed,
@@ -261,10 +267,17 @@ async def run_subagent_async(
     }
 
 
-async def run_swarm_async(subtasks: list[dict], cwd: str = ".") -> dict:
+async def run_swarm_async(
+    subtasks: list[dict],
+    cwd: str = ".",
+    *,
+    pinned_provider: Optional[str] = None,
+    pinned_model: Optional[str] = None,
+) -> dict:
     """
     Execute multiple subagents in parallel and aggregate their results.
-    Each item in `subtasks` is {"role": "...", "task": "...", "model": optional}.
+    Each item in `subtasks` is {"role": "...", "task": "...", "model": optional, "skill": optional}.
+    When pinned_provider & pinned_model are supplied, every subagent inherits that exact model.
     """
     if not isinstance(subtasks, list) or not subtasks:
         return {"status": "error", "error": "subtasks must be a non-empty list"}
@@ -275,9 +288,11 @@ async def run_swarm_async(subtasks: list[dict], cwd: str = ".") -> dict:
             role=item.get("role", "research"),
             task=item.get("task", ""),
             cwd=cwd,
-            model=item.get("model"),
-            provider=item.get("provider"),
+            model=pinned_model or item.get("model"),
+            provider=pinned_provider or item.get("provider"),
             max_steps=int(item.get("max_steps", 6)),
+            skill=item.get("skill"),
+            strict_selection=bool(pinned_provider and pinned_model),
         )
         for item in capped
         if isinstance(item, dict) and item.get("task")

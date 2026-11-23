@@ -40,6 +40,17 @@ pinagsasamang kasaysayan ng mga pagbabago — hindi kanya-kanyang memory.
 
 Implementation at nasubok na scope: [docs/SEMANTIC_ASSISTANT.md](docs/SEMANTIC_ASSISTANT.md).
 
+## 2026-11-23 — Automatic MCP connector & prompt skill discovery + 6 tool/orchestration upgrades (Antigravity)
+- Ano:
+  - **MCP connector & prompt skill auto-discovery**: Added `mcp_list_servers`, `list_skills`, `load_skill`, and `list_runtime_capabilities` to [kurt/capabilities/bridge.py](kurt/capabilities/bridge.py) (shared with [kurt/core/agent_loop.py](kurt/core/agent_loop.py)), plus `_chat_discovery_summary()` injecting secret-free summaries of enabled MCP servers, installed prompt skills, configured AI providers, and installed external CLIs into `NativeToolRouter.route()`.
+  - **Expanded model & CLI schemas + semantic routing guide**: Added `huggingface`, `huggingface_inference`, `huggingface_hub`, `together`, `fireworks`, `novita` to `call_model` and `copilot` to `delegate_cli`, plus a concise `CAPABILITY ROUTING GUIDE` in `CHAT_TOOL_PROMPT` (strictly semantic, zero keyword/regex gates).
+  - **Live tool status badges in chat**: Added `_format_tool_status()` in [kurt/capabilities/bridge.py](kurt/capabilities/bridge.py) and live dim-cyan status updates in `stream_response()` ([kurt/main.py](kurt/main.py)) for MCP calls, skill loads, CLI delegation, model calls, native runs, web search, and subagents/swarms.
+  - **MCP tool schema cache + destructive action guard**: Added 120s config-fingerprinted TTL caching (`refresh=True` bypass + auto-invalidation on `save_registry`) and explicit `confirmed=True` safety guard for irreversible/destructive MCP tools in [kurt/core/mcp_client.py](kurt/core/mcp_client.py) and [kurt/core/coding_tools.py](kurt/core/coding_tools.py).
+  - **Pinned-model subagent & swarm support + skill passthrough**: Allowed `spawn_subagent` and `swarm_execute` even when `strict_selection=True`, automatically pinning them to the active `(provider, model)` and forwarding optional `skill` into [kurt/core/subagents.py](kurt/core/subagents.py) and [kurt/core/agent_loop.py](kurt/core/agent_loop.py).
+  - **Legacy duplicate schema cleanup**: Removed redundant legacy duplicates (`open_url`, `click`, `scroll`, `mac_doctor`) from default `function_schemas(include_legacy=False)` while keeping backwards-compatible `include_legacy=True` and `open_url` → `open_browser_url` alias routing, preserving Groq's <50% compact schema budget.
+- Bakit: Para hindi na manghula si Kurt kung anong skills, plugins, MCP connectors, external CLIs, o AI models ang available at naka-configure, mas mabilis ang multi-step MCP calls, mas ligtas sa irreversible actions, at may malinaw na live status sa chat.
+- Validation: Added `test_mcp_and_prompt_skill_auto_discovery_in_chat` and `test_six_orchestration_upgrades_runtime_cache_guard_pinned_subagent_and_legacy_cleanup` in [tests/test_native_wiring.py](tests/test_native_wiring.py). Passed 47/47 regression tests across wiring/Groq-budget, desktop CLI schemas, vision fallback, DeepSeek adapters, command palette, and BYOK providers, plus `python3 -m compileall -q kurt tests`.
+
 ## 2026-11-20 — Full Kurt CLI audit & 8 bug fixes on the spot (Antigravity)
 - Ano:
   - **Missing `/setting` in `/help` & `/` picker**: Added `/setting` to `SLASH_GROUPS` in [kurt/core/cli_orchestrator.py](kurt/core/cli_orchestrator.py) so it is visible in `/help` and the root Commands picker.

@@ -601,9 +601,10 @@ def _execute_tool(tool_name: str, params: dict) -> str:
         elif tool_name == "mcp_tool":
             tool_ref = params.get("tool_ref", "")
             mcp_params = params.get("params", {})
+            confirmed = bool(params.get("confirmed", False))
             if not tool_ref:
                 return "❌ mcp_tool requires 'tool_ref'"
-            return _run_coro_blocking(execute_mcp_tool(tool_ref, mcp_params))
+            return _run_coro_blocking(execute_mcp_tool(tool_ref, mcp_params, confirmed=confirmed))
 
         # ── Orchestration Tools ───────────────────────────────────
 
@@ -925,7 +926,10 @@ def _execute_tool(tool_name: str, params: dict) -> str:
                     role=params.get("role", "research"),
                     task=params.get("task", ""),
                     model=params.get("model"),
+                    provider=params.get("provider"),
                     max_steps=int(params.get("max_steps", 8)),
+                    skill=params.get("skill"),
+                    strict_selection=bool(params.get("_strict_selection", False)),
                 )
             )
             return json.dumps(res, indent=2, ensure_ascii=False)
@@ -935,6 +939,8 @@ def _execute_tool(tool_name: str, params: dict) -> str:
             res = _run_coro_blocking(
                 run_swarm_async(
                     subtasks=params.get("subtasks", []),
+                    pinned_provider=params.get("_pinned_provider"),
+                    pinned_model=params.get("_pinned_model"),
                 )
             )
             return json.dumps(res, indent=2, ensure_ascii=False)

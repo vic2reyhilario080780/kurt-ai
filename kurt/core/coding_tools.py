@@ -95,11 +95,19 @@ def execute_coding_tool(name, params):
         from kurt.core.codex_adapter import run_codex
         return run_codex(params.get('task',''),cwd=current_workspace(),mode=params.get('mode','read-only'),timeout=params.get('timeout',180))
     if name=='mcp_list_tools':
-        from kurt.core.mcp_client import load_registry, list_tools
+        from kurt.core.mcp_client import load_registry, list_tools, has_fresh_tools_cache
         from kurt.core.agent_loop import _run_coro_blocking
-        name=params.get('server')
-        conn=load_registry().get(name)
+        srv_name=params.get('server')
+        refresh=bool(params.get('refresh', False))
+        conn=load_registry().get(srv_name)
         if conn is None or not conn.enabled: raise ValueError('Unknown or disabled MCP server')
-        tools=_run_coro_blocking(list_tools(conn))
-        return {'server':name,'tools':[{'name':t.name,'description':redact(t.description),'schema':redact(t.input_schema)} for t in tools[:30]],'truncated':len(tools)>30}
+        was_cached = (not refresh) and has_fresh_tools_cache(conn)
+        tools=_run_coro_blocking(list_tools(conn, refresh=refresh))
+        return {
+            'server': srv_name,
+            'cached': was_cached,
+            'tools': [{'name': t.name, 'description': redact(t.description), 'schema': redact(t.input_schema),
+                       **({'destructive': True} if t.destructive_hint else {})} for t in tools[:30]],
+            'truncated': len(tools) > 30,
+        }
     raise ValueError('Unknown coding tool')
