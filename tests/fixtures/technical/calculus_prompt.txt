@@ -1,0 +1,25 @@
+Para sa real na n≥2, itakda ang
+
+   1 1 1  e^{-nxyz²}
+Iₙ=∫ ∫ ∫  ────────── dx dy dz.
+   0 0 0     1+z
+
+Hanapin ang eksaktong closed form ng anim na constants a,b,c,d,e,f sa expansion
+
+     a     b(log n)²+clog n+d      e      f(log n)²
+Iₙ= ──── + ────────────────── + ─────── + ───────── +Rₙ.
+    √(n)           n            n^{3/2}      n²
+
+Patunayan na may constant C>0, independent sa n, na tumutupad sa
+
+        1+log n
+|Rₙ|≤ C ───────  para sa lahat ng n≥2.
+          n²
+
+Bilang huling bahagi, patunayan kung sharp ang bound sa pamamagitan ng pagkalkula ng eksaktong limit
+
+\[
+\lim_{n\to\infty}\frac{n^2R_n}{\log n}.
+\]
+
+Ipakita ang buong derivation. Bigyang-katwiran ang bawat pagpapalit ng integration, summation, o limit na gagamitin. Sa final expressions, bawal ang unevaluated integrals, infinite sums, at derivatives ng special functions.

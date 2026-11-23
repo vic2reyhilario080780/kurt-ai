@@ -1,8 +1,68 @@
 """Explicit CLI diagnostics: installed/version checks are separate from model tests."""
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+
 from kurt.core.execution_preferences import DEFAULT_CLIS
 from kurt.utils.security import child_env, redact
 from kurt.utils.process import run_bounded
 from kurt.utils.workspace import current_workspace
+
+KURT_DIR = Path.home() / ".kurt"
+HEALTH_CACHE_MAX_AGE = 24 * 3600  # a probe older than this is too stale to surface
+
+
+def _health_cache_path() -> Path:
+    return KURT_DIR / "cli_health.json"
+
+
+def _load_health_cache() -> dict:
+    """Best-effort read of the last `kurt cli probe` results; never raises."""
+    try:
+        raw = json.loads(_health_cache_path().read_text())
+        return raw if isinstance(raw, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_health_cache(results: list) -> None:
+    """Merge this probe's results into the on-disk cache; best-effort, never raises."""
+    try:
+        KURT_DIR.mkdir(exist_ok=True)
+        cache = _load_health_cache()
+        now = time.time()
+        for entry in results:
+            cache[entry["cli"]] = {
+                "installed": entry.get("installed", False),
+                "executable_check": entry.get("executable_check", "failed"),
+                "checked_at": now,
+            }
+        fd, temp_path = tempfile.mkstemp(prefix=".cli-health-", dir=KURT_DIR)
+        try:
+            with os.fdopen(fd, "w") as stream:
+                json.dump(cache, stream, indent=2)
+            os.replace(temp_path, _health_cache_path())
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+    except OSError:
+        pass
+
+
+def cached_unhealthy_clis() -> list:
+    """Names of CLIs whose last cached `kurt cli probe` failed, within
+    HEALTH_CACHE_MAX_AGE. Reads a local file only — no subprocess calls,
+    so this is safe to call on every chat startup without added latency."""
+    cache = _load_health_cache()
+    now = time.time()
+    return sorted(
+        name for name, data in cache.items()
+        if isinstance(data, dict)
+        and data.get("executable_check") != "completed"
+        and now - data.get("checked_at", 0) <= HEALTH_CACHE_MAX_AGE
+    )
 
 
 def probe_default_cli(name):
@@ -61,7 +121,9 @@ def test_default_cli(name):
 
 def probe_clis(target='all'):
     names = [n for n in DEFAULT_CLIS if n != 'auto'] if target == 'all' else [target]
-    return [probe_default_cli(n) for n in names]
+    results = [probe_default_cli(n) for n in names]
+    _save_health_cache(results)
+    return results
 
 
 def register_commands(group):

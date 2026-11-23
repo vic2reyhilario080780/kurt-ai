@@ -46,14 +46,14 @@ class ModelProviderTagTests(unittest.TestCase):
 class ModelPaletteDataTests(unittest.TestCase):
     def test_fal_models_skipped_without_api_key(self):
         from kurt.core import command_palette as cp
-        with patch.object(cp, "_fal_cache", None), patch.dict(os.environ, {}, clear=False):
+        with patch.object(cp.items, "_fal_cache", None), patch.dict(os.environ, {}, clear=False):
             os.environ.pop("FAL_API_KEY", None)
             self.assertEqual(cp._fal_models(), [])
 
     def test_model_items_include_openrouter_entries(self):
         from kurt.core import command_palette as cp
         fake = [{"id": "openai/gpt-4.1", "name": "OpenAI: GPT-4.1", "architecture": {"output_modalities": ["text"]}}]
-        with patch.object(cp, "_openrouter_cache", fake):
+        with patch.object(cp.items, "_openrouter_cache", fake):
             items = cp._model_items("")
         self.assertTrue(any(i["value"] == "/model openai/gpt-4.1" and "[openrouter]" in i["label"]
                              for i in items))
@@ -230,7 +230,7 @@ class PaletteRenderingTests(unittest.TestCase):
         self.assertEqual(cp._split_item_columns(rows[2]), ("Qwen3 [Qwen/Qwen3-14B]", "Text Generation", "default: chat"))
         # Rendering uses violet item styles, sky-cyan descriptions, emerald runnable badge, and ℹ for info rows
         state = cp._PaletteState(is_open=True, view="model_catalog", index=1)
-        with patch.object(cp, "_current_items", return_value=rows):
+        with patch.object(cp.engine, "_current_items", return_value=rows):
             fragments = cp._render(state, "/")
         rendered = "".join(t for _, t in fragments)
         self.assertIn("ℹ Header count info", rendered)

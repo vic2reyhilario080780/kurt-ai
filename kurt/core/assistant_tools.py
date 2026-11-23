@@ -18,7 +18,7 @@ ASSISTANT_TOOLS = [
          ['objective', 'goal_type', 'target_app']),
     spec('list_apps', 'Discover installed apps and the current foreground app. Use this to choose an app for a goal even when the user has not named an app.', {}),
     spec('open_application', 'Open or bring forward an installed app selected for the user goal. Returns verified foreground PID. Does not create a document or complete further work.', APP, ['app']),
-    spec('open_browser_url', 'Open a user-requested web/local page in the selected installed browser, verify its address and return observed controls.',
+    spec('open_browser_url', 'Open a user-requested web/local URL as a REAL VISIBLE TAB in any installed browser (Chrome, Safari, Firefox, Edge, Brave, Arc, Opera, Vivaldi, Zen, etc.). Call once per requested tab. Never substitute headless browser_action when the user wants to see pages in their browser.',
          {**APP, 'url': STRING}, ['app', 'url']),
     spec('observe_application', 'Inspect current accessible controls and state of an app before deciding its next interaction.', WINDOW, ['app']),
     spec('fill_field', 'Enter literal text into one uniquely labelled observed input and verify its value.',
@@ -95,13 +95,11 @@ def invoke_assistant(name, params):
             raise ValueError('Use image, music or video.')
         if not isinstance(params['prompt'], str) or not params['prompt'].strip():
             raise ValueError('Provide a nonempty generation prompt.')
-        target = media_target(params['kind'])
+        from .persona import load_persona
+        media_settings = load_persona()
+        media_target(params['kind'],media_settings)  # Validate before constructing a client.
         router = ModelRouter()
         router.strict_selection = True
-        from kurt.models.providers import custom_endpoint_config
-        custom_cfg = custom_endpoint_config(target['provider'], target['model'])
-        if not router._has_key(target['provider']) and not (custom_cfg and params['kind'] in custom_cfg['roles']):
-            return {'status': 'blocked', 'reason': f"No configured {target['provider']} generation key."}
         from .media_artifacts import REFERENCE_IMAGES, FAL_REFERENCE, LOCAL_ARTIFACT_HOLDER, I2V_MODELS, finalize_artifact
         from kurt.utils.security import redact
         images = REFERENCE_IMAGES.get()
@@ -109,6 +107,15 @@ def invoke_assistant(name, params):
         if type(index) is not int or index < -1 or index >= len(images):
             return {'status': 'blocked', 'reason': 'Choose reference_image index 0+ from attached images, or -1 for explicitly text-only generation.'}
         reference = images[index] if index >= 0 else None
+        from .media_auto_routing import select_media_target
+        try:
+            target = asyncio.run(select_media_target(params['kind'],params['prompt'],bool(reference),router,media_settings))
+        except (ValueError,OSError) as exc:
+            return {'status':'blocked','reason':redact(str(exc))}
+        from kurt.models.providers import custom_endpoint_config
+        custom_cfg = custom_endpoint_config(target['provider'], target['model'])
+        if not router._has_key(target['provider']) and not (custom_cfg and params['kind'] in custom_cfg['roles']):
+            return {'status': 'blocked', 'reason': f"No configured {target['provider']} generation key."}
         if reference and (target['provider'] != 'fal' or target['model'] not in I2V_MODELS):
             return {'status': 'blocked', 'reason': 'This saved default has no supported reference-image contract. Choose Kling 3 image-to-video in /video-model first. No paid request was sent.'}
         if target['model'] in I2V_MODELS and not reference:
@@ -130,11 +137,13 @@ def invoke_assistant(name, params):
                     raise RuntimeError('The selected generator did not return an artifact URL.')
                 artifact = finalize_artifact(output, params['kind'])
             return {**artifact, 'status': 'completed', 'kind': params['kind'],
-                    'model': target['model'], 'provider': target['provider'], 'reference_used': bool(reference)}
+                    'model': target['model'], 'provider': target['provider'], 'reference_used': bool(reference),
+                    'routing':target.get('routing')}
         except Exception as exc:
             # A timeout may follow a charged request. Never let chat fallback replay it.
             return {'status': 'unverified', 'kind': params['kind'], 'model': target['model'],
                     'provider': target['provider'], 'output': output, 'reason': redact(str(exc)),
+                    'routing':target.get('routing'),
                     'retry_safe': False}
         finally:
             LOCAL_ARTIFACT_HOLDER.reset(local_token)
@@ -216,8 +225,13 @@ do extra work after an app-only request. Discovery can precede this plan.
 Use open_application for app opening; it needs only the exact app name. For UI
 interaction use observe_application, then the dedicated fill_field/click_element/
 press_key/move_pointer/scroll_window tools with their REQUIRED arguments.
-Use open_browser_url for navigation. Use generate_media for new media creation;
-use playback tools for existing music. Do not confuse these goals.
+Use open_browser_url for opening links/articles/tabs in ANY real visible browser
+installed on the user's machine (Google Chrome, Safari, Firefox, Microsoft Edge,
+Brave, Arc, Opera, Vivaldi, Zen, Orion, etc.) — call it once per requested tab
+under goal_type=workflow (NOT app_foreground). NEVER use headless browser_action
+as a substitute for opening visible browser tabs, and NEVER claim tabs are open
+unless open_browser_url succeeded for each URL. Use generate_media for new media
+creation; use playback tools for existing music. Do not confuse these goals.
 If observe_application fails or times out more than once in a row for the same
 app/window, stop repeating it: call analyze_screen (mode=find for a specific
 control, otherwise describe/context) to see the screen visually instead. Only

@@ -18,6 +18,7 @@ class AllCLIDefaultTests(unittest.TestCase):
         self.root = Path(tmp.name)
         for k, v in [('KURT_DIR', self.root), ('PERSONA_PATH', self.root/'persona.json')]:
             p = patch.object(persona, k, v); p.start(); self.addCleanup(p.stop)
+        p = patch.object(readiness, 'KURT_DIR', self.root); p.start(); self.addCleanup(p.stop)
 
     def test_all_supported_choices_persist_without_erasing_saved_chat_model(self):
         prefs.save_default_model('mistral-small-latest', 'mistral')
@@ -98,6 +99,25 @@ class AllCLIDefaultTests(unittest.TestCase):
         self.assertEqual(probe.call_count, len(prefs.DEFAULT_CLIS) - 1)
         live.assert_not_called()
         self.assertFalse(persona.PERSONA_PATH.exists())
+
+    def test_probe_caches_health_and_surfaces_only_recent_failures(self):
+        results = [
+            {'cli': 'codex', 'installed': True, 'executable_check': 'completed'},
+            {'cli': 'gemini', 'installed': True, 'executable_check': 'failed'},
+        ]
+        with patch.object(readiness, 'probe_default_cli', side_effect=lambda n: next(r for r in results if r['cli'] == n)):
+            readiness.probe_clis('codex')
+            readiness.probe_clis('gemini')
+        self.assertEqual(readiness.cached_unhealthy_clis(), ['gemini'])
+        # A stale entry (older than the surfacing window) must not be reported.
+        cache = readiness._load_health_cache()
+        cache['gemini']['checked_at'] -= readiness.HEALTH_CACHE_MAX_AGE + 1
+        (self.root / 'cli_health.json').write_text(json.dumps(cache))
+        self.assertEqual(readiness.cached_unhealthy_clis(), [])
+
+    def test_health_cache_survives_corrupt_file(self):
+        (self.root / 'cli_health.json').write_text('not json')
+        self.assertEqual(readiness.cached_unhealthy_clis(), [])
 
     def test_live_test_does_not_change_default_or_switch_backend_on_error(self):
         prefs.save_default_cli('vibe'); before = persona.PERSONA_PATH.read_text()

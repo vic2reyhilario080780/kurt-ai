@@ -323,6 +323,16 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
     try:
         with Live(Text(""), refresh_per_second=10, console=console) as live:
             live_holder["live"] = live
+            if execution is not None and not execution.pinned and analysis.task_type == TaskType.CHAT:
+                from kurt.core.auto_routing import select_model
+                live.update(Text("Auto: selecting a model for this task…", style="dim cyan"))
+                selected = await select_model(base_router, analysis, messages)
+                # Preserve the caller's analysis object: memory records and error
+                # handling must refer to the model that actually answers.
+                analysis.model, analysis.provider = selected.model, selected.provider
+                analysis.fallback_model, analysis.fallback_provider = selected.fallback_model, selected.fallback_provider
+                analysis.reason = selected.reason
+                console.print(f"{analysis.reason} → {analysis.provider}/{analysis.model}", markup=False, style="dim cyan")
             async for chunk in router.route(
                 provider=analysis.provider,
                 model=analysis.model,
@@ -335,6 +345,10 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         console.print()
 
     except Exception as e:
+        from kurt.core.auto_routing import AutoRoutingUnavailable
+        if isinstance(e, AutoRoutingUnavailable):
+            console.print(redact(str(e)), markup=False)
+            return
         from kurt.billing.client import active as wallet_active
         from kurt.models.providers import uses_byok
         if (wallet_active() and not uses_byok(analysis.provider)) or getattr(e, 'no_replay', False):
@@ -362,8 +376,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
         skip_same_provider_fallback = is_auth_error and analysis.provider == analysis.fallback_provider
 
         if (analysis.fallback_model != analysis.model or analysis.fallback_provider != analysis.provider) and not skip_same_provider_fallback:
-            if verbose:
-                console.print(f"[yellow]↩ Trying fallback: {analysis.fallback_model}[/yellow]")
+            console.print(f"↩ Trying fallback: {analysis.fallback_provider}/{analysis.fallback_model}", markup=False, style="yellow")
             try:
                 full_response = ""
                 with Live(Text(""), refresh_per_second=10, console=console) as live:
@@ -375,6 +388,7 @@ async def stream_response(analysis, messages, session_id, no_memory, verbose, pr
                     ):
                         full_response += chunk
                         live.update(Text(redact(full_response)))
+                analysis.provider, analysis.model = analysis.fallback_provider, analysis.fallback_model
                 console.print()
             except Exception as e2:
                 if verbose:
@@ -1066,6 +1080,8 @@ def voice(
         return
 
     voice_history=[]
+    from kurt.persona import KurtPersona
+    voice_persona = KurtPersona()
 
     def remember_voice(user,answer):
         voice_history.extend([{'role':'user','content':user},{'role':'assistant','content':answer}])
@@ -1089,10 +1105,13 @@ def voice(
         # Unmatched speech uses the same goal-directed tool planner as chat.
         analysis = voice_execution.analysis()
 
+        persona_turn = voice_persona.build(text, mode="auto", include_history=False)
         messages = [
+            {"role": "system", "content": persona_turn["system_prompt"]},
             {"role": "system", "content": (
                 f"You are {_kurt_name}, a voice assistant. "
-                "Give SHORT responses (1-2 sentences max) suitable for text-to-speech. "
+                "Prefer concise responses suitable for text-to-speech; give the full "
+                "derivation or detail when the user requests it. "
                 + get_language_system_prompt()
             )},
             *voice_history,
@@ -1105,7 +1124,8 @@ def voice(
                 full_response = run_default_cli(voice_execution.cli, messages)
             else:
                 full_response = asyncio.run(stream_response(analysis, messages, session_id, True, False,
-                                                           prompt=text, execution=voice_execution)) or "Request incomplete."
+                                                           prompt=text, execution=voice_execution,
+                                                           temperature=persona_turn["temperature"])) or "Request incomplete."
         except CLIQuotaExhausted:
             voice_execution.exhausted = True
             full_response = "CLI quota exhausted. Auto routing is enabled for the next request; the current task was not replayed."
@@ -1150,143 +1170,8 @@ def voice(
         console.print(f"[red]❌ Voice mode error: {e}[/red]")
 
 
-# ══════════════════════════════════════
-# STANDALONE WRAPPERS — same dispatcher as the "/" commands inside kurt
-# chat, just runnable without opening a session first. No logic is
-# duplicated here; each one builds the slash-command string and reuses
-# handle_slash() exactly as the chat loop does.
-# ══════════════════════════════════════
-
-def _run_slash_standalone(cmd_line: str) -> str:
-    result = handle_slash(
-        prompt=cmd_line,
-        session_id=str(uuid.uuid4()),
-        current_model="auto",
-        current_skill=None,
-    )
-    return result.output
-
-
-@app.command(rich_help_panel="🤝 Delegate to Other CLIs")
-def gh(args: str = typer.Argument(..., help="Arguments to pass straight to the GitHub CLI")):
-    """🐙 Run a GitHub CLI command — same as /gh inside chat.
-
-    Halimbawa (example): kurt gh "pr list"
-    """
-    console.print(_run_slash_standalone(f"/gh {args}"), markup=False)
-
-
-@app.command(rich_help_panel="🤝 Delegate to Other CLIs")
-def codex(args: str = typer.Argument("", help="Task for Codex CLI, or omit for status")):
-    """🧠 Delegate a coding task to installed Codex CLI (read-only by default) — same as /codex inside chat."""
-    console.print(_run_slash_standalone(f"/codex {args}".strip()), markup=False)
-
-
-@app.command(rich_help_panel="🤝 Delegate to Other CLIs")
-def claude(prompt: str = typer.Argument(..., help="Prompt to send to Claude Code CLI")):
-    """🤖 Delegate a task to Claude Code CLI — same as /claude inside chat.
-
-    Halimbawa (example): kurt claude "review main.py for bugs"
-    """
-    console.print(_run_slash_standalone(f"/claude {prompt}"), markup=False)
-
-
-@app.command(rich_help_panel="🤝 Delegate to Other CLIs")
-def gemini(prompt: str = typer.Argument(..., help="Prompt to send to Gemini CLI")):
-    """✨ Delegate a task to Gemini CLI — same as /gemini inside chat.
-
-    Halimbawa (example): kurt gemini "what is in this repo?"
-    """
-    console.print(_run_slash_standalone(f"/gemini {prompt}"), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def subagent(
-    task: str = typer.Argument(..., help="Clear, actionable task for the subagent"),
-    role: str = typer.Option("research", "--role", "-r", help="research, coder, mac-doctor, qa-verifier, or custom"),
-):
-    """🤖 Launch an autonomous subagent with its own context window — same as /subagent inside chat.
-
-    Halimbawa (example): kurt subagent "find all API endpoints" --role research
-    """
-    console.print(_run_slash_standalone(f"/subagent {role} | {task}"), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def plan(
-    title: str = typer.Argument(..., help="Plan title / goal"),
-    step: list[str] = typer.Option(None, "--step", help="Repeatable — one implementation step per flag"),
-):
-    """📋 Create a structured Markdown implementation plan artifact — same as /plan inside chat.
-
-    Halimbawa (example): kurt plan "Refactor Auth" --step "Audit current flow" --step "Write tests"
-    """
-    cmd_line = f"/plan {title} | {'; '.join(step)}" if step else f"/plan {title}"
-    console.print(_run_slash_standalone(cmd_line), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def tasks(
-    action: str = typer.Argument("list", help="list, start, status, or kill"),
-    arg: str = typer.Argument("", help="Command (for start) or task ID (for status/kill)"),
-):
-    """🗂️  Manage background shell processes (dev servers, watchers, long builds) — same as /tasks inside chat.
-
-    Halimbawa (example): kurt tasks start "npm run dev"
-    """
-    console.print(_run_slash_standalone(f"/tasks {action} {arg}".strip()), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def zip(
-    action: str = typer.Argument(..., help="export or import"),
-    source: str = typer.Argument(..., help="Folder to export, or .zip file to import"),
-    destination: Optional[str] = typer.Argument(None, help="Output .zip path (export) or destination folder (import)"),
-):
-    """🗜️  Export a folder to .zip or import a .zip into a folder — same as /zip inside chat.
-
-    Halimbawa (example): kurt zip export ~/Projects/myapp
-    """
-    cmd_line = f"/zip {action} {source}" + (f" {destination}" if destination else "")
-    console.print(_run_slash_standalone(cmd_line), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def web(
-    target: str = typer.Argument(..., help="A URL to read, or 'search <query>'"),
-):
-    """🌐 Fetch a web page, or search the web — same as /web inside chat.
-
-    Halimbawa (example): kurt web "search sari-sari store profit margin"
-    """
-    console.print(_run_slash_standalone(f"/web {target}"), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def browser(
-    action: str = typer.Argument(..., help="open, screenshot, click, fill, or close"),
-    args: str = typer.Argument("", help="Arguments for the action, e.g. a URL for 'open'"),
-):
-    """🧭 Control a real (Playwright) browser — same as /browser inside chat. Each CLI call is a
-    fresh session (state doesn't persist between separate `kurt browser ...` invocations); use
-    `kurt chat` instead for a multi-step browsing session.
-
-    Halimbawa (example): kurt browser open https://example.com
-    """
-    console.print(_run_slash_standalone(f"/browser {action} {args}".strip()), markup=False)
-
-
-@app.command(rich_help_panel="🖱️  Automate")
-def computer(
-    action: str = typer.Argument(..., help="screenshot, analyze, type, click, or open"),
-    args: str = typer.Argument("", help="Arguments for the action"),
-):
-    """🖥️  Control the Mac desktop (screenshot, vision analysis, type, click, open folder) —
-    same as /computer inside chat.
-
-    Halimbawa (example): kurt computer screenshot
-    """
-    console.print(_run_slash_standalone(f"/computer {action} {args}".strip()), markup=False)
+from kurt.core.standalone_commands import register_commands as _register_standalone_commands
+_register_standalone_commands(app, console)
 
 
 @app.command(rich_help_panel="📂 Files & Code")

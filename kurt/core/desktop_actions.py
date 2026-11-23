@@ -76,19 +76,29 @@ def observe(app, window_id=None):
     }
 
 
+def _is_browser_address_bar(label):
+    if label in {'address and search bar', 'smart search field', 'search or enter website name',
+                 'address bar', 'address field', 'url', 'location'}:
+        return True
+    return ('address' in label and ('search' in label or 'enter' in label or 'bar' in label)) or 'enter address' in label
+
+
 def _matches_browser_url(observation, url):
     expected = urlsplit(url)
     for element in observation.get('elements', []):
         label = element.get('label', '').casefold()
-        if element.get('role') != 'textField' or label not in {'address and search bar', 'smart search field', 'search or enter website name'}:
+        if element.get('role') != 'textField' or not _is_browser_address_bar(label):
             continue
         value = str(element.get('value', '')).strip()
         if expected.scheme == 'file':
             actual = urlsplit(value).path if value.startswith('file:') else value
             if actual.startswith('/') and Path(unquote(actual)).resolve() == Path(unquote(expected.path)).resolve():
                 return True
-        elif value.rstrip('/') == url.rstrip('/'):
-            return True
+        else:
+            norm_val = re.sub(r'^https?://', '', value.rstrip('/'), flags=re.IGNORECASE)
+            norm_url = re.sub(r'^https?://', '', url.rstrip('/'), flags=re.IGNORECASE)
+            if value.rstrip('/') == url.rstrip('/') or (norm_val and norm_val == norm_url):
+                return True
     return False
 
 
@@ -137,6 +147,21 @@ def desktop_action(action, app="Safari", url=None, element=None, text=None, wind
         destination = ['--open', url] if action == 'open_url' else []
         result = run_cli("peekaboo", ["app", "launch", app, *destination,
                          "--foreground", "--wait-for-window", "--json", *desktop_host_flags(app)], timeout=30)
+        if result.status == "missing":
+            # Peekaboo is optional; open real visible browser tabs / apps via native OS launcher.
+            from kurt.core.app_launcher import open_installed_app, open_url_in_app
+            if action == "open_url":
+                return open_url_in_app(app, url)
+            native = open_installed_app(app)
+            return {
+                "status": native.get("status", "failed"),
+                "action": action,
+                "app": native.get("app", app),
+                "focus_verified": bool(native.get("foreground_verified")),
+                "url_verified": None,
+                "method": native.get("method"),
+                "error": native.get("error"),
+            }
         # Opening is not retried: even timeout/failure may have changed the app.
         observed = _opened_window(app, url if action == 'open_url' else None)
         focus = None

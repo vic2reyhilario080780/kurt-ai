@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from kurt.core.execution_preferences import cli_prompt, cli_failure_detail
 from kurt.core.cli_orchestrator import handle_slash
+from kurt.core import cli_readiness
 from kurt.persona import KurtPersona
 
 
@@ -48,7 +49,9 @@ class CLIContextTests(unittest.TestCase):
         self.assertIn('exit -9', detail)
 
     def test_vibe_probe_is_version_only(self):
-        with patch('kurt.core.cli_orchestrator._resolve_cmd', return_value='/test/vibe'), \
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(cli_readiness, 'KURT_DIR', Path(directory)), \
+             patch('kurt.core.cli_orchestrator._resolve_cmd', return_value='/test/vibe'), \
              patch('kurt.core.cli_orchestrator.run_ai_cli', return_value={'status': 'completed', 'stdout': 'vibe 3.1.2', 'stderr': '', 'exit_code': 0}) as run:
             result = handle_slash('/cli probe vibe', 's', 'auto', None)
         run.assert_called_once_with('/test/vibe', ['--version'])

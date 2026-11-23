@@ -152,7 +152,7 @@ class AttachmentKeyboardTests(unittest.IsolatedAsyncioTestCase):
     async def test_path_is_submitted_without_getting_stuck_in_picker(self):
         real_session = palette.PromptSession
         for text in ['/Users/name/Photos Library.photoslibrary/pic.jpeg', "'/Users/name/Photos Library.photoslibrary/pic.jpeg'", '/picture.jpeg']:
-            with self.subTest(text=text), create_pipe_input() as pipe, patch.object(palette, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+            with self.subTest(text=text), create_pipe_input() as pipe, patch.object(palette.engine, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
                 session, state = palette._build_session()
                 task = asyncio.create_task(session.prompt_async())
                 await asyncio.sleep(.03)

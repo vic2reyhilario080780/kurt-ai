@@ -8,6 +8,7 @@ from typing import Optional
 BASE_DIR = Path(__file__).resolve().parent
 PERSONA_PATH = BASE_DIR / "persona.md"
 MEMORY_PATH = BASE_DIR / "memory.md"
+SYSTEM_INSTRUCTIONS_PATH = BASE_DIR / "system_instructions.md"
 
 _DEFAULT_PERSONA = (
     "You are KURT, Daddy Tito's personal AI assistant. Speak in Taglish, call "
@@ -27,12 +28,20 @@ MODE_KEYWORDS = {
         "customer", "tindahan", "sari-sari store", "profit", "margin",
         "supplier", "resibo", "invoice", "marketing", "promo", "paninda",
     ],
+    "technical": [
+        "math", "matematika", "equation", "integral", "derivative", "calculus",
+        "algebra", "geometry", "trigonometry", "proof", "theorem", "physics",
+        "chemistry", "stoichiometry", "thermodynamics", "kinematics", "circuit",
+        "structural", "load calculation", "beam", "architecture", "building code",
+        "engineering", "solve for", "equation ng", "kemistri", "pisika",
+    ],
 }
 
 MODE_TEMPERATURE = {
     "casual": 0.9,
     "coding": 0.3,
     "business": 0.6,
+    "technical": 0.2,
 }
 
 HISTORY_LIMIT = 20
@@ -75,11 +84,17 @@ class KurtPersona:
         resolved_mode = self.detect_mode(user_input, mode)
         now = datetime.now().strftime("%Y-%m-%d (%A), %H:%M")
 
-        parts = [
-            self._persona_text(),
+        # User instructions are policy, not a mode-dependent personality.
+        # Auto-mode heuristics also match ordinary words (e.g. "functions"),
+        # so they must never decide whether this file reaches the model.
+        parts = [self._persona_text()]
+        instructions = self._read(self.base_dir / "system_instructions.md", "")
+        if instructions:
+            parts.append(f"=== CUSTOM SYSTEM INSTRUCTIONS ===\n{instructions}")
+        parts.extend([
             f"=== MEMORY TUNGKOL KAY DADDY TITO ===\n{self._memory_text()}",
             f"=== CONTEXT ===\nPetsa/oras ngayon: {now}\nKasalukuyang mode: {resolved_mode}",
-        ]
+        ])
         if include_history and self.history:
             recent = "\n".join(
                 f"Daddy Tito: {u}\nKURT: {r}" for u, r in self.history[-HISTORY_IN_PROMPT:]

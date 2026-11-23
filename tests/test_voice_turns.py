@@ -210,10 +210,10 @@ class PromptHandoffTests(unittest.IsolatedAsyncioTestCase):
         event = voice.VoiceEvent("Kumusta", turn_id=1)
         console = Console(file=io.StringIO())
         with create_pipe_input() as pipe, \
-             patch.object(palette, "_session", None), patch.object(palette, "_state", None), \
+             patch.object(palette.engine, "_session", None), patch.object(palette.engine, "_state", None), \
              patch.object(palette.sys if hasattr(palette, 'sys') else __import__('sys'), "stdin") as stdin:
             stdin.isatty.return_value = True
-            with patch.object(palette, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+            with patch.object(palette.engine, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
                 task = asyncio.create_task(asyncio.to_thread(palette.read_chat_input, console, voice_input=bridge))
                 try:
                     await asyncio.sleep(.08)

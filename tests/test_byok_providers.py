@@ -193,7 +193,7 @@ class OptionalCatalogTests(unittest.TestCase):
         self.assertEqual(failed['models'], hub_p1['models'])
         self.assertIn('unavailable', failed['error'])
         # Picker lists all three HF catalogs separately and links to exact model pages
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             root_targets = [r.get('target') for r in picker._catalog_root_items('')]
             self.assertIn('catalog_provider:huggingface', root_targets)
             self.assertIn('catalog_provider:huggingface_inference', root_targets)
@@ -222,7 +222,7 @@ class OptionalCatalogTests(unittest.TestCase):
             res = additional.search_catalog('replicate', 'flux')
         self.assertEqual(res['matched'], 1)
         self.assertEqual(res['error'], '')
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             srows = picker._catalog_provider_items('replicate', 'flux')
             self.assertTrue(any(r.get('kind') == 'provider_search' and r.get('provider') == 'replicate' for r in srows))
             detail = picker._catalog_model_items('replicate', 'black-forest-labs/flux-schnell')
@@ -296,7 +296,7 @@ class OptionalCatalogTests(unittest.TestCase):
         self.assertEqual(catalog.hf_inference_route(by_id['Wan-AI/Wan2.2-T2V-A14B-Diffusers'], 'video')['provider'], 'fal-ai')
         self.assertEqual(catalog.default_roles('huggingface_inference', by_id['org/lora-only']), [])
         self.assertEqual(catalog.default_roles('huggingface_inference', by_id['sentence-transformers/all-MiniLM-L6-v2']), [])
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             chat_detail = picker._catalog_model_items('huggingface_inference', 'Qwen/Qwen3-14B')
             img_detail = picker._catalog_model_items('huggingface_inference', 'black-forest-labs/FLUX.1-dev')
             vid_detail = picker._catalog_model_items('huggingface_inference', 'Wan-AI/Wan2.2-T2V-A14B-Diffusers')
@@ -337,7 +337,7 @@ class OptionalCatalogTests(unittest.TestCase):
         # Option C: chat GGUF detected; audio TTS GGUF excluded
         self.assertTrue(by_id['unsloth/Qwen3.8-27B-GGUF'].get('ollama_gguf'))
         self.assertFalse(by_id['audio-cpp/audio.cpp-gguf'].get('ollama_gguf'))
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             gguf_rows = picker._catalog_model_rows('huggingface_hub', [by_id['unsloth/Qwen3.8-27B-GGUF']], '')
             self.assertIn('local Ollama GGUF', gguf_rows[0]['label'])
             gguf_detail = picker._catalog_model_items('huggingface_hub', 'unsloth/Qwen3.8-27B-GGUF')
@@ -350,7 +350,7 @@ class OptionalCatalogTests(unittest.TestCase):
         providers.save_model_json_config('huggingface_hub', 'org/raw-weights',
             json.dumps({'base_url': 'https://my-ep.endpoints.huggingface.cloud/v1', 'api_key': 'synthetic-ep-key', 'roles': ['chat', 'image']}))
         self.assertEqual(catalog.default_roles('huggingface_hub', by_id['org/raw-weights']), ['chat', 'image'])
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             raw_detail = picker._catalog_model_items('huggingface_hub', 'org/raw-weights')
             self.assertTrue(any('Custom endpoint ready:' in r.get('label', '') for r in raw_detail))
             self.assertTrue(any(r.get('value') == '/model default org/raw-weights huggingface_hub' for r in raw_detail))
@@ -637,7 +637,7 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
              patch.object(providers,'confirm_byok') as confirm, \
              patch.object(additional,'invalidate') as invalidate_cache, \
              patch('kurt.core.connector_pages.open_page',return_value='Browser opened; return here.') as browser, \
-             patch.object(picker,'PromptSession',lambda **kw:real_session(input=pipe,output=DummyOutput(),**kw)):
+             patch.object(picker.engine, 'PromptSession',lambda **kw:real_session(input=pipe,output=DummyOutput(),**kw)):
             session,state=picker._build_session();state.is_open=True
             state.view='model_setup:together:'+quote(command,safe='')
             task=asyncio.create_task(session.prompt_async(default='/'))
@@ -680,11 +680,11 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
             saved_calls.append((provider, mid, raw))
             return {'kind': 'model_config', 'key': f'{provider}:{mid}', 'message': 'JSON config saved privately.'}
         with create_pipe_input() as pipe, \
-             patch.object(picker, '_catalog_models', return_value=[model_row]), \
+             patch.object(picker.items, '_catalog_models', return_value=[model_row]), \
              patch.object(providers, 'get_model_config', return_value=None), \
              patch.object(providers, 'provider_key', return_value=''), \
              patch.object(providers, 'save_model_json_config', side_effect=fake_save), \
-             patch.object(picker, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+             patch.object(picker.engine, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
             session, state = picker._build_session()
             state.is_open = True
             state.view = 'catalog_model:huggingface_hub:' + quote('org/repo-model', safe='')
@@ -724,10 +724,10 @@ class KeyPickerTests(unittest.IsolatedAsyncioTestCase):
                 remote['next'] = None
             return {'models': list(loaded), 'next': remote['next'], 'complete': remote['next'] is None, 'error': ''}
         with create_pipe_input() as pipe, \
-             patch.object(picker, '_catalog_models', side_effect=lambda p: list(loaded)), \
+             patch.object(picker.items, '_catalog_models', side_effect=lambda p: list(loaded)), \
              patch.object(additional, 'peek_catalog', side_effect=lambda p: {'models': list(loaded), 'next': remote['next']}), \
              patch.object(additional, 'fetch_catalog', side_effect=fake_fetch), \
-             patch.object(picker, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+             patch.object(picker.engine, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
             session, state = picker._build_session()
             state.is_open = True
             state.view = 'catalog_list:huggingface_hub:*'

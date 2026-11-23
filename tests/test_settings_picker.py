@@ -37,7 +37,7 @@ class SettingsPickerTests(unittest.TestCase):
             {"id": "test/video", "architecture": {"output_modalities": ["video"]}},
             {"id": "test/unknown"},
         ]
-        with patch.object(palette, "_openrouter_models", return_value=models), patch.object(palette, "_fal_models") as fal:
+        with patch.object(palette.items, "_openrouter_models", return_value=models), patch.object(palette.items, "_fal_models") as fal:
             session = palette._model_items("")
             defaults = palette._default_model_items("")
         for items in (session, defaults):
@@ -68,7 +68,7 @@ class SettingsPickerTests(unittest.TestCase):
         state = palette._PaletteState()
         session = Mock()
         session.prompt.return_value = "/cli default claude"
-        with patch.object(palette, "_build_session", return_value=(session, state)), \
+        with patch.object(palette.engine, "_build_session", return_value=(session, state)), \
              patch("sys.stdin.isatty", return_value=True), \
              patch("kurt.utils.env_loader.load_env"), patch("rich.console.Console", return_value=Console(file=io.StringIO())):
             self.assertTrue(palette.pick_execution_default("cli"))
@@ -78,7 +78,7 @@ class SettingsPickerTests(unittest.TestCase):
     def test_native_picker_cannot_run_unrelated_commands(self):
         session = Mock()
         session.prompt.return_value = "/run echo unexpected"
-        with patch.object(palette, "_build_session", return_value=(session, palette._PaletteState())), \
+        with patch.object(palette.engine, "_build_session", return_value=(session, palette._PaletteState())), \
              patch("sys.stdin.isatty", return_value=True), patch("kurt.utils.env_loader.load_env"), \
              patch("kurt.core.cli_orchestrator.handle_slash") as dispatch:
             self.assertFalse(palette.pick_execution_default())
@@ -121,7 +121,7 @@ class NativePickerKeyboardTests(unittest.IsolatedAsyncioTestCase):
              patch.object(persona, "PERSONA_PATH", Path(temp) / "persona.json"), \
              patch("sys.stdin.isatty", return_value=True), \
              patch("kurt.utils.env_loader.load_env"), \
-             patch.object(palette, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+             patch.object(palette.engine, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
             task = asyncio.create_task(asyncio.to_thread(palette.pick_execution_default))
             try:
                 await asyncio.sleep(.05)

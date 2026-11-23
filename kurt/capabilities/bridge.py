@@ -143,7 +143,7 @@ COMPUTER_USE_TOOLS = [
      "parameters": {"x1": "integer: start x", "y1": "integer: start y", "x2": "integer: end x", "y2": "integer: end y"}},
     {"name": "clipboard", "description": "Read or write the system clipboard.",
      "parameters": {"action": "string: copy or paste", "text": "optional string: text to copy when action=copy"}},
-    {"name": "browser_action", "description": "Control Kurt's Playwright automation browser (open URL, read text, click selector/text, type into input, screenshot, list links, search, close).",
+    {"name": "browser_action", "description": "Control Kurt's HEADLESS (invisible background) Playwright browser for automated scraping/reading/testing ONLY. It NEVER opens visible tabs in the user's Chrome/Safari — use open_browser_url instead whenever the user asks to open links/tabs to view.",
      "parameters": {"action": "string: open, read, click, type, screenshot, links, search, or close", "url": "optional string: URL for open",
                     "selector": "optional string: CSS selector for click or type", "text": "optional string: visible text to click or text to type",
                     "query": "optional string: search query for search"}},
@@ -902,7 +902,7 @@ class NativeToolRouter:
                 media_defaults[kind] = media_target(kind)
             except (ValueError, OSError):
                 media_defaults[kind] = {'status': 'invalid; update settings before generation'}
-        sys_content += '\nSaved media defaults: ' + json.dumps(media_defaults) + '\nUse generate_media to create media with these defaults; call_model is for chat models.\n'
+        sys_content += '\nSaved media fallback/default targets: ' + json.dumps(media_defaults) + '\nUse generate_media: it selects a compatible generator by task when the media setting is Auto, and respects pinned media defaults. call_model is for chat models.\n'
         discovery_lines = _chat_discovery_summary()
         if discovery_lines:
             sys_content += '\n' + discovery_lines + '\n'

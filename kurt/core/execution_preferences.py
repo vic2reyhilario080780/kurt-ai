@@ -195,7 +195,7 @@ def media_label(kind, settings=None):
         target = media_target(kind, settings)
     except ValueError:
         return f"{selected} (needs catalog refresh or re-selection)"
-    prefix = "auto → " if selected == "auto" else ""
+    prefix = "auto (task-based; fallback) → " if selected == "auto" and kind in ('image','video') else "auto → " if selected == "auto" else ""
     return f"{prefix}{target['model']} [{target['provider']}]"
 
 

@@ -78,7 +78,7 @@ class MediaDefaultsTests(unittest.TestCase):
                   {"id": "fal-ai/movie", "category": "text-to-video"},
                   {"id": "fal-ai/edit", "category": "image-to-image"},
                   {"id": "fal-ai/animate", "category": "image-to-video"}]
-        with patch.object(palette, "_fal_models", return_value=models):
+        with patch.object(palette.items, "_fal_models", return_value=models):
             image = palette._media_model_items("image", "")
             video = palette._media_model_items("video", "")
         self.assertTrue(any(i.get("value") == "/image-model fal-ai/picture fal" for i in image))

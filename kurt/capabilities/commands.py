@@ -124,7 +124,11 @@ def register_commands(main_app, skill_app, plugin_app, console):
             rows = runtime.search(query, kind, limit)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        table = Table(title=f"Native workflows: {len(rows)} results (limit {limit})")
+        table = Table(
+            title=f"Native workflows: {len(rows)} results (limit {limit})",
+            caption="Deterministic & fixture-tested when run directly (library/agents run); "
+                    "AI-chosen chat usage depends on a correct tool-call, not fixture-verified.",
+        )
         table.add_column("ID", overflow="fold")
         table.add_column("Name", overflow="fold")
         for e in rows:

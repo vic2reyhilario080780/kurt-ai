@@ -13,11 +13,19 @@ class BrowserRequest:
 
 _APPS = {
     'safari': 'Safari', 'chrome': 'Google Chrome', 'google chrome': 'Google Chrome',
-    'edge': 'Microsoft Edge', 'microsoft edge': 'Microsoft Edge', 'firefox': 'Firefox',
+    'chromium': 'Chromium', 'edge': 'Microsoft Edge', 'microsoft edge': 'Microsoft Edge',
+    'firefox': 'Firefox', 'mozilla firefox': 'Firefox',
     'brave': 'Brave Browser', 'brave browser': 'Brave Browser', 'opera': 'Opera',
-    'vivaldi': 'Vivaldi', 'arc': 'Arc', 'zen': 'Zen', 'zen browser': 'Zen',
+    'opera gx': 'Opera GX', 'vivaldi': 'Vivaldi', 'arc': 'Arc',
+    'zen': 'Zen', 'zen browser': 'Zen', 'orion': 'Orion', 'duckduckgo': 'DuckDuckGo',
+    'tor': 'Tor Browser', 'tor browser': 'Tor Browser', 'waterfox': 'Waterfox',
+    'librewolf': 'LibreWolf', 'floorp': 'Floorp', 'dia': 'Dia', 'comet': 'Comet',
 }
-_TARGET = r'(?:google chrome|microsoft edge|brave browser|zen browser|web browser|browser|safari|chrome|edge|firefox|brave|opera|vivaldi|arc|zen)'
+_TARGET = (
+    r'(?:google chrome|microsoft edge|mozilla firefox|brave browser|zen browser|tor browser|'
+    r'opera gx|web browser|browser|safari|chrome|chromium|edge|firefox|brave|opera|vivaldi|'
+    r'arc|zen|orion|duckduckgo|tor|waterfox|librewolf|floorp|dia|comet)'
+)
 _PARTICLE = r'(?:mo|ka|ang|ng|yung|iyong|aking|ako|naman|nga|po|ba|bang|the|a|an|my|your|please)'
 
 
@@ -86,7 +94,10 @@ def execute_browser_request(request):
     except (ValueError, OSError, RuntimeError) as exc:
         return {'status': 'failed', 'message': f'Hindi nabuksan ang {app}: {exc}'}
     observed = result.get('observation') or {}
-    verified = result.get('status') == 'completed' and observed.get('status') == 'completed' and bool(observed.get('window_id'))
+    verified = result.get('status') == 'completed' and (
+        (observed.get('status') == 'completed' and bool(observed.get('window_id')))
+        or (result.get('visible_browser') is True and bool(result.get('focus_verified')))
+    )
     if verified:
         message = f'Nabuksan at na-verify ang {app}' + (f': {request.url}' if request.url else '.')
     else:

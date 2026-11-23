@@ -256,6 +256,86 @@ class DesktopActionTests(unittest.TestCase):
         names = {s['function']['name'] for s in final['native_tools']}
         self.assertTrue({'press_key', 'list_apps', 'open_application', 'search_web'} <= names)
 
+    def test_open_url_falls_back_to_native_macos_browser_when_peekaboo_is_missing(self):
+        from pathlib import Path
+        from kurt.core import app_launcher
+        from kurt.core.desktop_actions import _matches_browser_url
+        from kurt.core.browser_intent import BrowserRequest, execute_browser_request
+        installed = {
+            'google chrome': Path('/Applications/Google Chrome.app'),
+            'safari': Path('/System/Applications/Safari.app'),
+            'firefox': Path('/Applications/Firefox.app'),
+            'microsoft edge': Path('/Applications/Microsoft Edge.app'),
+            'brave browser': Path('/Applications/Brave Browser.app'),
+            'arc': Path('/Applications/Arc.app'),
+            'opera': Path('/Applications/Opera.app'),
+            'vivaldi': Path('/Applications/Vivaldi.app'),
+            'zen': Path('/Applications/Zen.app'),
+        }
+        cases = [
+            ('Chrome', 'Google Chrome'),
+            ('Safari', 'Safari'),
+            ('Firefox', 'Firefox'),
+            ('Mozilla Firefox', 'Firefox'),
+            ('Edge', 'Microsoft Edge'),
+            ('Microsoft Edge', 'Microsoft Edge'),
+            ('Brave', 'Brave Browser'),
+            ('Arc', 'Arc'),
+            ('Opera', 'Opera'),
+            ('Vivaldi', 'Vivaldi'),
+            ('Zen Browser', 'Zen'),
+        ]
+        fake_proc = SimpleNamespace(returncode=0, stdout='', stderr='')
+        for requested, expected_stem in cases:
+            with self.subTest(browser=requested):
+                expected_path = installed[expected_stem.casefold()]
+                with patch('kurt.core.desktop_actions.run_cli', return_value=CLIResult('peekaboo', 'missing')), \
+                     patch.object(app_launcher.sys, 'platform', 'darwin'), \
+                     patch.object(app_launcher, 'application_paths', return_value=installed), \
+                     patch.object(app_launcher.subprocess, 'run', return_value=fake_proc) as sub_run, \
+                     patch.object(app_launcher, '_native_receipt', return_value={'status': 'completed', 'app': expected_stem, 'pid': 999, 'foreground_verified': True}):
+                    result = desktop_action('open_url', app=requested, url='https://news.google.com/rss/articles/test?oc=5')
+                self.assertEqual(result['status'], 'completed')
+                self.assertTrue(result['visible_browser'])
+                self.assertTrue(result['focus_verified'])
+                self.assertEqual(result['app'], expected_stem)
+                sub_run.assert_called_once_with(
+                    ['/usr/bin/open', '-a', str(expected_path), 'https://news.google.com/rss/articles/test?oc=5'],
+                    capture_output=True, text=True, timeout=15,
+                )
+        # Cross-platform (Linux/Windows) targets the requested browser binary directly (e.g. firefox, msedge).
+        with patch('kurt.core.desktop_actions.run_cli', return_value=CLIResult('peekaboo', 'missing')), \
+             patch.object(app_launcher.sys, 'platform', 'linux'), \
+             patch.object(app_launcher.shutil, 'which', side_effect=lambda c: '/usr/bin/firefox' if c == 'firefox' else None), \
+             patch.object(app_launcher.subprocess, 'Popen') as popen:
+            res_linux = desktop_action('open_url', app='Firefox', url='https://example.org/news')
+        self.assertEqual(res_linux['status'], 'completed')
+        self.assertTrue(res_linux['visible_browser'])
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args.args[0], ['/usr/bin/firefox', 'https://example.org/news'])
+        # execute_browser_request accepts verified native LaunchServices fallback without peekaboo.
+        with patch('kurt.core.desktop_actions.run_cli', return_value=CLIResult('peekaboo', 'missing')), \
+             patch.object(app_launcher.sys, 'platform', 'darwin'), \
+             patch.object(app_launcher, 'application_paths', return_value=installed), \
+             patch.object(app_launcher.subprocess, 'run', return_value=fake_proc), \
+             patch.object(app_launcher, '_native_receipt', return_value={'status': 'completed', 'app': 'Firefox', 'pid': 999, 'foreground_verified': True}):
+            req_res = execute_browser_request(BrowserRequest('Firefox', 'https://example.org'))
+        self.assertEqual(req_res['status'], 'completed')
+        # Address-bar matching supports Chrome, Safari, Firefox, Edge, Brave, Opera, Vivaldi, Arc, Zen.
+        for label in ('Address and search bar', 'Search with Google or enter address', 'Address field', 'Smart Search Field'):
+            obs = {'elements': [{'role': 'textField', 'label': label, 'value': 'news.google.com/topstories'}]}
+            self.assertTrue(_matches_browser_url(obs, 'https://news.google.com/topstories'))
+
+    def test_headless_browser_action_explicitly_reports_invisible_to_user(self):
+        from kurt.core import agent_loop
+        fake_res = SimpleNamespace(success=True, title='News', url='https://example.com', content='hi', controls=[], links=[])
+        fake_session = SimpleNamespace(go=MagicMock(return_value=fake_res))
+        with patch('kurt.core.cli_orchestrator._get_browser_session', return_value=fake_session):
+            out = json.loads(agent_loop.execute_tool('browser_action', {'action': 'open', 'url': 'https://example.com'}))
+        self.assertTrue(out['headless'])
+        self.assertFalse(out['visible_to_user'])
+        self.assertIn('open_browser_url', out['note'])
+
 
 if __name__ == '__main__':
     unittest.main()

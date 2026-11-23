@@ -247,7 +247,7 @@ class WiringTests(unittest.TestCase):
             asyncio.run(main.stream_response(analysis, self.messages(), "test", False, False))
         self.assertEqual([c["provider"] for c in replies.calls], ["primary", "primary", "backup", "backup"])
         self.assertIn('"row_count": 8', replies.calls[2]["messages"][-1]["content"])
-        save.assert_called_once_with("test", "assistant", "Computed total: 1160.", "primary-model")
+        save.assert_called_once_with("test", "assistant", "Computed total: 1160.", "backup-model")
 
     def test_one_off_prompt_executes_through_chat_without_a_separate_ask_command(self):
         # `kurt ask`/`kurt do` were retired — a one-off prompt now goes straight

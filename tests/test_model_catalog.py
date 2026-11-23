@@ -18,7 +18,7 @@ class CatalogTests(unittest.TestCase):
         source = [{'id': f'owner/model-{i}', 'category': ['text-to-image', 'image-to-image',
                   'image-to-video', 'text-to-video', 'training', 'new-future-task', None][i % 7]}
                   for i in range(1356)]
-        with patch.object(picker, '_fal_models', return_value=source):
+        with patch.object(picker.items, '_fal_models', return_value=source):
             groups = catalog.groups('fal', source)
             self.assertEqual(sum(map(len, groups.values())), 1356)
             all_rows = picker._catalog_provider_items('fal', '', '*')
@@ -35,7 +35,7 @@ class CatalogTests(unittest.TestCase):
         source = [{'id': f'lab/text-{i}', 'architecture': {'output_modalities': ['text']}} for i in range(461)]
         source += [{'id': f'lab/media-{i}', 'architecture': {'output_modalities': ['text', 'image']}} for i in range(18)]
         source += [{'id': 'lab/unknown'}]
-        with patch.object(picker, '_openrouter_models', return_value=source):
+        with patch.object(picker.items, '_openrouter_models', return_value=source):
             rows = picker._catalog_provider_items('openrouter', '', '*')
             self.assertEqual(sum(r['kind'] == 'open' for r in rows), 480)
             self.assertEqual(sum(map(len, catalog.groups('openrouter', source).values())), 480)
@@ -48,13 +48,13 @@ class CatalogTests(unittest.TestCase):
     def test_deduplication_is_exact_id_only_and_preserves_versions(self):
         source = [{'id': 'lab/model-v1'}, {'id': 'lab/model-v2'}, {'id': 'lab/model-v1'}]
         self.assertEqual(len(catalog.unique_models(source)), 2)
-        with patch.object(picker, '_openrouter_models', return_value=source):
+        with patch.object(picker.items, '_openrouter_models', return_value=source):
             self.assertIn('2 models', picker._catalog_link('openrouter')['label'])
 
     def test_search_finds_non_default_workflows_and_details_are_browse_only(self):
         models = [{'id': 'lab/rare-edit', 'category': 'image-to-image'},
                   {'id': 'lab/training', 'category': 'training'}]
-        with patch.object(picker, '_fal_models', return_value=models), patch.object(picker, '_openrouter_models', return_value=[]):
+        with patch.object(picker.items, '_fal_models', return_value=models), patch.object(picker.items, '_openrouter_models', return_value=[]):
             rows = picker._catalog_root_items('rare-edit')
             self.assertEqual(len(rows), 1)
             state = picker._PaletteState(view=rows[0]['target'])
@@ -66,14 +66,14 @@ class CatalogTests(unittest.TestCase):
 
     def test_model_details_use_existing_commands_and_settings_hide_session_action(self):
         model = {'id': 'lab/chat', 'architecture': {'output_modalities': ['text']}}
-        with patch.object(picker, '_openrouter_models', return_value=[model]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[model]):
             rows = picker._catalog_model_items('openrouter', model['id'], settings_only=True)
         self.assertEqual([r['value'] for r in rows if r['kind'] == 'leaf'], ['/model default lab/chat openrouter'])
         self.assertEqual(catalog.default_roles('fal', {'id': 'lab/edit', 'category': 'image-to-image'}), [])
         self.assertEqual(catalog.default_roles('fal', {'id': 'lab/image', 'category': 'text-to-image'}), ['image'])
 
     def test_menus_link_to_complete_catalog_without_changing_compatible_defaults(self):
-        with patch.object(picker, '_openrouter_models', return_value=[]), patch.object(picker, '_fal_models', return_value=[]):
+        with patch.object(picker.items, '_openrouter_models', return_value=[]), patch.object(picker.items, '_fal_models', return_value=[]):
             self.assertEqual(picker.OPEN_TARGETS['/models'], 'model_catalog')
             for rows, provider in ((picker._model_items(''), 'openrouter'),
                                    (picker._default_model_items(''), 'openrouter'),
@@ -144,11 +144,11 @@ class CatalogInteractionTests(unittest.IsolatedAsyncioTestCase):
         from prompt_toolkit.output import DummyOutput
         real_session = picker.PromptSession
         models = [{'id': 'lab/edit', 'category': 'image-to-image'}, {'id': 'lab/image', 'category': 'text-to-image'}]
-        with create_pipe_input() as pipe, patch.object(picker, '_fal_models', return_value=models), \
-             patch.object(picker, 'refresh_model_catalogs', return_value='Catalogs loaded: fal.ai 2.') as refresh, \
+        with create_pipe_input() as pipe, patch.object(picker.items, '_fal_models', return_value=models), \
+             patch.object(picker.engine, 'refresh_model_catalogs', return_value='Catalogs loaded: fal.ai 2.') as refresh, \
              patch('kurt.models.providers.provider_key', return_value='synthetic-key'), \
              patch('kurt.models.providers.confirm_byok') as confirm, \
-             patch.object(picker, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+             patch.object(picker.engine, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
             session, state = picker._build_session()
             state.is_open, state.settings_only = True, True
             state.view = 'catalog_provider:fal'

@@ -56,7 +56,7 @@ class ConnectorSetupTests(unittest.TestCase):
 
     def test_mcp_list_contains_platforms_and_does_not_hide_same_short_names(self):
         entries = [{"id": "org/github", "description": "", "configs": []}]
-        with patch.object(palette, "_catalog_entries", return_value=entries):
+        with patch.object(palette.items, "_catalog_entries", return_value=entries):
             items = palette._mcp_items("")
         targets = {i.get("target") for i in items}
         self.assertTrue({"connectors", "zapier", "n8n", "connector:mcp:org/github"} <= targets)
@@ -64,7 +64,7 @@ class ConnectorSetupTests(unittest.TestCase):
     def test_recipe_choices_and_links_available_even_without_recipe(self):
         entry = {"id": "org/app", "configs": [{"type": "http"}, {"type": "stdio", "command": "uvx"}],
                  "website": "https://example.org", "repository": "https://github.com/org/app"}
-        with patch.object(palette, "_catalog_entries", return_value=[entry]):
+        with patch.object(palette.items, "_catalog_entries", return_value=[entry]):
             items = palette._connector_detail_items("mcp", "org/app", "")
             self.assertTrue(any(i.get("value") == "/mcp authorize org/app --variant 1" for i in items))
             entry["configs"] = []
@@ -175,7 +175,7 @@ class PickerInteractionTests(unittest.IsolatedAsyncioTestCase):
         from prompt_toolkit.output import DummyOutput
         real_session = palette.PromptSession
         with create_pipe_input() as pipe:
-            with patch.object(palette, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+            with patch.object(palette.engine, "PromptSession", lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
                 session, state = palette._build_session()
             state.is_open = True
             state.view = "connector:composio:gmail"

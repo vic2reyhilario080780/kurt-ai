@@ -8,8 +8,12 @@ from kurt.utils.security import redact
 
 def media_plan(kind):
     from kurt.core.router import ModelRouter
-    target = media_target(kind)
+    from kurt.core.persona import load_persona
+    settings = load_persona()
+    target = media_target(kind,settings)
+    mode = 'auto' if settings.get(f'default_{kind}_model','auto') == 'auto' and kind in ('image','video') else 'saved default'
     return {'kind': kind, **target, 'key_configured': ModelRouter()._has_key(target['provider']),
+            'routing':mode, 'selection_note':'Auto target is a fallback; task selection occurs only during generation.' if mode=='auto' else 'Uses the saved generator.',
             'note': 'Configured routing only; provider credits and successful generation are not verified.'}
 
 

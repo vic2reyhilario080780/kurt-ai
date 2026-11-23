@@ -1,0 +1,268 @@
+{
+  "method": "Neutral persona, empty history/memory; no private session replay; first completion only; no tools executed.",
+  "request_evidence": {
+    "calculus_baseline": {
+      "model": "mistral-small-latest",
+      "temperature": 0.3,
+      "stream": true,
+      "roles": [
+        "system",
+        "system",
+        "user"
+      ],
+      "system_sha256": [
+        "0646f8ad4a0cd22266277d51fd6cae0ef3377c6004a71197b09c5427dbfe91b9",
+        "d39ed0fbd1d7cca80a986589b34c143e3eaad8b61369a319f90cab8578f8b9ef"
+      ],
+      "custom_rigor_present": false,
+      "tool_count": 60,
+      "tool_choice": "auto",
+      "parallel_tool_calls": false,
+      "unset_settings": [
+        "max_tokens",
+        "top_p",
+        "random_seed",
+        "reasoning_effort"
+      ]
+    },
+    "calculus_fixed": {
+      "model": "mistral-small-latest",
+      "temperature": 0.3,
+      "stream": true,
+      "roles": [
+        "system",
+        "system",
+        "user"
+      ],
+      "system_sha256": [
+        "0646f8ad4a0cd22266277d51fd6cae0ef3377c6004a71197b09c5427dbfe91b9",
+        "08176d4948bc46014552c25873e8b853e8c6d4e5325056da0626f4fb640a7580"
+      ],
+      "custom_rigor_present": true,
+      "tool_count": 60,
+      "tool_choice": "auto",
+      "parallel_tool_calls": false,
+      "unset_settings": [
+        "max_tokens",
+        "top_p",
+        "random_seed",
+        "reasoning_effort"
+      ]
+    },
+    "fresh_baseline": {
+      "model": "mistral-small-latest",
+      "temperature": 0.3,
+      "stream": true,
+      "roles": [
+        "system",
+        "system",
+        "user"
+      ],
+      "system_sha256": [
+        "0646f8ad4a0cd22266277d51fd6cae0ef3377c6004a71197b09c5427dbfe91b9",
+        "d39ed0fbd1d7cca80a986589b34c143e3eaad8b61369a319f90cab8578f8b9ef"
+      ],
+      "custom_rigor_present": false,
+      "tool_count": 60,
+      "tool_choice": "auto",
+      "parallel_tool_calls": false,
+      "unset_settings": [
+        "max_tokens",
+        "top_p",
+        "random_seed",
+        "reasoning_effort"
+      ]
+    },
+    "fresh_fixed": {
+      "model": "mistral-small-latest",
+      "temperature": 0.3,
+      "stream": true,
+      "roles": [
+        "system",
+        "system",
+        "user"
+      ],
+      "system_sha256": [
+        "0646f8ad4a0cd22266277d51fd6cae0ef3377c6004a71197b09c5427dbfe91b9",
+        "08176d4948bc46014552c25873e8b853e8c6d4e5325056da0626f4fb640a7580"
+      ],
+      "custom_rigor_present": true,
+      "tool_count": 60,
+      "tool_choice": "auto",
+      "parallel_tool_calls": false,
+      "unset_settings": [
+        "max_tokens",
+        "top_p",
+        "random_seed",
+        "reasoning_effort"
+      ]
+    }
+  },
+  "runs": [
+    {
+      "label": "calculus_baseline:kurt:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 8472,
+      "answer_sha256": "922419666bd31fc7aec3013b1404ccdbdb41f9f72a297d288b159fd3adc7baf1"
+    },
+    {
+      "label": "calculus_baseline:kurt:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 9213,
+      "answer_sha256": "5155263749ad899697faa4fa9b9ece29dff8d08814d6ad79aec5604e3b4a833c"
+    },
+    {
+      "label": "calculus_baseline:direct:1",
+      "response_models": [
+        "mistral-small-latest"
+      ],
+      "tool_call_requested": false,
+      "wire_equal_to_capture": true,
+      "answer_chars": 10725,
+      "answer_sha256": "25aa96e54bd71a0ad5a3eb01484b077d82b32cc5818b65ba2aa0d98cca4c241d"
+    },
+    {
+      "label": "calculus_baseline:direct:2",
+      "response_models": [
+        "mistral-small-latest"
+      ],
+      "tool_call_requested": false,
+      "wire_equal_to_capture": true,
+      "answer_chars": 10864,
+      "answer_sha256": "000c6e40093a0d4ea71416cd32df206279e864458bb6378b30444d2d8f6fadc1"
+    },
+    {
+      "label": "calculus_fixed:kurt:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 11612,
+      "answer_sha256": "5b3252a3c2d1e176f1c017488a706aaa21b45f2c794aedca32745bc58289f9c0"
+    },
+    {
+      "label": "calculus_fixed:kurt:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 11664,
+      "answer_sha256": "afa96809da84a7bb66e6eb3679e87cdc075cea31641dccf91daab9b86687a4f6"
+    },
+    {
+      "label": "fresh_baseline:kurt:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 425,
+      "answer_sha256": "822f64b041d2f79f53cf989a78b1709ee472f7e4184c013ce648f19433dbbab9"
+    },
+    {
+      "label": "fresh_baseline:kurt:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 345,
+      "answer_sha256": "e67206bc2eb8eef6966ca716436832b09a83d656f9b25399cbd02fb044ee9b3c"
+    },
+    {
+      "label": "fresh_fixed:kurt:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 4069,
+      "answer_sha256": "bde3adc0d7297fdb01b3724bd24ed6f62f58cc37d94a54e7c04b610f4d6d26ce"
+    },
+    {
+      "label": "fresh_fixed:kurt:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 2672,
+      "answer_sha256": "d8766d4425b76e5edcc60203b35755c3500e4349ff10e4f66a45d54ce76b0162"
+    },
+    {
+      "label": "calculus_baseline:verify:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 20815,
+      "answer_sha256": "4d27f6ad184c9dc0549ff36bc478437f49a6b668114719fab5f80d6f68b997b4"
+    },
+    {
+      "label": "calculus_baseline:verify:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 4873,
+      "answer_sha256": "4a8390d1317f90d76db288fe2b04c7833fc0185c6f4787c79086e2717f3cf0ca"
+    },
+    {
+      "label": "fresh_baseline:verify:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 1732,
+      "answer_sha256": "b616d4bf6dd0ed07e6474c02ae0e5a1c60cfafd1d463109289692778a1ad0fd0"
+    },
+    {
+      "label": "fresh_baseline:verify:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 593,
+      "answer_sha256": "eb197024d987d3ccc391ec9955235f5bb554d13a0b8c1698992cf95ca4069a8c"
+    },
+    {
+      "label": "fresh_baseline:no_tools:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 1620,
+      "answer_sha256": "3c3087dd5c5eb24aae40b3ec4cc145e29edaad360ec8df0d5634a878b380103d"
+    },
+    {
+      "label": "fresh_baseline:no_tools:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 1553,
+      "answer_sha256": "2749ba52f5ccffbd7cb5739836c2d891408cfa89b7151be07f76d5114aedb9f7"
+    },
+    {
+      "label": "fresh_fixed:no_tools:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 5893,
+      "answer_sha256": "c599da520c347e21a391f9200696c0ca8694f6a3778ece3ed7640b4b604187b0"
+    },
+    {
+      "label": "fresh_fixed:no_tools:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 2330,
+      "answer_sha256": "cf374c6f567dede0d12b56346fc01c46e6bbe3dce7bad044f07c083da48a2039"
+    },
+    {
+      "label": "calculus_supplied_answer:verify:1",
+      "wire_equal_to_capture": true,
+      "answer_chars": 4652,
+      "answer_sha256": "0bce0a611f6655594df0a51ce4bdf4c109c1e267100990ea74c192103a2d5928"
+    },
+    {
+      "label": "calculus_supplied_answer:verify:2",
+      "wire_equal_to_capture": true,
+      "answer_chars": 3736,
+      "answer_sha256": "ca22804c5c3b7a1ac5c4770207930e849f3e786d06dda0c149494e8e74c3a5e3"
+    }
+  ],
+  "numerical_check": [
+    {
+      "n": 2.0,
+      "I_n": 0.6158754601584532,
+      "quadrature_128_256_difference": 4.440892098500626e-16,
+      "sqrt_n_I_n": 0.8709794284888553,
+      "n_squared_R": -0.37076464415264
+    },
+    {
+      "n": 10.0,
+      "I_n": 0.471477599264243,
+      "quadrature_128_256_difference": 2.7755575615628914e-16,
+      "sqrt_n_I_n": 1.4909430794231353,
+      "n_squared_R": -0.4254989495308392
+    },
+    {
+      "n": 100.0,
+      "I_n": 0.23260917108384455,
+      "quadrature_128_256_difference": 3.0531133177191805e-16,
+      "sqrt_n_I_n": 2.3260917108384453,
+      "n_squared_R": -0.47272246091606407
+    },
+    {
+      "n": 1000.0,
+      "I_n": 0.09179623381104952,
+      "quadrature_128_256_difference": 1.3877787807814457e-16,
+      "sqrt_n_I_n": 2.9028517946827517,
+      "n_squared_R": -0.49090025945608406
+    },
+    {
+      "n": 10000.0,
+      "I_n": 0.03234998749698886,
+      "quadrature_128_256_difference": 8.326672684688674e-17,
+      "sqrt_n_I_n": 3.234998749698886,
+      "n_squared_R": -0.49707064506132603
+    }
+  ]
+}

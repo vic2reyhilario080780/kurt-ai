@@ -124,8 +124,9 @@ def completion_text(receipt):
         reason = receipt.get('reason') or 'No verified output file is available.'
         return 'Hindi pa verified na tapos ang generation. '+str(reason)+' Hindi ko ito awtomatikong uulitin; tingnan muna ang provider job status.'
     source = 'May reference image na ipinasa sa provider.' if receipt.get('reference_used') else 'Text-only generation; walang reference image na ginamit.'
+    routing = f"Routing: {receipt['routing']}\n" if receipt.get('routing') else ''
     return (f"Na-download at na-check ang {receipt['kind']} file: {receipt['path']}\n"
-            f"Model: {receipt['model']} [{receipt['provider']}]\n{source}\n"
+            f"Model: {receipt['model']} [{receipt['provider']}]\n{routing}{source}\n"
             'Hindi pa na-verify ang eksaktong visual content o sinabing dialogue; i-preview muna ang file.')
 
 

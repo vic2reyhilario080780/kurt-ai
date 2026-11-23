@@ -134,7 +134,7 @@ class SavedDefaultsTests(unittest.TestCase):
 
     def test_pickers_offer_saved_model_and_cli_actions(self):
         from kurt.core import command_palette as cp
-        with patch.object(cp, "_openrouter_models", return_value=[{"id": "openai/example", "architecture": {"output_modalities": ["text"]}}]):
+        with patch.object(cp.items, "_openrouter_models", return_value=[{"id": "openai/example", "architecture": {"output_modalities": ["text"]}}]):
             self.assertTrue(any(i.get("value") == "/model default openai/example openrouter" for i in cp._default_model_items("")))
         self.assertTrue(any(i.get("value") == "/cli default codex" for i in cp._cli_default_items("codex")))
         self.assertEqual(next(i for i in cp._config_items("model"))["target"], "default_models")

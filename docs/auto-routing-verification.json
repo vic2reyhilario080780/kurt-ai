@@ -1,0 +1,74 @@
+{
+  "method": "Selector only; public/synthetic prompts; no private history/persona; no selected task execution.",
+  "candidate_count": 25,
+  "cases": [
+    {
+      "case": "simple_chat",
+      "prompt_sha256": "6857e242a0d63049a0675aa4028f2f1e114d30c9857452a5f3e54fceb4b74ef7",
+      "provider": "google",
+      "model": "gemini-3.5-flash-lite",
+      "reason": "Auto: general/simple",
+      "selector_diagnostics": [
+        {
+          "chars": 62,
+          "shape": [
+            "candidate_id",
+            "task",
+            "complexity"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "complex_proof",
+      "prompt_sha256": "183bb59fe1609e5ddf8e9d21052b2ee006630188187286cdc1b0507a4cbad2fc",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "reason": "Auto: reasoning/complex",
+      "selector_diagnostics": [
+        {
+          "chars": 65,
+          "shape": [
+            "candidate_id",
+            "task",
+            "complexity"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "debugging",
+      "prompt_sha256": "72647de0ed162758a7095dc2ae58d001f20dcf426679bbc6768891f2aaad1222",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "reason": "Auto: coding/complex",
+      "selector_diagnostics": [
+        {
+          "chars": 62,
+          "shape": [
+            "candidate_id",
+            "task",
+            "complexity"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "context_followup",
+      "prompt_sha256": "b65b592689862d879d4d125b13406cd30e62eec138d8616784f64aa6d6834621",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "reason": "Auto: reasoning/complex",
+      "selector_diagnostics": [
+        {
+          "chars": 65,
+          "shape": [
+            "candidate_id",
+            "task",
+            "complexity"
+          ]
+        }
+      ]
+    }
+  ]
+}

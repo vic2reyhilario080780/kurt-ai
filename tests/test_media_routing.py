@@ -27,7 +27,7 @@ class MediaRoutingTests(unittest.TestCase):
             context = patch.object(persona, key, value); context.start(); self.addCleanup(context.stop)
 
     def select(self, kind, query):
-        with patch.object(palette, '_fal_models', return_value=[]):
+        with patch.object(palette.items, '_fal_models', return_value=[]):
             row = next(r for r in palette._media_model_items(kind, query) if r.get('kind') == 'leaf' and query in r['label'])
         result = handle_slash(row['value'], 'test', 'auto', None)
         self.assertIn('saved', result.output)

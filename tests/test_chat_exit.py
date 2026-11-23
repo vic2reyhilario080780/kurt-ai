@@ -16,7 +16,7 @@ class ExitKeyboardTests(unittest.IsolatedAsyncioTestCase):
         real_session = palette.PromptSession
         for keys, expected in [('/\x7fexit\r', 'exit'), ('/cli\rexit\r', '/exit'), ('/setting\r\x15exit\r', 'exit')]:
             with self.subTest(keys=keys), create_pipe_input() as pipe, \
-                 patch.object(palette, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
+                 patch.object(palette.engine, 'PromptSession', lambda **kw: real_session(input=pipe, output=DummyOutput(), **kw)):
                 session, state = palette._build_session()
                 task = asyncio.create_task(session.prompt_async())
                 try:

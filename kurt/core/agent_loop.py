@@ -861,10 +861,17 @@ def _execute_tool(tool_name: str, params: dict) -> str:
             session = _get_browser_session()
             if act == "open":
                 res = session.go(params.get("url", ""))
-                return json.dumps({"status": "observed", "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links}, ensure_ascii=False) if res.success else f"❌ {res.error}"
+                return json.dumps({
+                    "status": "observed", "headless": True, "visible_to_user": False,
+                    "note": "Opened in Kurt's invisible headless Playwright browser, NOT in the user's visible Chrome/Safari. Use open_browser_url to open visible tabs for the user.",
+                    "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links,
+                }, ensure_ascii=False) if res.success else f"❌ {res.error}"
             if act == "read":
                 res = session.read()
-                return json.dumps({"status": "observed", "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links}, ensure_ascii=False) if res.success else f"❌ {res.error}"
+                return json.dumps({
+                    "status": "observed", "headless": True, "visible_to_user": False,
+                    "title": res.title, "url": res.url, "content": res.content[:4000], "controls": res.controls, "links": res.links,
+                }, ensure_ascii=False) if res.success else f"❌ {res.error}"
             if act == "click":
                 ok = session.click(selector=params.get("selector"), text=params.get("text"))
                 if not ok:
